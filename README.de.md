@@ -235,7 +235,7 @@ dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
 **Ehrliche Grenzen:**
 - Geprüft wird mit dem eigenen Preflight, nicht mit einem zertifizierten Prüfwerkzeug wie Acrobat Preflight.
 - Format, Seitenzahl, Bindung und Papier legt die Druckerei fest; das gleicht Lichtjahr nicht ab.
-- Formate, die der Dienst nicht lesen kann (HEIC, RAW), vorher in JPEG umwandeln; Fotos ohne Farbprofil gelten als sRGB.
+- iPhone-Fotos im HEIC-Format gehen mit dem lokalen Dienst und seiner optionalen Erweiterung `heic`; RAW-Dateien vorher umwandeln. Fotos ohne Farbprofil gelten als sRGB.
 - Die Druckansicht ist nur so genau wie der Bildschirm. Auf einem unkalibrierten Laptop zeigt sie die Richtung (stumpfer, dunkler, Papierton), nicht den exakten Farbton.
 
 **Für den Druck angepasst:** Papier leuchtet nicht wie ein Bildschirm und hat weniger Kontrast. Mit *Fotos an Papier und Druck anpassen* (standardmäßig an) hebt der Dienst die Mitteltöne leicht an, öffnet die Tiefen und schärft die Fotos für den Druck. Wie stark, hängt vom Druckprofil ab: auf Naturpapier mit seinem helleren Schwarz mehr als auf gestrichenem. Hintergrund und Flächen bleiben unverändert, die Druckansicht zeigt das Ergebnis. Eine automatische Bildkorrektur der Druckerei dann ausschalten, damit nichts doppelt korrigiert wird.

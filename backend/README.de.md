@@ -17,6 +17,7 @@ cd backend
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e .
+pip install -e ".[heic]"     # optional: HEIC/HEIF-Fotos vom iPhone (pillow-heif, bringt libheif unter LGPL mit)
 ```
 
 ## Benutzung
@@ -219,4 +220,6 @@ Die Tests decken unter anderem ab:
 
 ## Ausblick
 
-- HEIC (iPhone) direkt lesen, ohne vorherige Umwandlung in JPEG.
+- Erkennen, wer auf den Fotos ist („wer ist wie oft drauf“), weiterhin ganz lokal.
+
+HEIC und TIFF: Mit der Erweiterung `heic` liest der Dienst iPhone-Fotos direkt (Vorschau, Gesichter, Druck aus dem Original samt Display P3). Browser können HEIC und TIFF nicht dekodieren, darum liefert `/original` solche Dateien als JPEG in voller Größe mit dem Farbprofil des Fotos (zwischengespeichert).

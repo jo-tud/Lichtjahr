@@ -235,7 +235,7 @@ redistribute the ECI and Adobe profiles, but embedding them in the PDF is allowe
 **Honest limits:**
 - Checking is done by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 - Format, page count, binding and paper are set by the print shop; Lichtjahr does not verify them against its requirements.
-- Photos in formats the service can't read (HEIC, RAW) need converting to JPEG first; photos without a color profile count as sRGB.
+- iPhone photos in HEIC work with the local service and its optional `heic` extension; RAW files need converting first. Photos without a color profile count as sRGB.
 - The soft proof is only as accurate as your screen. On an uncalibrated laptop it shows the direction (duller, darker, paper tint), not the exact shade.
 
 **Adapted for print:** Paper doesn't glow like a screen and has less contrast. With *Adapt photos to paper and print* (on by default) the service lifts the midtones slightly, opens up the shadows and sharpens the photos for print. How much depends on the print profile: more on uncoated paper with its lighter black than on coated paper. Background and panels stay untouched, and the print preview shows the result. Switch off any automatic image correction at the print shop so nothing gets corrected twice.

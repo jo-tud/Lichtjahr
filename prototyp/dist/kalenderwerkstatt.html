@@ -1313,7 +1313,6 @@ Object.assign(EN, {
   'Datei': 'File',
   '{n} Datei': '{n} file',
   '{n} Dateien': '{n} files',
-  'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.': 'This browser can’t read HEIC photos from an iPhone. On the iPhone, go to Settings → Camera → Formats and choose “Most Compatible”, or share the photos as JPEG. In Safari, importing usually works directly.',
   'Andere Dateien sind vermutlich beschädigt oder keine Fotos.': 'Other files are probably damaged or not photos.',
   'Verstanden': 'Got it',
   'Fotos auf die Seiten bringen': 'Put photos on the pages',
@@ -1602,6 +1601,8 @@ Object.assign(EN, {
   'Vergleichen': 'Compare',
   'Nur Fotos mit {name}': 'Only photos with {name}',
   'Alle Fotos zeigen': 'Show all photos',
+  'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Mit dem lokalen Dienst gehen sie direkt, in Safari meist auch; sonst am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen.': 'This browser can’t read HEIC photos from an iPhone. With the local service they work directly, usually in Safari too; otherwise go to Settings → Camera → Formats on the iPhone and choose “Most Compatible”, or share the photos as JPEG.',
+  'Für HEIC-Fotos braucht der lokale Dienst seine Erweiterung: pip install "lichtjahr[heic]".': 'For HEIC photos, the local service needs its extension: pip install "lichtjahr[heic]".',
 });
 /* ---------- CMYK-JPEG-Encoder (Baseline, 4 Kanäle, ohne Unterabtastung) ---------- */
 const JPEG = (() => {
@@ -3288,7 +3289,7 @@ function renderPhotos() {
     </div>
     ${(ui.importErrors || []).length ? `<section class="card notice"><header><h2>${_t('{files} nicht geöffnet', { files: _t(ui.importErrors.length === 1 ? '{n} Datei' : '{n} Dateien', { n: ui.importErrors.length }) })}</h2>
       <p>${ui.importErrors.slice(0, 6).map(esc).join(', ')}${ui.importErrors.length > 6 ? ' …' : ''}</p></header>
-      <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.') + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
+      <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? (SVC.pid ? _t('Für HEIC-Fotos braucht der lokale Dienst seine Erweiterung: pip install "lichtjahr[heic]".') : _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Mit dem lokalen Dienst gehen sie direkt, in Safari meist auch; sonst am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen.')) + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
       <div class="row"><button class="btn small" data-act="clearerr">${_t('Verstanden')}</button></div></section>` : ''}
     ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>${_t('Fotos auf die Seiten bringen')}</h2><p class="hint">${_t('Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.')}</p></div><button class="btn primary" data-act="autodesign">${_t('Kalender automatisch gestalten')}</button></section>` : ''}
     ${pf ? `<div class="person-filter">${_t('Nur Fotos mit {name}', { name: esc(ui.personName || '') })} <button class="btn small" data-act="personclear">${_t('Alle Fotos zeigen')}</button></div>` : seriesCard() + peopleCard()}

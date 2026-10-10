@@ -27,6 +27,7 @@ from . import faces as facedet
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
+from .media import BROWSER_EXT, browser_copy
 from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
                        print_tune, proof_colors, proof_image)
 from .project import Project, ProjectError, RevisionConflict
@@ -463,8 +464,22 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/original")
     def original(project_id: str, asset_id: str):
+        """Originaldatei; HEIC und TIFF als JPEG in voller Größe, weil Browser sie nicht lesen (zwischengespeichert)."""
         p = get_project(project_id)
         a = asset_or_404(p, asset_id)
+        if os.path.splitext(a.path)[1].lower() not in BROWSER_EXT:
+            path = os.path.join(p.cache_dir, "browser", a.contentHash[:2], a.contentHash + ".jpg")
+            if not os.path.exists(path):
+                try:
+                    data, _ = p.storage.read(a.path)
+                except NotFound:
+                    raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+                with open(tmp, "wb") as fh:
+                    fh.write(browser_copy(data))
+                os.replace(tmp, path)
+            return FileResponse(path, media_type="image/jpeg")
         local = p.storage.local_path(a.path)
         if local and os.path.exists(local):
             return FileResponse(local)
