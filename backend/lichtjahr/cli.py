@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> None:
     i.add_argument("path")
     i.add_argument("--year", type=int, default=date.today().year + 1, help="Kalenderjahr (Standard: nächstes Jahr)")
     i.add_argument("--source-year", type=int, help="Jahr, aus dem die Fotos stammen (Standard: Kalenderjahr − 1)")
-    i.add_argument("--title", help="Titel (Standard: „Family calendar“ bzw. „Familienkalender“)")
+    i.add_argument("--title", help="Titel (Standard: „Family Calendar“ bzw. „Familienkalender“)")
     i.add_argument("--language", choices=["en", "de"], help="Sprache der Ordnernamen (Standard: Systemsprache)")
     i.set_defaults(func=cmd_init)
 

@@ -34,7 +34,8 @@
   „zertifiziert“ bezeichnen: geprüft wird mit dem eigenen Preflight. Keine ECI- oder Adobe-Profile ins Repo.
 - Vor einem Push im Browser testen (Playwright mit Chromium ist in der Cloud-Umgebung vorhanden),
   Desktop und Handy-Größe, und das exportierte PDF rendern.
-- Wenn sich das Aussehen deutlich ändert: `node tools/screenshots.cjs` erneuert die Bilder im README.
+- Wenn sich das Aussehen deutlich ändert: `node tools/screenshots.cjs` und `node tools/screenshots-dienst.cjs`
+  erneuern die Bilder im README (Englisch und Deutsch).
 - Anbindung an den Dienst in `src/b1_service.js` (nur aktiv, wenn die Seite vom Dienst kommt). Nach Änderungen
   an Dienst oder Anbindung `node tools/e2e-dienst.cjs` laufen lassen (startet den Dienst mit Testfotos).
 

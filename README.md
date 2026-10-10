@@ -68,7 +68,7 @@ of the picture. A starting point in seconds instead of hours.
 
 16 templates to start with, then move frames, scale them by their corners, overlap, rotate and duplicate
 them – snapping to edges, the center and neighboring frames. Double-click to adjust the crop: slide the
-photo under the frame, zoom, "Fill" or "Fit".
+photo under the frame, zoom, "Fill" or "Show whole".
 
 </td>
 <td><img src="docs/images/rahmen.webp" alt="Selected frame with handles and toolbar"></td>
@@ -78,7 +78,7 @@ photo under the frame, zoom, "Fill" or "Fit".
 
 ### The calendar grid finds its own spot
 
-"Find spot automatically" analyzes the photo: where is there little detail, where is the brightness even?
+"Find a spot automatically" analyzes the photo: where is there little detail, where is the brightness even?
 That is where the calendar grid goes, in a fitting shape (strip, column, grid), with a legible text color
 and a backdrop if needed – for one page or all months at once.
 
@@ -248,7 +248,7 @@ GitHub Pages), it works in the browser only, as before.
 | [`prototyp/`](prototyp) | The user interface: vanilla JavaScript with no framework and no build dependencies. Pages are described in millimeters and drawn from that as SVG (editor) and as PDF (export). Its own CMYK JPEG encoder and PDF writer. |
 | [`backend/`](backend) | The local service: Python, FastAPI, Pillow. Storage adapter with atomic operations, project lock with lease, manifest with revision and ETag, journal for file moves. |
 | [`docs/`](docs) | UX review and the images for this README. |
-| [`tools/`](tools) | `screenshots.cjs` creates the images in `docs/images/`, `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations. |
+| [`tools/`](tools) | `screenshots.cjs` and `screenshots-dienst.cjs` create the images in `docs/images/` (English) and `docs/images/de/` (German), `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations. |
 
 <details>
 <summary>Prototype files</summary>
@@ -265,7 +265,7 @@ GitHub Pages), it works in the browser only, as before.
 | `src/a6_editor.js` | Dragging, zooming and moving in the editor |
 | `src/a7_export.js` | PDF export and startup |
 | `src/a8_wall.js` | "On the wall" view |
-| `src/a9_place.js` | Image analysis for "Find spot automatically" |
+| `src/a9_place.js` | Image analysis for "Find a spot automatically" |
 | `src/b1_service.js` | Connection to the local service: project selection, lock, saving, sync, upload |
 | `src/b2_print.js` | Print PDF via the local service: print profile, export, check report |
 | `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |

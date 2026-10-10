@@ -36,7 +36,7 @@ lichtjahr serve ~/Pictures/Calendar-2027              # start the service and op
 ```
 
 After that, just put photos into the month folders – bit by bit and with other programs, too. The app
-syncs automatically when it opens and whenever you return to its window ("Sync folder" also works by
+syncs automatically when it opens and whenever you return to its window ("Sync folders" also works by
 hand): new files are added, moved ones are recognized, missing ones are reported.
 
 ### What happens in the app
@@ -48,8 +48,8 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 | Copy for an additional month | A separate file in the second month folder |
 | Remove a photo | Only set aside, the file stays where it is; you can bring it back at any time |
 | Design, captions, favorites | `lichtjahr.json`, saved automatically |
-| Create Print PDF | `Export/Family-calendar-2027-Print.pdf` (PDF/X-1a, with check report) |
-| Create Draft PDF | `Export/Family-calendar-2027-Draft.pdf` |
+| Create Print PDF | `Export/Family-Calendar-2027-Print.pdf` (PDF/X-1a, with check report) |
+| Create Draft PDF | `Export/Family-Calendar-2027-Draft.pdf` |
 
 ### From your phone on the home network
 

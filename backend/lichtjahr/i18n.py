@@ -138,5 +138,5 @@ EN = {
     "API-Dokumentation: {url}": "API documentation: {url}",
     "Projekt „{title}“ für {year} angelegt in {root}": "Project “{title}” for {year} created in {root}",
     "Fotos in die Monatsordner unter {photos}/ legen oder später in der App hinzufügen.": "Put photos into the month folders under {photos}/ or add them later in the app.",
-    "Familienkalender": "Family calendar",
+    "Familienkalender": "Family Calendar",
 }

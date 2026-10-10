@@ -249,7 +249,7 @@ arbeitet sie wie bisher nur im Browser.
 | [`prototyp/`](prototyp) | Die Oberfläche: Vanilla JavaScript ohne Framework und ohne Build-Abhängigkeiten. Seiten werden in Millimetern beschrieben und daraus als SVG (Editor) und als PDF (Export) gezeichnet. Eigener CMYK-JPEG-Encoder und PDF-Writer. |
 | [`backend/`](backend) | Der lokale Dienst: Python, FastAPI, Pillow. Speicher-Adapter mit atomaren Operationen, Projektsperre mit Lease, Manifest mit Revision und ETag, Journal für Dateiverschiebungen. |
 | [`docs/`](docs) | UX-Prüfung und die Bilder für dieses README. |
-| [`tools/`](tools) | `screenshots.cjs` erzeugt die Bilder in `docs/images/`, `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser, `i18n-check.cjs` findet fehlende englische Übersetzungen. |
+| [`tools/`](tools) | `screenshots.cjs` und `screenshots-dienst.cjs` erzeugen die Bilder in `docs/images/` (Englisch) und `docs/images/de/` (Deutsch), `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser, `i18n-check.cjs` findet fehlende englische Übersetzungen. |
 
 <details>
 <summary>Dateien des Prototyps</summary>

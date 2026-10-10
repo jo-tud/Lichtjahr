@@ -83,8 +83,9 @@ pytest
   (e.g. a browser and a PDF viewer).
 - For changes to the service or its connection (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
   starts the service with test photos and runs through the most important workflows in the browser.
-- If the look has changed: `node tools/screenshots.cjs` regenerates the README images
-  (both scripts need Playwright with Chromium and Python with Pillow; `i18n-check.cjs` needs Playwright).
+- If the look has changed: `node tools/screenshots.cjs` (browser-only views) and `node tools/screenshots-dienst.cjs`
+  (views that need the local service) regenerate the README images in English and German
+  (these scripts need Playwright with Chromium and Python with Pillow; `i18n-check.cjs` needs Playwright).
 
 CI on GitHub runs the tests and the build automatically for every pull request.
 

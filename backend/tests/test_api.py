@@ -127,7 +127,7 @@ def test_serve_with_path_registers_project(tmp_path, monkeypatch, capsys):
 def test_languages_messages_and_folder_names(tmp_path):
     c = client(tmp_path)
     en = c.post("/api/projects", json={"path": str(tmp_path / "Calendar"), "calendarYear": 2027})
-    assert en.status_code == 200 and en.json()["title"] == "Family calendar" and en.json()["language"] == "en"
+    assert en.status_code == 200 and en.json()["title"] == "Family Calendar" and en.json()["language"] == "en"
     assert (tmp_path / "Calendar" / "Photos" / "03 March").is_dir() and (tmp_path / "Calendar" / "Photos" / "No month").is_dir()
     assert en.json()["storage"]["folders"]["months"][11] == "12 December"
     de = c.post("/api/projects", json={"path": str(tmp_path / "Kalender")}, headers={"Accept-Language": "de-DE,de;q=0.9"})
