@@ -44,6 +44,7 @@ function onBind(el, final) {
 document.addEventListener('input', (e) => {
   const el = e.target;
   if (el.dataset.bind) { if (el.type === 'range' || el.type === 'text' || el.tagName === 'TEXTAREA') onBind(el, false); return; }
+  if (el.dataset.bd) { birthdayInput(el); return; }
   if (el.dataset.pageCap) {
     const pg = S.pages[el.dataset.pageCap]; if (pg) { pg.caption = el.value; clearTimeout(onBind._pc); onBind._pc = setTimeout(() => { commit(); if (isIndex(ui.page)) { refresh(); renderStrip(); } }, 600); }
     return;
@@ -234,6 +235,9 @@ const ACTIONS = {
   viewcal: (el) => { const v = viewOf(ui.page), lower = v.part === 'upper' ? v.lower : ui.page; (S.doc.viewCal ||= {})[(sheetOf(lower) || {}).id] = el.dataset.v; commit(); renderDesign(); },
   ltmode: (el) => { ui.ltMode = el.dataset.v; renderPrint(); },
   wall: () => openWall(),
+  addbd: () => { (S.doc.birthdays ||= []).push({ id: uid(), name: '', d: '', m: 1, y: '' }); commit(); renderProject(); const ins = $$('.bdrow input[data-f="name"]'); if (ins.length) ins[ins.length - 1].focus(); },
+  delbd: (el) => { S.doc.birthdays = S.doc.birthdays.filter(b => b.id !== el.dataset.v); commit(); renderProject(); },
+  bdmode: (el) => { S.doc.cal.bd = el.dataset.v; commit(); renderProject(); },
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },
@@ -357,4 +361,10 @@ function scaleBoxes(fx, fy) {
   for (const p of Object.values(S.pages)) for (const sl of [...(p.slots || []), ...(p.extra || [])]) if (sl.box) {
     const b = sl.box; sl.box = { x: b.x * fx, y: b.y * fy, w: b.w * fx, h: b.h * fy };
   }
+}
+
+function birthdayInput(el) {
+  const b = (S.doc.birthdays || []).find(x => x.id === el.dataset.bd); if (!b) return;
+  b[el.dataset.f] = el.value;
+  clearTimeout(birthdayInput._t); birthdayInput._t = setTimeout(() => { commit(); refresh(); }, 500);
 }
