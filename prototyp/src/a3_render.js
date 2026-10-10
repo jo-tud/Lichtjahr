@@ -184,12 +184,12 @@ function calH(year, m, f, c) {
   if (o.width === 'full' && c.maxW > natural) { const k = c.maxW / natural; cw *= k; wg *= k; }
   const title = calTitle(m, year, 9 * f, c.color, o);
   items.push(...title.items);
-  const kwH = c.kw ? ks * 1.4 : 0, top = title.base + ns * .55 + kwH;
+  const kwH = c.kw ? ks * 1.9 : 0, top = title.base + ns * .55 + kwH;
   const yWd = top + ws * .75, y2 = (o.wd ? yWd + ws * .45 : top) + ns * .8;
   let x = 0;
   for (let d = 1; d <= n; d++) {
     const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h, { fill, font } = dayStyle(c, o, sp);
-    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, top - kwH * .3, _tc('KW {n}', { n: isoWeek(year, m, d) }), 'regular', ks, c.color, 'middle'));
+    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, top - kwH * .35 + (o.wd ? 0 : ns * .1), _tc('KW {n}', { n: isoWeek(year, m, d) }), 'regular', ks, c.color, 'middle'));
     if (o.wd) items.push(T(x + cw / 2, yWd, wdLabel(wd, dow, o), sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill, 'middle'));
     items.push(...tnum(x + cw / 2, y2, d, font, ns, fill));
     if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(x + cw / 2 + numWidth(d, font, ns) / 2 - ns * .2, y2, ns, c.color));
