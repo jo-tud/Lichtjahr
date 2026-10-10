@@ -873,9 +873,8 @@ Object.assign(EN, {
   'Bitte einen Moment warten und erneut speichern.': 'Please wait a moment and save again.',
   'Willkommen zurück. Weiter bei {page}.': 'Welcome back. Picking up at {page}.',
   // Geburtstage aus Kontakten
-  '{n} übernommen.': '{n} added.',
-  'Geburtstag': 'birthday',
-  'Geburtstage': 'birthdays',
+  '1 Geburtstag übernommen.': '1 birthday added.',
+  '{n} Geburtstage übernommen.': '{n} birthdays added.',
   'In der Datei wurden keine neuen Geburtstage gefunden.': 'No new birthdays found in the file.',
   'Rückgängig': 'Undo',
 
@@ -912,10 +911,10 @@ Object.assign(EN, {
   'Jetzt prüfen': 'Check now',
   // Gesicherter Stand
   'Gesicherten Stand gefunden': 'Backed-up changes found',
-  'Vom {when} gibt es einen Stand, der nicht mehr ins Projekt gespeichert werden konnte (die Bearbeitung lief zwischenzeitlich woanders). Übernehmen ersetzt die aktuelle Gestaltung.': 'There are changes from {when} that could no longer be saved to the project (it was being edited elsewhere in the meantime). Restoring them replaces the current design.',
-  'Übernehmen': 'Restore',
+  'Vom {when} gibt es einen Stand, der nicht mehr ins Projekt gespeichert werden konnte (die Bearbeitung lief zwischenzeitlich woanders). Übernehmen ersetzt die aktuelle Gestaltung.': 'There are changes from {when} that could no longer be saved to the project (it was being edited elsewhere in the meantime). Applying them replaces the current design.',
+  'Übernehmen': 'Apply',
   'Verwerfen': 'Discard',
-  'Gesicherter Stand übernommen.': 'Backed-up changes restored.',
+  'Gesicherter Stand übernommen.': 'Backed-up changes applied.',
   // Dateien und Abgleich
   'Kopie konnte nicht angelegt werden: {error}': 'Couldn’t create the copy: {error}',
   '„{name}“ konnte nicht verschoben werden: {error}': 'Couldn’t move “{name}”: {error}',
@@ -932,9 +931,8 @@ Object.assign(EN, {
   'Abgleich fehlgeschlagen': 'Sync failed',
   'Abgleich fehlgeschlagen: {error}': 'Sync failed: {error}',
   'Aussortierte Fotos sind wieder da.': 'Set-aside photos are back.',
-  '{n} nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.': '{n} sorted by capture date; the files move into the month folders.',
-  'Foto': 'photo',
-  'Fotos': 'Photos',
+  '1 Foto nach Aufnahmedatum einsortiert; die Datei wandert in den Monatsordner.': 'Sorted 1 photo by capture date; the file moves into its month folder.',
+  '{n} Fotos nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.': 'Sorted {n} photos by capture date; the files move into the month folders.',
   // Herkunft des Monats (Foto-Details)
   'Ordner „Ohne Monat“': 'Folder “No month”',
   'Monatsordner': 'Month folder',
@@ -957,7 +955,7 @@ Object.assign(EN, {
   'Dein erster Kalender': 'Your first calendar',
   'Ein Projekt ist ein Ordner auf diesem Rechner, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.': 'A project is a folder on this computer with one subfolder per month. You can drop photos in there whenever you like.',
   'Zuletzt': 'Recent',
-  'Neu anlegen': 'New',
+  'Neu anlegen': 'Create new',
   'Öffnen': 'Open',
   'Ordner': 'Folder',
   '~/Bilder/Kalender-{year}': '~/Pictures/Calendar-{year}',
@@ -994,10 +992,10 @@ Object.assign(EN, {
   // Prüfbericht
   'Prüfung bestanden: PDF/X-1a': 'Check passed: PDF/X-1a',
   'Prüfung nicht bestanden': 'Check failed',
-  'Seite': 'page',
-  'Seiten': 'pages',
-  'Einzelheit': 'detail',
-  'Einzelheiten': 'details',
+  '1 Seite': '1 page',
+  '{n} Seiten': '{n} pages',
+  '1 Einzelheit': '1 detail',
+  '{n} Einzelheiten': '{n} details',
   'Seite {n}: {text}': 'Page {n}: {text}',
   'Format, Seitenzahl und Bindung bitte noch mit den Vorgaben der Druckerei abgleichen.': 'Please double-check the format, page count and binding against your print shop’s requirements.',
   'Herunterladen': 'Download',
@@ -1023,9 +1021,8 @@ Object.assign(EN, {
   'Entfernen': 'Remove',
   'Beschnitt auf {mm} mm gesetzt.': 'Bleed set to {mm} mm.',
   'Nur ansehen: Exportieren geht erst, wenn das Projekt frei ist.': 'View only: you can export once the project is free.',
-  '{n} vor dem Druck': '{n} before printing',
-  'Problem': 'problem',
-  'Probleme': 'problems',
+  '1 Problem vor dem Druck': '1 problem before printing',
+  '{n} Probleme vor dem Druck': '{n} problems before printing',
   'Zu {page}': 'Go to {page}',
   'Trotzdem erstellen': 'Create anyway',
 });
@@ -4100,7 +4097,7 @@ function importContacts(text) {
   const add = found.filter(b => !have.has(b.name + '|' + b.d + '|' + b.m));
   for (const b of add) (S.doc.birthdays ||= []).push({ id: uid(), ...b });
   commit(); renderAll();
-  toast(add.length ? _t('{n} übernommen.', { n: plural(add.length, _t('Geburtstag'), _t('Geburtstage')) }) : _t('In der Datei wurden keine neuen Geburtstage gefunden.'), 5000, add.length ? { label: _t('Rückgängig'), fn: undo } : null);
+  toast(add.length ? (add.length === 1 ? _t('1 Geburtstag übernommen.') : _t('{n} Geburtstage übernommen.', { n: add.length })) : _t('In der Datei wurden keine neuen Geburtstage gefunden.'), 5000, add.length ? { label: _t('Rückgängig'), fn: undo } : null);
 }
 // „Geburtstag von Anna“, „Geburtstag: Anna“, „Birthday of Anna“, „Anna's birthday“ → „Anna“
 const birthdayName = (s) => {
@@ -4738,7 +4735,7 @@ Object.assign(ACTIONS, {
     const list = Object.values(S.photos).filter(p => p.month < 0 && p.suggested != null);
     for (const p of list) { p.month = p.suggested; p.src = 'Aufnahmedatum'; }
     commit(); renderPhotos();
-    toast(_t('{n} nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.', { n: plural(list.length, _t('Foto'), _t('Fotos')) }), 6000, { label: _t('Rückgängig'), fn: undo });
+    toast(list.length === 1 ? _t('1 Foto nach Aufnahmedatum einsortiert; die Datei wandert in den Monatsordner.') : _t('{n} Fotos nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.', { n: list.length }), 6000, { label: _t('Rückgängig'), fn: undo });
   },
   svcswitch: async () => {
     await flushSave();
@@ -4797,9 +4794,9 @@ function reportHtml(res) {
   const details = r.items.filter(i => i.level !== 'info');
   return `<div class="report ${r.ok ? 'ok' : 'bad'}">
     <b>${r.ok ? _t('Prüfung bestanden: PDF/X-1a') : _t('Prüfung nicht bestanden')}</b>
-    <span class="muted small">${esc(res.path)} · ${mb} MB · ${plural(r.pages, _t('Seite'), _t('Seiten'))}</span>
+    <span class="muted small">${esc(res.path)} · ${mb} MB · ${r.pages === 1 ? _t('1 Seite') : _t('{n} Seiten', { n: r.pages })}</span>
     <ul class="checks">${r.summary.map(s => `<li><span class="dot ${lvl(s.level)}"></span><span>${esc(s.text)}</span></li>`).join('')}</ul>
-    ${details.length ? `<details><summary>${plural(details.length, _t('Einzelheit'), _t('Einzelheiten'))}</summary><ul class="checks">${details.slice(0, 60).map(i => `<li><span class="dot ${lvl(i.level)}"></span><span>${i.page ? esc(_t('Seite {n}: {text}', { n: i.page, text: i.text })) : esc(i.text)}</span></li>`).join('')}</ul></details>` : ''}
+    ${details.length ? `<details><summary>${details.length === 1 ? _t('1 Einzelheit') : _t('{n} Einzelheiten', { n: details.length })}</summary><ul class="checks">${details.slice(0, 60).map(i => `<li><span class="dot ${lvl(i.level)}"></span><span>${i.page ? esc(_t('Seite {n}: {text}', { n: i.page, text: i.text })) : esc(i.text)}</span></li>`).join('')}</ul></details>` : ''}
     ${r.ok ? `<p class="hint">${_t('Format, Seitenzahl und Bindung bitte noch mit den Vorgaben der Druckerei abgleichen.')}</p>` : ''}
     <div class="row"><a class="btn small" href="${href}" download="${esc(res.name)}">${_t('Herunterladen')}</a><button class="btn small primary" data-act="wall">${_t('An der Wand ansehen')}</button></div>
   </div>`;
@@ -4878,7 +4875,7 @@ Object.assign(ACTIONS, {
     const bad = checks().filter(c => c[0] === 'bad');
     if (bad.length) {
       const pages = [...new Set(bad.map(c => c[2]).filter(Boolean))];
-      const r = await ask({ title: _t('{n} vor dem Druck', { n: plural(bad.length, _t('Problem'), _t('Probleme')) }),
+      const r = await ask({ title: bad.length === 1 ? _t('1 Problem vor dem Druck') : _t('{n} Probleme vor dem Druck', { n: bad.length }),
         text: `${bad.slice(0, 3).map(c => c[1]).join(' · ')}${bad.length > 3 ? ' …' : ''}`,
         buttons: [...(pages.length ? [{ label: _t('Zu {page}', { page: pageLabel(pages[0]) }), value: 'go', primary: true }] : []), { label: _t('Trotzdem erstellen'), value: 'export' }, { label: _t('Abbrechen'), value: null }] });
       if (r === 'go') { ui.page = pages[0]; setView('design'); return; }

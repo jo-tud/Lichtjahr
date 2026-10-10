@@ -44,7 +44,9 @@ async function waitFor(fn, ms = 15000) {
   for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t0 > ms) throw new Error('Zeitüberschreitung'); await sleep(200); }
 }
 async function page(browser) {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  // Abläufe auf Deutsch: die Prüfungen erwarten deutsche Ordnernamen (Fotos/03 März) und Knopftexte
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'de-DE' });
+  await ctx.addInitScript(() => { try { localStorage.setItem('lj-lang', 'de'); } catch (e) { /* egal */ } });
   const p = await ctx.newPage();
   p.errors = [];
   p.on('pageerror', e => p.errors.push(e.message));
