@@ -77,6 +77,11 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
     renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
+  if (act === 'adjlookamt') {
+    setAdjust(el.dataset.photo, { lookAmt: parseFloat(el.value) });
+    el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
+    renderEditor(); clearTimeout(onBind._l); onBind._l = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
   if (act === 'adjstrength') {
     setAdjust(el.dataset.photo, { strength: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
@@ -253,6 +258,9 @@ const ACTIONS = {
     if (!(await setAuto(id, on))) { toast(_t('Das Foto lässt sich gerade nicht analysieren.')); return; }
     commit(); renderEditor(); renderFrameBar(); updateThumb();
   },
+  adjlook: (el) => { const r = (S.doc.adjust || {})[el.dataset.photo] || {}; setAdjust(el.dataset.photo, { look: el.dataset.v || undefined, lookAmt: r.lookAmt ?? 1 }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  adjmore: () => { ui.adjMore = !ui.adjMore; renderFrameBar(); },
+  matchmonths: () => openMatchDialog(),
   adjall: async () => {
     const ids = Object.keys(usage()).filter(id => S.photos[id]);
     if (!ids.length) return;

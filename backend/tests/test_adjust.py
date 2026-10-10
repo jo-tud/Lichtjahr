@@ -16,6 +16,7 @@ from lichtjahr.printing import PrinterRegistry, apply_adjust, compose_lut, make_
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RECIPES = [{"exposure": .4, "contrast": .3, "warmth": .5, "saturation": .4},
            {"exposure": .2, "lvlB": .05, "lvlW": .9, "wbR": 1.06, "wbB": .92},
+           {"mono": 1, "contrast": .4, "fade": .05, "warmth": .2},
            {"exposure": -.6, "contrast": -.5, "warmth": -.7, "tint": .4, "saturation": -.8, "shadows": .6, "highlights": -.5}]
 PIXELS = [[0, 0, 0], [255, 255, 255], [128, 128, 128], [200, 120, 60], [30, 80, 200], [250, 10, 10], [12, 240, 90]]
 
