@@ -27,6 +27,7 @@ function openWall() {
   const el = document.createElement('div'); el.className = 'wall'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', _t('Kalender an der Wand'));
   el.innerHTML = `<div class="wall-light" aria-hidden="true"></div>
     <button class="wall-close" data-wall="close" aria-label="${esc(_t('Schließen'))}">×</button>
+    ${typeof proofAvailable === 'function' && proofAvailable() ? `<button class="wall-proof" data-wall="proof" aria-pressed="${!!ui.proof}" title="${esc(_t('Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)'))}">${esc(_t('Druckansicht'))}</button>` : ''}
     <div class="wall-stage"><div class="wall-cal" id="wallCal"></div></div>
     <div class="wall-nav">
       <button class="wall-btn" data-wall="prev" aria-label="${esc(_t('Vorheriger Monat'))}">‹</button>
@@ -38,7 +39,7 @@ function openWall() {
   document.documentElement.classList.add('wall-open');
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-wall]');
-    if (b) { const a = b.dataset.wall; if (a === 'close') closeWall(); else if (a === 'alt') toggleAlt(); else flip(a === 'next' ? 1 : -1); return; }
+    if (b) { const a = b.dataset.wall; if (a === 'close') closeWall(); else if (a === 'alt') toggleAlt(); else if (a === 'proof') setProof({ proof: !ui.proof }).then(() => b.setAttribute('aria-pressed', !!ui.proof)); else flip(a === 'next' ? 1 : -1); return; }
     if (e.target.closest('.wall-cal') && !wall.swiped) flip(1);
   });
   // Wischen: nach oben oder links blättert weiter, nach unten oder rechts zurück

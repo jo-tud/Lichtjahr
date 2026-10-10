@@ -369,3 +369,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
 a.btn.primary { color: var(--accent-ink); }
 .prn-form { width: min(460px, 100%); display: grid; gap: 12px; }
 .prn-form code { font-family: var(--font-mono); font-size: .92em; }
+
+/* ----- Druckansicht (Softproof) ----- */
+.canvas-wrap[data-proof]:not([data-proof=""])::before { content: attr(data-proof); position: sticky; top: 8px; left: 8px; z-index: 2; display: inline-block;
+  margin: 0 0 6px; padding: 4px 10px; border-radius: 999px; background: var(--ink); color: var(--surface); font-size: 12px; box-shadow: var(--shadow); }
+.wall-proof { position: absolute; top: 16px; left: 16px; z-index: 3; padding: 7px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12);
+  background: rgba(255,255,255,.85); color: #1a2028; font: inherit; font-size: 13px; cursor: pointer; backdrop-filter: blur(6px); }
+.wall-proof[aria-pressed="true"] { background: #1a2028; color: #fff; }
+.proof-opts { gap: 8px; }
+.field.proof-opts > label.check { font-size: 14px; font-weight: 400; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.proof-opts .check .hint { font-size: 12.5px; margin-top: 2px; }

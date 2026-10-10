@@ -213,11 +213,13 @@ function renderStage() {
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">${_t('Beschnitt')}</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">${_t('Bindung')}</button>
     <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">${_t('Hilfslinien')}</button>
-    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">${_t('Aufgeklappt')}</button>` : ''}`;
+    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">${_t('Aufgeklappt')}</button>` : ''}
+    ${proofAvailable() ? `<button class="toggle" data-act="proof" aria-pressed="${!!ui.proof}" title="${esc(_t('Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)'))}">${_t('Druckansicht')}</button>` : ''}`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
   const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
+  wrap.dataset.proof = proofOn() ? proofLabel() : '';
   wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, partner: ui.showPartner ? partnerOf(ui.page) : null, attrs: 'id="editor"' });
   const svg = $('#editor');
   // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
@@ -440,7 +442,7 @@ function unreadable(p, blk, items) {
   let photo = 0;
   for (const it of items) if (it.t === 'img') { const r = intersect(it.clip, blk); if (r) photo += r.w * r.h; }
   if (photo > blk.w * blk.h * .5) return false;
-  const lum = (id) => { const h = cRGB(id).slice(1); return (parseInt(h.slice(0, 2), 16) * .299 + parseInt(h.slice(2, 4), 16) * .587 + parseInt(h.slice(4, 6), 16) * .114) / 255; };
+  const lum = (id) => { const h = cRGBraw(id).slice(1); return (parseInt(h.slice(0, 2), 16) * .299 + parseInt(h.slice(2, 4), 16) * .587 + parseInt(h.slice(4, 6), 16) * .114) / 255; };
   return Math.abs(lum(c.color) - lum(S.doc.bg)) < .35;
 }
 function renderPrint() {

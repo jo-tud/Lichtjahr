@@ -22,7 +22,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   const ow = Math.max(1, Math.round(clip.w * k)), oh = Math.max(1, Math.round(clip.h * k));
   const c = document.createElement('canvas'); c.width = ow; c.height = oh;
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.fillStyle = cRGB(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
+  x.fillStyle = cRGBraw(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
   // Seiten-mm → Canvas-Pixel, dann in Fotokoordinaten (Pixel des Originals)
   x.setTransform(ow / clip.w, 0, 0, oh / clip.h, -clip.x * ow / clip.w, -clip.y * oh / clip.h);
   x.translate(pl.fx, pl.fy); x.rotate((pl.rot || 0) * Math.PI / 180);
@@ -35,7 +35,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   for (const pn of panels) {
     const r = intersect(pn, clip); if (!r) continue;
-    x.globalAlpha = pn.opacity; x.fillStyle = cRGB(pn.fill);
+    x.globalAlpha = pn.opacity; x.fillStyle = cRGBraw(pn.fill);
     x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
     x.globalAlpha = 1;
   }

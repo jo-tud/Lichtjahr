@@ -130,7 +130,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Kalendarium:** Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
 - **Sprachen:** Die App gibt es auf Englisch und Deutsch; sie folgt der Sprache des Browsers und lässt sich jederzeit umschalten. Der gedruckte Kalender hat eine eigene Spracheinstellung für Monatsnamen, Wochentage, Feiertage und Register. Feiertage und Schulferien gibt es bisher nur für Deutschland (je Bundesland).
 - **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten.
-- **Druck-PDF:** PDF/X-1a mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
+- **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
@@ -200,22 +200,22 @@ ganze Familie Fotos mit der Nextcloud-App vom Handy in die Monatsordner legen, u
 
 ## Druck-PDF und Farbmanagement
 
-Mit dem lokalen Dienst erzeugt Lichtjahr ein **Druck-PDF nach PDF/X-1a:2001**:
+Mit dem lokalen Dienst erzeugt Lichtjahr ein **Druck-PDF nach PDF/X-1a:2001 oder PDF/X-4**:
 
 1. Die Oberfläche setzt die Seiten; Text, Kalendarium und Flächen sind CMYK-Vektoren, die Fotos gehen als sRGB an den Dienst.
 2. Der Dienst rechnet die Fotos mit **LittleCMS** über das ICC-Profil der Druckerei nach CMYK um (wahrnehmungsorientiert oder relativ farbmetrisch mit Tiefenkompensierung).
-3. Er schreibt PDF/X-1a mit Ausgabebedingung (OutputIntent samt eingebettetem Profil), Beschnitt- und Endformatrahmen.
+3. Er schreibt PDF/X-1a (PDF 1.3, am breitesten akzeptiert) oder PDF/X-4 (PDF 1.6 mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4) mit Ausgabebedingung (OutputIntent samt eingebettetem Profil), Beschnitt- und Endformatrahmen.
 4. Ein **Preflight** prüft die fertige Datei und zeigt den Bericht in der App; das PDF landet in `Export/`.
 
 <img src="docs/images/de/druckpdf.webp" alt="Druck-PDF-Karte mit Druckprofil und bestandenem Prüfbericht" width="420" align="right">
 
 | Der Preflight prüft | |
 |---|---|
-| PDF/X-Kennung, PDF 1.3, Ausgabebedingung, Dokument-ID, Titel, Überfüllung | Pflichtangaben von PDF/X-1a |
+| PDF/X-Kennung (bei PDF/X-4 auch in den XMP-Metadaten), PDF-Version, Ausgabebedingung, Dokument-ID, Titel, Überfüllung | Pflichtangaben des gewählten Standards |
 | Nur CMYK, keine RGB-Bilder oder -Farben | Fotos mit dem Profil umgerechnet |
 | Gesamtfarbauftrag | gegen die Grenze des Druckprofils, z. B. 300 % |
 | Beschnitt an allen Seiten | gegen die Vorgabe des Druckprofils |
-| Schriften eingebettet, keine Transparenz | |
+| Schriften eingebettet, keine Transparenz | Transparenz ist bei PDF/X-4 nur ein Hinweis |
 | Auflösung jedes Fotos | Hinweis, wenn es sichtbar unscharf wird |
 
 **Druckprofile:** Mitgeliefert sind *Gestrichenes Papier · FOGRA39* (ISO Coated v2 300 %) und *Ungestrichenes Papier · FOGRA47*,
@@ -228,7 +228,13 @@ dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
 - Geprüft wird mit dem eigenen Preflight, nicht mit einem zertifizierten Prüfwerkzeug wie Acrobat Preflight.
 - Format, Seitenzahl, Bindung und Papier legt die Druckerei fest; das gleicht Lichtjahr nicht ab.
 - Fotos gelten als sRGB. Was der Browser an größerem Farbraum (Display P3 vom iPhone) mitbringt, wird auf sRGB begrenzt.
-- PDF/X-4 und eine Softproof-Ansicht am Bildschirm fehlen noch.
+- Die Druckansicht ist nur so genau wie der Bildschirm. Auf einem unkalibrierten Laptop zeigt sie die Richtung (stumpfer, dunkler, Papierton), nicht den exakten Farbton.
+
+**Druckansicht am Bildschirm (Softproof):** Unter *Am Bildschirm prüfen* zeigen Gestaltung und Wandansicht die Fotos so,
+wie sie aus der Druckmaschine kommen: mit dem Druckprofil umgerechnet und zurück auf den Bildschirm, auf Wunsch samt
+Papierweiß. Leuchtendes Blau, Neonfarben und tiefe Schatten verlieren genau dort an Kraft, wo sie es auch im Druck tun.
+Eine graue Schraffur markiert Stellen, die der Druck deutlich nicht wiedergeben kann – so lässt sich ein Foto noch
+tauschen oder abmildern.
 
 <br clear="right">
 
@@ -303,7 +309,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Nextcloud/WebDAV als zweiter Speicherort (Sperre auf dem Server geprüft, App-Passwort nur lokal)
 - [x] Druck-PDF im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X-1a, Druckprofile, Preflight
 - [x] Englische Oberfläche, eigene Spracheinstellung für den gedruckten Kalender
-- [ ] Softproof am Bildschirm, PDF/X-4
+- [x] Softproof am Bildschirm mit Farbumfang-Warnung, PDF/X-4
 - [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).

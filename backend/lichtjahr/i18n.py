@@ -93,8 +93,8 @@ EN = {
     # Druckprofile
     "Unbekanntes Druckprofil.": "Unknown print profile.",
     "Für „{name}“ fehlt die ICC-Datei {icc}.": "The ICC file {icc} for “{name}” is missing.",
-    "Das Profil hat ICC-Version 4. PDF/X-1a braucht ein Profil der Version 2; die Druckereien bieten meist beide an.":
-        "The profile is ICC version 4. PDF/X-1a needs a version 2 profile; print shops usually offer both.",
+    "Das Profil hat ICC-Version 4. Dafür PDF/X-4 wählen; PDF/X-1a braucht ein Profil der Version 2.":
+        "The profile is ICC version 4. Choose PDF/X-4 for it; PDF/X-1a needs a version 2 profile.",
     "Mitgelieferte Profile lassen sich nicht löschen.": "Bundled profiles can’t be deleted.",
     "Keine gültige ICC-Datei: {error}": "Not a valid ICC file: {error}",
     "Das Profil beschreibt {space}, gebraucht wird ein CMYK-Druckprofil.": "The profile describes {space}; a CMYK print profile is needed.",
@@ -111,7 +111,11 @@ EN = {
     "PDF/X-Kennung fehlt.": "PDF/X identification is missing.",
     "Angabe zur Überfüllung (Trapped) fehlt.": "Trapping information (Trapped) is missing.",
     "Titel fehlt.": "Title is missing.",
-    "PDF-Version {version}, für PDF/X-1a:2001 höchstens 1.3.": "PDF version {version}; PDF/X-1a:2001 allows at most 1.3.",
+    "PDF-Version {version}, für {std} höchstens {max}.": "PDF version {version}; {std} allows at most {max}.",
+    "XMP-Metadaten fehlen oder sind unvollständig ({missing}).": "XMP metadata missing or incomplete ({missing}).",
+    "Das eingebettete Profil hat ICC-Version {version}; PDF/X-1a erlaubt nur Version 2.": "The embedded profile is ICC version {version}; PDF/X-1a only allows version 2.",
+    "Transparenz (in PDF/X-4 erlaubt)": "Transparency (allowed in PDF/X-4)",
+    "Unbekannter PDF/X-Standard.": "Unknown PDF/X standard.",
     "Das PDF ist verschlüsselt.": "The PDF is encrypted.",
     "Dokument-ID fehlt.": "Document ID is missing.",
     "Ausgabebedingung (OutputIntent mit ICC-Profil) fehlt.": "Output condition (OutputIntent with ICC profile) is missing.",

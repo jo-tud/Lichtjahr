@@ -111,6 +111,7 @@ async function openProject(pid) {
   const notes = await acquireLock();
   const man = await api(PP('/manifest'));
   applyManifest(man);
+  loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
   const u = new URL(location.href); u.searchParams.set('projekt', pid);
   try { history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* egal */ }

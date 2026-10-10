@@ -12,6 +12,7 @@ eigene im Datenordner unter ``printers/`` (ICC-Datei plus JSON mit den Vorgaben)
 
 from __future__ import annotations
 
+import functools
 import io
 import json
 import math
@@ -30,6 +31,15 @@ from .i18n import _t
 PT_PER_MM = 72 / 25.4
 PDFX_VERSION = "PDF/X-1:2001"
 PDFX_CONFORMANCE = "PDF/X-1a:2001"
+# Zwei Standards: PDF/X-1a (am weitesten verbreitet, nur CMYK, keine Transparenz, ICC v2) und PDF/X-4
+# (neuer: PDF 1.6, XMP-Metadaten, Transparenz und ICC v4 erlaubt). Die Fotos rechnet Lichtjahr in beiden Fällen
+# selbst nach CMYK um, damit das Ergebnis vorhersehbar bleibt.
+STANDARDS = {
+    "x1a": {"label": "PDF/X-1a:2001", "version": "1.3", "info": {"/GTS_PDFXVersion": PDFX_VERSION, "/GTS_PDFXConformance": PDFX_CONFORMANCE},
+            "transparency": False, "icc_max": 4.0},
+    "x4": {"label": "PDF/X-4", "version": "1.6", "info": {"/GTS_PDFXVersion": "PDF/X-4"}, "transparency": True, "icc_max": 5.0},
+}
+XMP_PDFX = "{http://www.npes.org/pdfx/ns/id/}GTS_PDFXVersion"
 BUNDLED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icc")
 
 
@@ -52,6 +62,7 @@ class PrinterProfile:
     minDpi: int = 150                       # darunter Warnung (sichtbar unscharf)
     goodDpi: int = 240                      # darunter nur eine Information
     quality: int = 92                       # JPEG-Qualität der CMYK-Bilder
+    iccVersion: float = 2.1                 # Version des ICC-Profils (v4 nur mit PDF/X-4)
     note: str = ""
     builtin: bool = False
     available: bool = True
@@ -111,8 +122,6 @@ class PrinterRegistry:
     def add(self, icc_bytes: bytes, name: str | None = None, **settings) -> PrinterProfile:
         """Eigenes Profil aus der ICC-Datei der Druckerei. Prüft, dass es ein CMYK-Ausgabeprofil ist."""
         info = inspect_icc(icc_bytes)
-        if info["version"] >= 4:
-            raise PrintError(_t("Das Profil hat ICC-Version 4. PDF/X-1a braucht ein Profil der Version 2; die Druckereien bieten meist beide an."))
         os.makedirs(self.dir, exist_ok=True)
         pid = "eigen-" + uuid.uuid4().hex[:8]
         icc_name = pid + ".icc"
@@ -120,7 +129,8 @@ class PrinterRegistry:
             fh.write(icc_bytes)
         allowed = {k: v for k, v in settings.items() if k in ("intent", "tac", "bleed", "minDpi", "goodDpi", "note") and v not in (None, "")}
         p = PrinterProfile(id=pid, name=(name or info["description"] or _t("Eigenes Profil")).strip()[:80], icc=icc_name,
-                           condition=info["condition"] or "Custom", info=info["description"], conditionText=info["conditionText"], **allowed)
+                           condition=info["condition"] or "Custom", info=info["description"], conditionText=info["conditionText"],
+                           iccVersion=round(float(info["version"]), 2), **allowed)
         if p.intent not in ("perceptual", "relative"):
             p.intent = "perceptual"
         p.tac = int(max(200, min(400, p.tac)))
@@ -230,8 +240,14 @@ def _transform(profile: PrinterProfile):
     return ImageCms.buildTransform(src, dst, "RGB", "CMYK", renderingIntent=intent, flags=flags)
 
 
-def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender", progress=None) -> tuple[bytes, dict]:
-    """sRGB-Bilder nach CMYK umrechnen, PDF/X-1a-Merkmale setzen, Preflight auf das Ergebnis."""
+def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender", progress=None,
+                   standard: str = "x1a") -> tuple[bytes, dict]:
+    """sRGB-Bilder nach CMYK umrechnen, PDF/X-Merkmale setzen (X-1a oder X-4), Preflight auf das Ergebnis."""
+    std = STANDARDS.get(standard)
+    if not std:
+        raise PrintError(_t("Unbekannter PDF/X-Standard."))
+    if profile.iccVersion >= std["icc_max"]:
+        raise PrintError(_t("Das Profil hat ICC-Version 4. Dafür PDF/X-4 wählen; PDF/X-1a braucht ein Profil der Version 2."))
     try:
         pdf = pikepdf.open(io.BytesIO(data))
     except pikepdf.PdfError as e:
@@ -258,7 +274,7 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
                     del xo[k]
         else:
             tacs[xo.objgen] = None
-    # PDF/X-1a:2001: Ausgabebedingung, Kennungen, Datum, Überfüllung
+    # Ausgabebedingung mit eingebettetem Profil (in beiden Standards Pflicht bzw. hier immer gesetzt)
     with open(profile.path, "rb") as fh:
         icc = fh.read()
     dest = pdf.make_stream(icc)
@@ -267,22 +283,42 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
         Type=pikepdf.Name.OutputIntent, S=pikepdf.Name.GTS_PDFX,
         OutputConditionIdentifier=profile.condition or "Custom", OutputCondition=profile.conditionText or profile.info or profile.name,
         RegistryName=profile.registry, Info=profile.info or profile.name, DestOutputProfile=dest))])
-    now = datetime.now(timezone.utc).strftime("D:%Y%m%d%H%M%SZ")
+    # Dokumentinfo; Datum für Info und XMP gleich, damit beide übereinstimmen
+    stamp = datetime.now(timezone.utc).replace(microsecond=0)
+    pdf_date = stamp.strftime("D:%Y%m%d%H%M%SZ")
     info = pdf.docinfo
     info.Title = title
     info.Creator = "Lichtjahr"
     info.Producer = "Lichtjahr (LittleCMS, qpdf)"
-    if "/CreationDate" not in info:
-        info.CreationDate = now
-    info.ModDate = now
+    info.CreationDate = pdf_date
+    info.ModDate = pdf_date
     info.Trapped = pikepdf.Name("/False")
-    info.GTS_PDFXVersion = PDFX_VERSION
-    info.GTS_PDFXConformance = PDFX_CONFORMANCE
+    for k in ("/GTS_PDFXVersion", "/GTS_PDFXConformance"):
+        if k in info:
+            del info[k]
+    for k, v in std["info"].items():
+        info[k] = v
+    if standard == "x4":
+        # PDF/X-4 verlangt XMP-Metadaten mit Kennung, Dokument- und Versions-ID, passend zur Dokumentinfo
+        iso = stamp.isoformat().replace("+00:00", "Z")
+        with pdf.open_metadata(set_pikepdf_as_editor=False, update_docinfo=False) as meta:
+            meta["dc:title"] = title
+            meta["xmp:CreateDate"] = iso
+            meta["xmp:ModifyDate"] = iso
+            meta["xmp:MetadataDate"] = iso
+            meta["xmp:CreatorTool"] = "Lichtjahr"
+            meta["pdf:Producer"] = str(info.Producer)
+            meta["pdf:Trapped"] = "False"
+            meta[XMP_PDFX] = "PDF/X-4"
+            meta["xmpMM:DocumentID"] = f"uuid:{uuid.uuid4()}"
+            meta["xmpMM:InstanceID"] = f"uuid:{uuid.uuid4()}"
+            meta["xmpMM:VersionID"] = "1"
+            meta["xmpMM:RenditionClass"] = "default"
     out = io.BytesIO()
-    pdf.save(out, force_version="1.3", object_stream_mode=pikepdf.ObjectStreamMode.disable,
+    pdf.save(out, force_version=std["version"], object_stream_mode=pikepdf.ObjectStreamMode.disable,
              compress_streams=True, qdf=False)
     result = out.getvalue()
-    report = preflight(result, profile, image_tac=list(tacs.values()))
+    report = preflight(result, profile, image_tac=list(tacs.values()), standard=standard)
     if progress:
         progress(1.0)
     return result, report
@@ -302,8 +338,9 @@ def _boxes(page) -> dict:
     return {"media": media, "bleed": box("/BleedBox") or media, "trim": box("/TrimBox"), "art": box("/ArtBox")}
 
 
-def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = None) -> dict:
-    """Prüft ein PDF gegen PDF/X-1a:2001 (die Teile, die für diesen Ablauf relevant sind) und das Druckprofil."""
+def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = None, standard: str = "x1a") -> dict:
+    """Prüft ein PDF gegen PDF/X-1a:2001 oder PDF/X-4 (die Teile, die für diesen Ablauf relevant sind) und das Druckprofil."""
+    std = STANDARDS[standard]
     items: list[dict] = []
 
     def add(level, code, text, page=None):
@@ -311,14 +348,26 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
 
     pdf = pikepdf.open(io.BytesIO(data))
     info = pdf.docinfo
-    if str(info.get("/GTS_PDFXVersion", "")) != PDFX_VERSION or str(info.get("/GTS_PDFXConformance", "")) != PDFX_CONFORMANCE:
+    if any(str(info.get(k, "")) != v for k, v in std["info"].items()):
         add("error", "pdfx-id", _t("PDF/X-Kennung fehlt."))
+    if standard == "x4":
+        try:
+            meta = pdf.open_metadata()
+            missing = [k for k, key in (("GTS_PDFXVersion", XMP_PDFX), ("DocumentID", "xmpMM:DocumentID"), ("VersionID", "xmpMM:VersionID"),
+                                        ("RenditionClass", "xmpMM:RenditionClass"), ("Trapped", "pdf:Trapped"), ("CreateDate", "xmp:CreateDate"))
+                       if not str(meta.get(key, ""))]
+            if str(meta.get(XMP_PDFX, "")) not in ("", "PDF/X-4"):
+                missing.append("GTS_PDFXVersion")
+        except Exception:  # noqa: BLE001 – unlesbare Metadaten
+            missing = ["XMP"]
+        if missing:
+            add("error", "xmp", _t("XMP-Metadaten fehlen oder sind unvollständig ({missing}).", missing=", ".join(missing)))
     if info.get("/Trapped") not in (pikepdf.Name("/False"), pikepdf.Name("/True")):
         add("error", "trapped", _t("Angabe zur Überfüllung (Trapped) fehlt."))
     if not str(info.get("/Title", "")):
         add("error", "title", _t("Titel fehlt."))
-    if pdf.pdf_version > "1.3":
-        add("error", "version", _t("PDF-Version {version}, für PDF/X-1a:2001 höchstens 1.3.", version=pdf.pdf_version))
+    if pdf.pdf_version > std["version"]:
+        add("error", "version", _t("PDF-Version {version}, für {std} höchstens {max}.", version=pdf.pdf_version, std=std["label"], max=std["version"]))
     if pdf.is_encrypted:
         add("error", "encrypted", _t("Das PDF ist verschlüsselt."))
     if "/ID" not in pdf.trailer:
@@ -326,6 +375,11 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
     oi = pdf.Root.get("/OutputIntents")
     if not oi or not any(o.get("/S") == pikepdf.Name.GTS_PDFX and "/DestOutputProfile" in o for o in oi):
         add("error", "outputintent", _t("Ausgabebedingung (OutputIntent mit ICC-Profil) fehlt."))
+    else:
+        head = next(o for o in oi if "/DestOutputProfile" in o).DestOutputProfile.read_bytes()[:12]
+        icc_major = head[8] if len(head) > 8 else 2
+        if icc_major >= std["icc_max"]:
+            add("error", "icc-version", _t("Das eingebettete Profil hat ICC-Version {version}; PDF/X-1a erlaubt nur Version 2.", version=icc_major))
 
     min_dpi, vector_tac, fonts_ok = math.inf, 0.0, True
     bleed_short = []
@@ -341,14 +395,16 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
             m = b["media"]
             if bl[0] < m[0] - .01 or bl[1] < m[1] - .01 or bl[2] > m[2] + .01 or bl[3] > m[3] + .01:
                 add("error", "bleedbox", _t("Beschnittrahmen ragt über das Papierformat hinaus."), pno)
+        # Transparenz: in PDF/X-1a verboten, in PDF/X-4 erlaubt (dann nur als Hinweis gezählt)
+        tlevel = "info" if std["transparency"] else "error"
         if "/Group" in page.obj and page.obj.Group.get("/S") == pikepdf.Name.Transparency:
-            add("error", "transparency", _t("Seite verwendet Transparenz."), pno)
+            add(tlevel, "transparency", _t("Seite verwendet Transparenz."), pno)
         res = page.Resources
         for _, gs in (res.get("/ExtGState") or {}).items():
             smask = gs.get("/SMask")
             if float(gs.get("/CA", 1)) < 1 or float(gs.get("/ca", 1)) < 1 or (smask is not None and smask != pikepdf.Name("/None")) \
                     or gs.get("/BM", pikepdf.Name.Normal) not in (pikepdf.Name.Normal, pikepdf.Name.Compatible):
-                add("error", "transparency", _t("Transparenz-Einstellung gefunden."), pno)
+                add(tlevel, "transparency", _t("Transparenz-Einstellung gefunden."), pno)
         for _, font in (res.get("/Font") or {}).items():
             fd = font.get("/FontDescriptor")
             if font.get("/Subtype") == pikepdf.Name.Type0:
@@ -364,7 +420,7 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
             if cs not in (pikepdf.Name.DeviceCMYK, pikepdf.Name.DeviceGray):
                 add("error", "rgb-image", _t("Bild {name} ist nicht in CMYK ({cs}).", name=name[1:], cs=cs), pno)
             if "/SMask" in xo or "/Mask" in xo:
-                add("error", "transparency", _t("Bild {name} hat eine Transparenzmaske.", name=name[1:]), pno)
+                add(tlevel, "transparency", _t("Bild {name} hat eine Transparenzmaske.", name=name[1:]), pno)
         # Inhalt: Farboperatoren und Bildgrößen
         ctm, stack = (1, 0, 0, 1, 0, 0), []
         for operands, op in pikepdf.parse_content_stream(page):
@@ -404,21 +460,23 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
         add("error", "tac", _t("Gesamtfarbauftrag bis {tac} %, erlaubt sind {limit} %.", tac=f"{tac:.0f}", limit=profile.tac))
     errors = [i for i in items if i["level"] == "error"]
     summary = [
-        {"level": "ok" if not any(i["code"] in ("pdfx-id", "outputintent", "version", "trapped", "title", "id") for i in errors) else "error",
-         "code": "pdfx", "text": _t("{pdfx} mit Ausgabebedingung {condition}", pdfx=PDFX_CONFORMANCE, condition=profile.condition)},
+        {"level": "ok" if not any(i["code"] in ("pdfx-id", "outputintent", "version", "trapped", "title", "id", "xmp", "icc-version") for i in errors) else "error",
+         "code": "pdfx", "text": _t("{pdfx} mit Ausgabebedingung {condition}", pdfx=std["label"], condition=profile.condition)},
         {"level": "ok" if not any(i["code"] in ("rgb-image", "rgb-vector") for i in errors) else "error", "code": "cmyk",
          "text": _t("Alle Farben in CMYK, Fotos mit Farbprofil umgerechnet ({intent})", intent=_t("wahrnehmungsorientiert") if profile.intent == "perceptual" else _t("relativ farbmetrisch"))},
         {"level": "ok" if tac <= profile.tac + 0.5 else "error", "code": "tac", "text": _t("Gesamtfarbauftrag höchstens {tac} % (Grenze {limit} %)", tac=f"{tac:.0f}", limit=profile.tac)},
         {"level": "ok" if not bleed_short else "error", "code": "bleed", "text": _t("Beschnitt mindestens {bleed} mm an allen Seiten", bleed=f"{profile.bleed:g}")},
         {"level": "ok" if fonts_ok else "error", "code": "fonts", "text": _t("Schriften vollständig eingebettet")},
-        {"level": "ok" if not any(i["code"] == "transparency" for i in errors) else "error", "code": "transparency", "text": _t("Keine Transparenz")},
+        {"level": "error" if any(i["code"] == "transparency" for i in errors) else "ok", "code": "transparency",
+         "text": _t("Transparenz (in PDF/X-4 erlaubt)") if any(i["code"] == "transparency" for i in items) else _t("Keine Transparenz")},
     ]
     if min_dpi < math.inf:
         lvl = "warn" if min_dpi < profile.minDpi else "ok"
         summary.append({"level": lvl, "code": "dpi", "text": _t("Kleinste Bildauflösung {dpi} dpi", dpi=f"{min_dpi:.0f}")})
     return {
         "ok": not errors,
-        "pdfx": PDFX_CONFORMANCE,
+        "pdfx": std["label"],
+        "standard": standard,
         "profile": profile.public(),
         "pages": len(pdf.pages),
         "maxTac": round(tac, 1),
@@ -426,3 +484,92 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
         "summary": summary,
         "items": items,
     }
+
+
+# -- Softproof ----------------------------------------------------------------------------------
+# Wie sieht das Foto gedruckt aus? sRGB → CMYK (wie beim Export) → zurück nach sRGB für den Bildschirm.
+# Mit „Papierweiß“ absolut farbmetrisch, dann erscheint Weiß im Ton des Papiers. Die Farbumfangswarnung
+# markiert Stellen, die sich durch den Druck deutlich ändern (ΔE76 über 12 zwischen Original und Proof), mit
+# einer grauen Schraffur: hebt sich von jedem Fotoinhalt ab, auch von Wiese oder Himmel.
+GAMUT_DE = 12
+GAMUT_COLOR = (128, 128, 128)
+
+
+@functools.lru_cache(maxsize=32)
+def _proof_transform(path: str, intent: str, paper: bool, mtime: float):
+    srgb = ImageCms.createProfile("sRGB")
+    prof = ImageCms.getOpenProfile(path)
+    render = ImageCms.Intent.PERCEPTUAL if intent == "perceptual" else ImageCms.Intent.RELATIVE_COLORIMETRIC
+    proof = ImageCms.Intent.ABSOLUTE_COLORIMETRIC if paper else ImageCms.Intent.RELATIVE_COLORIMETRIC
+    flags = ImageCms.Flags.SOFTPROOFING | (ImageCms.Flags.BLACKPOINTCOMPENSATION if intent != "perceptual" else ImageCms.Flags.NONE)
+    return ImageCms.buildProofTransform(srgb, srgb, prof, "RGB", "RGB", renderingIntent=render, proofRenderingIntent=proof, flags=flags)
+
+
+@functools.lru_cache(maxsize=32)
+def _cmyk_to_screen(path: str, paper: bool, mtime: float):
+    srgb = ImageCms.createProfile("sRGB")
+    prof = ImageCms.getOpenProfile(path)
+    intent = ImageCms.Intent.ABSOLUTE_COLORIMETRIC if paper else ImageCms.Intent.RELATIVE_COLORIMETRIC
+    flags = ImageCms.Flags.NONE if paper else ImageCms.Flags.BLACKPOINTCOMPENSATION
+    return ImageCms.buildTransform(prof, srgb, "CMYK", "RGB", renderingIntent=intent, flags=flags)
+
+
+@functools.lru_cache(maxsize=1)
+def _to_lab():
+    return ImageCms.buildTransform(ImageCms.createProfile("sRGB"), ImageCms.createProfile("LAB"), "RGB", "LAB")
+
+
+def _mtime(profile: PrinterProfile) -> float:
+    try:
+        return os.path.getmtime(profile.path)
+    except OSError:
+        return 0.0
+
+
+def gamut_mask(original: Image.Image, printed: Image.Image, threshold: float = GAMUT_DE) -> Image.Image:
+    """Maske (Modus „L“) der Stellen, an denen sich die Farbe im Druck um mehr als ``threshold`` ΔE76 ändert.
+    Ohne numpy: jeder Lab-Kanal wird so skaliert, dass die gekappte Summe genau bei ΔE² = threshold² 255 erreicht."""
+    lab = _to_lab()
+    la, lb = ImageCms.applyTransform(original, lab), ImageCms.applyTransform(printed, lab)
+    t2 = threshold * threshold
+    scales = (1 / 2.55, 1.0, 1.0)                      # L liegt in Pillow auf 0–255 für 0–100, a/b in Einheiten
+    terms = []
+    for x, y, s in zip(la.split(), lb.split(), scales):
+        lut = [min(255, round((v * s) ** 2 * 255 / t2)) for v in range(256)]
+        terms.append(ImageChops.difference(x, y).point(lut))
+    total = ImageChops.add(ImageChops.add(terms[0], terms[1]), terms[2])
+    return total.point(lambda v: 255 if v >= 255 else 0)
+
+
+@functools.lru_cache(maxsize=8)
+def _stripes(size: tuple[int, int], period: int = 9, width: int = 4) -> Image.Image:
+    """Diagonale Streifen als Maske (Modus „L“), Streifenabstand an die Bildgröße angepasst."""
+    period = max(period, round(max(size) / 180))
+    width = max(2, period * width // 9)
+    row = Image.new("L", (size[0] + size[1], 1))
+    row.putdata([255 if i % period < width else 0 for i in range(size[0] + size[1])])
+    out = Image.new("L", size)
+    for y in range(size[1]):
+        out.paste(row.crop((y, 0, y + size[0], 1)), (0, y))
+    return out
+
+
+def proof_image(src: Image.Image, profile: PrinterProfile, paper: bool = True, gamut: bool = False) -> Image.Image:
+    rgb = src.convert("RGB")
+    out = ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, paper, _mtime(profile)))
+    if gamut:
+        rel = out if not paper else ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, False, _mtime(profile)))
+        mask = ImageChops.multiply(gamut_mask(rgb, rel), _stripes(out.size))
+        out = Image.composite(Image.new("RGB", out.size, GAMUT_COLOR), out, mask)
+    return out
+
+
+def proof_colors(profile: PrinterProfile, colors: dict, paper: bool = True) -> dict:
+    """CMYK-Werte (0–1) der Vektorfarben → so erscheinen sie gedruckt, als #rrggbb; dazu „paper“ (unbedrucktes Papier)."""
+    items = {str(k): v for k, v in colors.items() if isinstance(v, (list, tuple)) and len(v) == 4}
+    items["paper"] = [0, 0, 0, 0]
+    im = Image.new("CMYK", (len(items), 1))
+    for i, v in enumerate(items.values()):
+        im.putpixel((i, 0), tuple(max(0, min(255, round(float(c) * 255))) for c in v))
+    rgb = ImageCms.applyTransform(im, _cmyk_to_screen(profile.path, paper, _mtime(profile)))
+    return {k: "#%02x%02x%02x" % rgb.getpixel((i, 0)) for i, k in enumerate(items)}

@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -23,7 +24,7 @@ from . import __version__
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
-from .printing import PrinterRegistry, PrintError, make_print_pdf
+from .printing import STANDARDS, PrinterRegistry, PrintError, make_print_pdf, proof_colors, proof_image
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
@@ -59,6 +60,11 @@ class LockRequest(BaseModel):
 
 class MoveRequest(BaseModel):
     month: int | None
+
+
+class ProofColors(BaseModel):
+    colors: dict[str, list[float]]
+    paper: bool = True
 
 
 class SaveRequest(BaseModel):
@@ -279,13 +285,16 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.post("/api/projects/{project_id}/export/print")
     async def print_export(project_id: str, file: UploadFile = File(...), printer: str = Form(...),
-                           title: str = Form(default="Kalender"), session: str | None = Depends(session_header)):
-        """Druck-PDF: Fotos mit dem Farbprofil der Druckerei nach CMYK, PDF/X-1a, Preflight; Ablage in Export/."""
+                           title: str = Form(default="Kalender"), standard: str = Form(default="x1a"),
+                           session: str | None = Depends(session_header)):
+        """Druck-PDF: Fotos mit dem Farbprofil der Druckerei nach CMYK, PDF/X-1a oder PDF/X-4, Preflight; Ablage in Export/."""
         p = get_project(project_id)
         p.lock.check(session)
         profile = printers.get(printer)
+        if standard not in STANDARDS:
+            raise PrintError(_t("Unbekannter PDF/X-Standard."))
         data = await file.read()
-        pdf, report = await run_in_threadpool(make_print_pdf, data, profile, title)
+        pdf, report = await run_in_threadpool(lambda: make_print_pdf(data, profile, title, standard=standard))
         path = p.save_export(session, file.filename or "Kalender-Druck.pdf", pdf)
         return {"path": path, "size": len(pdf), "report": report}
 
@@ -310,6 +319,11 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         if len(data) > 20_000_000:
             raise HTTPException(400, _t("Die Datei ist zu groß für ein ICC-Profil."))
         return printers.add(data, name, tac=tac, bleed=bleed, intent=intent).public()
+
+    @app.post("/api/printers/{printer_id}/proof-colors")
+    def printer_proof_colors(printer_id: str, req: ProofColors):
+        """Vektorfarben (CMYK) so, wie sie gedruckt erscheinen, für die Druckansicht der Oberfläche."""
+        return proof_colors(printers.get(printer_id), req.colors, req.paper)
 
     @app.delete("/api/printers/{printer_id}")
     def delete_printer(printer_id: str):
@@ -343,6 +357,27 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable",
                                                                      "ETag": f'"{a.contentHash}_{size}"'})
+
+    @app.get("/api/projects/{project_id}/assets/{asset_id}/proof")
+    def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False):
+        """Softproof: Vorschaubild so, wie es mit dem Druckprofil gedruckt aussieht (zwischengespeichert)."""
+        p = get_project(project_id)
+        a = asset_or_404(p, asset_id)
+        profile = printers.get(printer)
+        size = max(64, min(2400, size))
+        key = f"{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{int(os.path.getmtime(profile.path))}"
+        path = os.path.join(p.cache_dir, "proof", a.contentHash[:2], key + ".jpg")
+        if not os.path.exists(path):
+            try:
+                src = p.thumbnail(a, size)
+            except NotFound:
+                raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
+            with Image.open(src) as im:
+                out = proof_image(im, profile, paper=paper, gamut=gamut)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            out.save(path + ".tmp", "JPEG", quality=88)
+            os.replace(path + ".tmp", path)
+        return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/original")
     def original(project_id: str, asset_id: str):
