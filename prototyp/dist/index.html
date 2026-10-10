@@ -446,6 +446,19 @@ a.btn.primary { color: var(--accent-ink); }
 /* Stärke (0–100 %): ohne Mittelmarke */
 .adj.strength input[type=range]::-webkit-slider-runnable-track { background: var(--line); }
 .adj.strength input[type=range]::-moz-range-track { background: var(--line); }
+
+/* ----- Serienbilder ----- */
+.busy .series-card { width: min(920px, 96vw); }
+.busy .match-card { width: min(980px, 96vw); }
+.series-card { width: min(920px, 96vw); max-height: 90vh; overflow: auto; display: grid; gap: 12px; }
+.series-list { display: grid; gap: 14px; }
+.series-row { display: grid; gap: 6px; }
+.series-thumbs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.series-ph { position: relative; flex: none; padding: 0; border: 2px solid transparent; border-radius: 8px; background: none; cursor: pointer; opacity: .45; }
+.series-ph img { width: 140px; height: 100px; object-fit: cover; border-radius: 6px; display: block; }
+.series-ph.keep { opacity: 1; border-color: var(--accent); }
+.series-ph .badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 999px; }
+@media (max-width: 600px) { .series-ph img { width: 104px; height: 78px; } }
 </style>
 <header class="bar">
   <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Lichtjahr</span></div>
@@ -696,6 +709,16 @@ Object.assign(EN, {
   'Belichtung und Farbstimmung der Monate werden einander angenähert. Die Jahreszeiten bleiben erkennbar, der Kalender wirkt wie aus einem Guss.': 'Exposure and color mood of the months are brought closer together. The seasons stay recognizable, and the calendar looks all of a piece.',
   'Vorher': 'Before',
   'Monate angeglichen. Jedes Foto lässt sich weiter einzeln nachregeln.': 'Months matched. Each photo can still be fine-tuned individually.',
+  'Ähnliche Fotos werden gesucht': 'Looking for similar photos',
+  'Keine Serien mit fast gleichen Fotos gefunden.': 'No series of near-identical photos found.',
+  'Ähnliche Fotos': 'Similar photos',
+  '1 Serie mit fast gleichen Fotos.': '1 series of near-identical photos.',
+  '{n} Serien mit fast gleichen Fotos.': '{n} series of near-identical photos.',
+  'Lichtjahr schlägt jeweils das schärfste, gut belichtete Foto vor. Antippen wählt, welche bleiben.': 'Lichtjahr suggests the sharpest, well-exposed photo of each. Tap to choose which ones stay.',
+  'Vorschlag': 'Suggested',
+  'Übrige aussortieren ({n})': 'Set the rest aside ({n})',
+  '1 Foto aussortiert. Rückgängig ist möglich.': '1 photo set aside. You can undo this.',
+  '{n} Fotos aussortiert. Rückgängig ist möglich.': '{n} photos set aside. You can undo this.',
 });
 // Englische Texte für body.html (Kopfleiste, Hinweis zum Beispielprojekt)
 Object.assign(EN, {
@@ -1549,6 +1572,10 @@ Object.assign(EN, {
   '{page} ist deutlich dunkler als die anderen Monate': '{page} is noticeably darker than the other months',
   '{page} ist deutlich heller als die anderen Monate': '{page} is noticeably brighter than the other months',
   'Angleichen': 'Match',
+  '1 Serie fast gleicher Fotos': '1 series of near-identical photos',
+  '{n} Serien fast gleicher Fotos': '{n} series of near-identical photos',
+  'Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.': 'Lichtjahr suggests the best photo of each series; the other {n} can be set aside with one click.',
+  'Vergleichen': 'Compare',
 });
 /* ---------- CMYK-JPEG-Encoder (Baseline, 4 Kanäle, ohne Unterabtastung) ---------- */
 const JPEG = (() => {
@@ -3238,6 +3265,7 @@ function renderPhotos() {
       <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.') + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
       <div class="row"><button class="btn small" data-act="clearerr">${_t('Verstanden')}</button></div></section>` : ''}
     ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>${_t('Fotos auf die Seiten bringen')}</h2><p class="hint">${_t('Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.')}</p></div><button class="btn primary" data-act="autodesign">${_t('Kalender automatisch gestalten')}</button></section>` : ''}
+    ${seriesCard()}
     <div class="dropzone" id="dropzone"><span>${SVC.pid ? _t('Fotos oder ganze Ordner hierher ziehen, sie werden in die Monatsordner des Projekts kopiert.') : _t('Fotos oder ganze Ordner hierher ziehen.')} ${_t('Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.')}${SVC.pid ? ' ' + _t('Du kannst Dateien auch direkt in die Monatsordner legen und dann abgleichen.') : ''}</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
@@ -3338,6 +3366,15 @@ function tuneBar(ph) {
       <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
+// Hinweis in der Fotoübersicht, wenn es Serien fast gleicher Fotos gibt (im Hintergrund gesucht)
+function seriesCard() {
+  refreshSeries(() => { if (ui.view === 'photos' && seriesReady() && SERIES.groups.length) renderPhotos(); });
+  if (!seriesReady() || !SERIES.groups.length) return '';
+  const g = SERIES.groups, extra = g.reduce((n, x) => n + x.ids.length - 1, 0);
+  return `<section class="card cta"><div><h2>${g.length === 1 ? _t('1 Serie fast gleicher Fotos') : _t('{n} Serien fast gleicher Fotos', { n: g.length })}</h2>
+    <p class="hint">${_t('Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.', { n: extra })}</p></div>
+    <button class="btn primary" data-act="series">${_t('Vergleichen')}</button></section>`;
+}
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   fb.classList.remove('tuning');
@@ -3907,6 +3944,7 @@ const ACTIONS = {
   adjlook: (el) => { const r = (S.doc.adjust || {})[el.dataset.photo] || {}; setAdjust(el.dataset.photo, { look: el.dataset.v || undefined, lookAmt: r.lookAmt ?? 1 }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
   adjmore: () => { ui.adjMore = !ui.adjMore; renderFrameBar(); },
   matchmonths: () => openMatchDialog(),
+  series: () => openSeriesDialog(),
   adjall: async () => {
     const ids = Object.keys(usage()).filter(id => S.photos[id]);
     if (!ids.length) return;
@@ -6149,6 +6187,127 @@ async function openMatchDialog() {
   document.body.appendChild(el);
   apply();
   el.querySelector('[data-ok]').focus();
+}
+/* ---------- Serienbilder: das beste Foto vorschlagen ----------
+   Wer im Urlaub fünfmal hintereinander abdrückt, hat fünf fast gleiche Fotos. Lichtjahr findet solche Serien
+   (gleicher Monat, gleicher Tag, sehr ähnliches Bild) und schlägt je Serie das beste vor: am schärfsten, gut
+   belichtet, Gesichter gut sichtbar, Favorit zählt mit. Die übrigen lassen sich mit einem Klick aussortieren;
+   steht eines davon im Kalender, rückt das gewählte an seine Stelle. Alles rechnet die Oberfläche selbst. */
+const SERIES = { key: '', groups: null, busy: false, info: {} };
+
+// Fingerabdruck und Güte eines Fotos (auf der Vorschau, zwischengespeichert)
+async function seriesInfo(id) {
+  const ph = S.photos[id]; if (!ph) return null;
+  const ck = id + '|' + (RT.prev[id] || RT.thumb[id] || '');
+  if (SERIES.info[ck]) return SERIES.info[ck];
+  const px = await photoPixels(id, 320); if (!px) return null;
+  const { w, h, data } = px, g = new Float32Array(w * h);
+  let mean = [0, 0, 0], clip = 0;
+  for (let i = 0, p = 0; p < w * h; p++, i += 4) {
+    g[p] = .299 * data[i] + .587 * data[i + 1] + .114 * data[i + 2];
+    mean[0] += data[i]; mean[1] += data[i + 1]; mean[2] += data[i + 2];
+    if (g[p] > 250 || g[p] < 4) clip++;
+  }
+  mean = mean.map(v => v / (w * h));
+  // Schärfe: Varianz des Laplace-Filters
+  let s = 0, s2 = 0, n = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, l = 4 * g[i] - g[i - 1] - g[i + 1] - g[i - w] - g[i + w];
+    s += l; s2 += l * l; n++;
+  }
+  const sharp = n ? s2 / n - (s / n) ** 2 : 0;
+  // dHash 8×8: Helligkeitsverlauf auf einem 9×8-Raster
+  const cell = (cx, cy) => { let a = 0, c = 0; const x0 = Math.floor(cx * w / 9), x1 = Math.floor((cx + 1) * w / 9), y0 = Math.floor(cy * h / 8), y1 = Math.floor((cy + 1) * h / 8);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { a += g[y * w + x]; c++; } return c ? a / c : 0; };
+  const bits = [];
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits.push(cell(x, y) < cell(x + 1, y) ? 1 : 0);
+  const faces = facesOf(id) || [], faceArea = faces.reduce((a, f) => a + f.w * f.h * (f.score || 1), 0);
+  return (SERIES.info[ck] = { bits, mean, sharp, clip: clip / (w * h), faces: faces.length, faceArea, aspect: ph.w / ph.h });
+}
+const hamming = (a, b) => a.reduce((d, v, i) => d + (v !== b[i]), 0);
+
+// Serien finden: Paare mit ähnlichem Bild verbinden (Union-Find), nur innerhalb eines Monats und Tages
+async function findSeries() {
+  const byBucket = {};
+  for (const ph of Object.values(S.photos)) (byBucket[`${ph.month}|${ph.date || ''}`] ||= []).push(ph.id);
+  const groups = [];
+  for (const ids of Object.values(byBucket)) {
+    if (ids.length < 2) continue;
+    const info = {};
+    for (const id of ids) { const i = await seriesInfo(id); if (i) info[id] = i; }
+    const list = ids.filter(id => info[id]), parent = Object.fromEntries(list.map(id => [id, id]));
+    const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const A = info[list[a]], B = info[list[b]];
+      if (Math.abs(Math.log(A.aspect / B.aspect)) > .05) continue;
+      const col = Math.hypot(A.mean[0] - B.mean[0], A.mean[1] - B.mean[1], A.mean[2] - B.mean[2]);
+      if (hamming(A.bits, B.bits) <= 10 && col < 28) parent[find(list[a])] = find(list[b]);
+    }
+    const sets = {};
+    for (const id of list) (sets[find(id)] ||= []).push(id);
+    for (const set of Object.values(sets)) if (set.length > 1) groups.push(rankSeries(set, info));
+  }
+  return groups;
+}
+// Bestes Foto einer Serie: Schärfe (relativ zur Serie), wenig Beschnittenes, Gesichter, Favorit
+function rankSeries(ids, info) {
+  const maxSharp = Math.max(...ids.map(id => info[id].sharp)) || 1, maxFace = Math.max(...ids.map(id => info[id].faceArea)) || 1;
+  const score = {};
+  for (const id of ids) {
+    const i = info[id];
+    score[id] = .55 * (i.sharp / maxSharp) + .2 * (1 - Math.min(1, i.clip * 5)) + .15 * (i.faceArea / maxFace) + (S.photos[id].fav ? .15 : 0);
+  }
+  const sorted = [...ids].sort((a, b) => score[b] - score[a]);
+  return { ids: sorted, best: sorted[0], score };
+}
+function seriesKey() { return Object.values(S.photos).map(p => p.id + (p.month ?? '') + (p.date || '')).sort().join(','); }
+function refreshSeries(after) {
+  const key = seriesKey();
+  if (SERIES.busy || SERIES.key === key) return;
+  SERIES.busy = true;
+  findSeries().then(g => { SERIES.groups = g; SERIES.key = key; }).catch(e => console.warn('Serien', e)).finally(() => { SERIES.busy = false; if (after) after(); });
+}
+const seriesReady = () => SERIES.key === seriesKey() && SERIES.groups;
+
+// Dialog: je Serie die Fotos, das vorgeschlagene markiert; antippen wählt, welches bleibt
+async function openSeriesDialog() {
+  if (!seriesReady()) { const bar = busy(_t('Ähnliche Fotos werden gesucht'), ''); if (facesReady()) await loadFaces(Object.keys(S.photos), bar); SERIES.key = ''; await new Promise(r => refreshSeries(r)); bar.close(); }
+  const groups = SERIES.groups || [];
+  if (!groups.length) { toast(_t('Keine Serien mit fast gleichen Fotos gefunden.')); return; }
+  const keep = groups.map(g => new Set([g.best]));
+  const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  const removedN = () => groups.reduce((n, g, i) => n + g.ids.length - keep[i].size, 0);
+  const render = () => {
+    el.innerHTML = `<div class="card series-card"><h2>${_t('Ähnliche Fotos')}</h2>
+      <p class="hint">${groups.length === 1 ? _t('1 Serie mit fast gleichen Fotos.') : _t('{n} Serien mit fast gleichen Fotos.', { n: groups.length })} ${_t('Lichtjahr schlägt jeweils das schärfste, gut belichtete Foto vor. Antippen wählt, welche bleiben.')}</p>
+      <div class="series-list">${groups.map((g, i) => `<div class="series-row"><span class="small muted">${esc(MONTHS[S.photos[g.best].month] || _t('Ohne Monat'))}</span><div class="series-thumbs">${g.ids.map(id => `<button class="series-ph${keep[i].has(id) ? ' keep' : ''}" data-g="${i}" data-id="${id}" aria-pressed="${keep[i].has(id)}"><img src="${RT.thumb[id]}" alt="">${id === g.best ? `<span class="badge">★ ${_t('Vorschlag')}</span>` : ''}</button>`).join('')}</div></div>`).join('')}</div>
+      <div class="row"><button class="btn primary" data-ok ${removedN() ? '' : 'disabled'}>${_t('Übrige aussortieren ({n})', { n: removedN() })}</button><button class="btn" data-cancel>${_t('Abbrechen')}</button></div></div>`;
+  };
+  const done = (ok) => {
+    document.removeEventListener('keydown', key, true); el.remove();
+    if (!ok) return;
+    const u = usage();
+    let n = 0;
+    groups.forEach((g, i) => {
+      const gone = g.ids.filter(id => !keep[i].has(id)), stay = g.ids.filter(id => keep[i].has(id)), heir = stay.find(id => !u[id]);
+      for (const id of gone) {
+        // steht ein aussortiertes Foto im Kalender, rückt ein behaltenes (noch nicht verwendetes) an seine Stelle
+        for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo === id) { if (heir) s.photo = heir; else Object.assign(s, newSlot()); }
+        delete S.photos[id]; n++;
+      }
+    });
+    commit(); renderAll();
+    toast(n === 1 ? _t('1 Foto aussortiert. Rückgängig ist möglich.') : _t('{n} Fotos aussortiert. Rückgängig ist möglich.', { n }), 6000, { label: _t('Rückgängig'), fn: undo });
+  };
+  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('.series-ph');
+    if (b) { const s = keep[+b.dataset.g]; if (s.has(b.dataset.id)) { if (s.size > 1) s.delete(b.dataset.id); } else s.add(b.dataset.id); render(); return; }
+    if (e.target.closest('[data-ok]')) done(true); else if (e.target.closest('[data-cancel]')) done(false);
+  });
+  document.addEventListener('keydown', key, true);
+  render(); document.body.appendChild(el);
+  (el.querySelector('[data-ok]:not([disabled])') || el.querySelector('[data-cancel]')).focus();
 }
 /* ---------- An der Wand: den fertigen Kalender aufgehängt durchblättern ---------- */
 // Eine Ansicht ist, was beim Aufhängen zu sehen ist: unten die Hauptseite, bei „aufgeklappt“ oben die Rückseite des vorigen Blatts.

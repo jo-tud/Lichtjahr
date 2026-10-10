@@ -261,6 +261,7 @@ const ACTIONS = {
   adjlook: (el) => { const r = (S.doc.adjust || {})[el.dataset.photo] || {}; setAdjust(el.dataset.photo, { look: el.dataset.v || undefined, lookAmt: r.lookAmt ?? 1 }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
   adjmore: () => { ui.adjMore = !ui.adjMore; renderFrameBar(); },
   matchmonths: () => openMatchDialog(),
+  series: () => openSeriesDialog(),
   adjall: async () => {
     const ids = Object.keys(usage()).filter(id => S.photos[id]);
     if (!ids.length) return;
