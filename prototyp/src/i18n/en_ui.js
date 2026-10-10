@@ -124,7 +124,6 @@ Object.assign(EN, {
   'Datei': 'File',
   '{n} Datei': '{n} file',
   '{n} Dateien': '{n} files',
-  'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.': 'This browser can’t read HEIC photos from an iPhone. On the iPhone, go to Settings → Camera → Formats and choose “Most Compatible”, or share the photos as JPEG. In Safari, importing usually works directly.',
   'Andere Dateien sind vermutlich beschädigt oder keine Fotos.': 'Other files are probably damaged or not photos.',
   'Verstanden': 'Got it',
   'Fotos auf die Seiten bringen': 'Put photos on the pages',
@@ -411,4 +410,6 @@ Object.assign(EN, {
   '{n} Serien fast gleicher Fotos': '{n} series of near-identical photos',
   'Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.': 'Lichtjahr suggests the best photo of each series; the other {n} can be set aside with one click.',
   'Vergleichen': 'Compare',
+  'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Mit dem lokalen Dienst gehen sie direkt, in Safari meist auch; sonst am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen.': 'This browser can’t read HEIC photos from an iPhone. With the local service they work directly, usually in Safari too; otherwise go to Settings → Camera → Formats on the iPhone and choose “Most Compatible”, or share the photos as JPEG.',
+  'Für HEIC-Fotos braucht der lokale Dienst seine Erweiterung: pip install "lichtjahr[heic]".': 'For HEIC photos, the local service needs its extension: pip install "lichtjahr[heic]".',
 });

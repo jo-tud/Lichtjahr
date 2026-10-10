@@ -27,7 +27,7 @@ from pydantic import ValidationError
 
 from . import faces as facedet
 from .lock import ProjectLock
-from .media import date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
+from .media import HEIF, date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
 from .i18n import _t
 from .schema import (EXPORT_DIR, MANIFEST, META_DIR, MONTH_NAMES, NO_MONTH_DIRS, PHOTO_DIRS, SCHEMA_VERSION,
                      Asset, Format, Manifest, folders, lang_of, month_dir, now_iso)
@@ -232,7 +232,8 @@ class Project:
         aussortiertes wird wieder aufgenommen. Rückgabe: (Asset, war schon vorhanden)."""
         self.lock.check(session)
         if not is_photo(name):
-            raise ProjectError(_t("{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).", name=name))
+            raise ProjectError(_t("{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).", name=name) +
+                               ("" if HEIF or not name.lower().endswith((".heic", ".heif")) else " " + _t("Für HEIC die Erweiterung installieren: pip install 'lichtjahr[heic]'")))
         digest = hashlib.sha256(data).hexdigest()
         man, _ = self.load()
         twin = next((a for a in man.assets if a.contentHash == digest and a.status != "missing"), None)
