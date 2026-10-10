@@ -16,6 +16,10 @@
   Ideen bisher: Durchblättern des fertigen Kalenders an der Wand, Kalendarium findet selbst eine ruhige
   Bildstelle und passende Schriftfarbe, Übersicht „wer ist wie oft auf den Fotos“, Vorauswahl aus Serienbildern.
 
+## Lokaler Dienst (`backend/`)
+- Python/FastAPI, Projektordner als Datenquelle, Sperre mit Lease, Journal für Verschiebungen. Doku: `backend/README.md`.
+- Vor einem Push: `cd backend && pytest` (die Sperrtests laufen mit mehreren Prozessen).
+
 ## Prototyp (`prototyp/`)
 - Eine einzelne HTML-Datei, gebaut mit `prototyp/build.sh` aus `prototyp/src/`. Nach Änderungen neu bauen
   und `prototyp/dist/kalenderwerkstatt.html` mit committen.

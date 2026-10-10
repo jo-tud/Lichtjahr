@@ -1,0 +1,62 @@
+"""Orte auf dem eigenen Rechner: Liste der bekannten Projekte, Vorschau-Cache, Entwürfe.
+
+Nichts davon liegt im Projektordner. Standard unter Linux nach XDG:
+``~/.local/share/lichtjahr`` (Daten) und ``~/.cache/lichtjahr`` (Vorschaubilder).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+
+
+def _xdg(var: str, fallback: str) -> str:
+    return os.environ.get(var) or os.path.expanduser(fallback)
+
+
+@dataclass
+class Settings:
+    data_dir: str
+    cache_dir: str
+    token: str | None = None
+
+    @classmethod
+    def default(cls, data_dir: str | None = None, cache_dir: str | None = None, token: str | None = None) -> "Settings":
+        return cls(
+            data_dir=data_dir or os.path.join(_xdg("XDG_DATA_HOME", "~/.local/share"), "lichtjahr"),
+            cache_dir=cache_dir or os.path.join(_xdg("XDG_CACHE_HOME", "~/.cache"), "lichtjahr"),
+            token=token,
+        )
+
+
+class Registry:
+    """Bekannte Projekte dieses Rechners (Titel und Speicherort), ohne Zugangsdaten."""
+
+    def __init__(self, settings: Settings) -> None:
+        self.path = os.path.join(settings.data_dir, "projects.json")
+
+    def all(self) -> list[dict]:
+        try:
+            with open(self.path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (FileNotFoundError, ValueError):
+            return []
+
+    def remember(self, entry: dict) -> None:
+        items = [e for e in self.all() if e.get("id") != entry["id"]]
+        items.insert(0, entry)
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(items, fh, ensure_ascii=False, indent=2)
+        os.replace(tmp, self.path)
+
+    def get(self, project_id: str) -> dict | None:
+        return next((e for e in self.all() if e.get("id") == project_id), None)
+
+    def forget(self, project_id: str) -> None:
+        items = [e for e in self.all() if e.get("id") != project_id]
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump(items, fh, ensure_ascii=False, indent=2)
