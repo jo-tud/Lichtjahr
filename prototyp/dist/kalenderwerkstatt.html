@@ -151,7 +151,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 /* ---------- Gestalten ---------- */
-#v-design.on { display: grid; grid-template-columns: 148px minmax(0, 1fr) 330px; height: calc(100dvh - var(--bar-h)); }
+#v-design.on { display: grid; grid-template-columns: 148px minmax(0, 1fr) 330px; height: calc(100dvh - var(--top-h, var(--bar-h))); }
 .strip { border-right: 1px solid var(--line); background: var(--surface); overflow-y: auto; padding: 10px; display: grid; gap: 10px; align-content: start; }
 .pg { border: 0; background: none; padding: 4px; border-radius: 8px; display: grid; gap: 4px; text-align: left; font-size: 12px; color: var(--muted); }
 .pg svg { width: 100%; height: auto; display: block; box-shadow: 0 1px 3px rgba(0,0,0,.18); background: #fff; }
@@ -164,8 +164,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); padding: 5px 9px; border-radius: 999px; background: var(--surface); }
 .toggle[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
 .canvas-wrap { min-height: 0; display: grid; place-items: center; padding: 18px; overflow: hidden; }
-#editor { max-width: 100%; max-height: 100%; width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
-#editor [data-slot] { cursor: grab; }
+#editor { max-width: 100%; max-height: 100%; width: 100%; height: 100%; display: block; touch-action: pan-x pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+#editor.locked { touch-action: none; }
+.canvas-wrap.zoomed { overflow: auto; place-items: start; }
+#editor [data-slot] { cursor: pointer; }
+#editor .cropping, #editor .cropghost { cursor: grab; }
 #editor .empty { cursor: pointer; }
 #editor [data-block] { cursor: move; }
 #editor.dragging, #editor.dragging * { cursor: grabbing !important; }
@@ -248,7 +251,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
     <button role="tab" data-act="go" data-view="project" data-v="project"><b>1</b><span class="t">Projekt</span></button>
     <button role="tab" data-act="go" data-view="photos" data-v="photos"><b>2</b><span class="t">Fotos</span></button>
     <button role="tab" data-act="go" data-view="design" data-v="design"><b>3</b><span class="t">Gestalten</span></button>
-    <button role="tab" data-act="go" data-view="print" data-v="print"><b>4</b><span class="t">Druck-PDF</span></button>
+    <button role="tab" data-act="go" data-view="print" data-v="print"><b>4</b><span class="t">PDF</span></button>
   </nav>
   <div class="bar-right">
     <span id="saveState"></span>
@@ -500,9 +503,10 @@ const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString('de-DE');
 const sleep0 = () => new Promise(r => setTimeout(r, 0));
 
 const FORMATS = [
+  { id: 'sq297', name: 'Quadratisch', sub: '29,7 × 29,7 cm', w: 297, h: 297 },
+  { id: 'a3l', name: 'DIN A3 quer', sub: '42 × 29,7 cm', w: 420, h: 297 },
   { id: 'sq30', name: 'Quadratisch', sub: '30 × 30 cm', w: 300, h: 300 },
   { id: 'sq21', name: 'Quadratisch', sub: '21 × 21 cm', w: 210, h: 210 },
-  { id: 'a3l', name: 'DIN A3 quer', sub: '42 × 29,7 cm', w: 420, h: 297 },
   { id: 'a4l', name: 'DIN A4 quer', sub: '29,7 × 21 cm', w: 297, h: 210 },
   { id: 'a3p', name: 'DIN A3 hoch', sub: '29,7 × 42 cm', w: 297, h: 420 },
   { id: 'custom', name: 'Eigenes', sub: 'Maße frei', w: 0, h: 0 },
@@ -593,54 +597,64 @@ const slotCount = (id) => { const l = layoutById(id); return l.slots.length + (l
 /* ---------- Zustand ---------- */
 function defaultDoc() {
   return {
-    year: new Date().getFullYear() + 1, format: 'sq30', w: 300, h: 300,
+    year: new Date().getFullYear() + 1, format: 'sq297', w: 297, h: 297,
     bleed: 3, gap: 3, margin: 0, ovBorder: 3, bg: 'white',
-    cover: true, index: true, backs: false, backRotate: true, region: 'DE', cropMarks: false,
-    bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8 },
-    cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', size: 1, names: true,
+    cover: true, index: true, backs: false, backRotate: false, region: lastRegion(), cropMarks: false,
+    bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
+    cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true,
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
     indexTitle: 'Die Fotos des Jahres',
     dpi: 300, quality: 90,
   };
 }
+// Das zuletzt gewählte Bundesland gilt auch für neue Projekte
+function lastRegion() { try { return localStorage.getItem('kw-region') || 'DE'; } catch (e) { return 'DE'; } }
 let S = { doc: defaultDoc(), pages: {}, photos: {}, demo: false };
 const RT = { thumb: {}, prev: {}, file: {} };     // Laufzeit: Bild-URLs und Originaldateien
 const ui = {
-  view: 'design', page: 'm0', sel: null, tab: 'layout', armed: null, swapFrom: null, pool: null,
+  view: 'design', page: 'm0', sel: null, crop: null, selBlock: null, viewZoom: 1, tab: 'layout', armed: null, swapFrom: null, pool: null,
   showBleed: true, showBind: true, showGuides: true, photoSel: new Set(), photoFocus: null, banner: true,
 };
 
-function pageKeys(doc = S.doc) {
+// Seiten ohne Register; das Register hängt davon ab, wie viele Seiten es braucht
+function baseKeys(doc = S.doc) {
   const k = [];
   if (doc.cover) { k.push('cover'); if (doc.backs) k.push('cover-b'); }
   for (let m = 0; m < 12; m++) { k.push('m' + m); if (doc.backs) k.push('m' + m + '-b'); }
-  if (doc.index) k.push('index');
   return k;
 }
+function pageKeys(doc = S.doc) {
+  const k = baseKeys(doc);
+  if (doc.index) { const n = indexLayout().length; for (let i = 1; i <= n; i++) k.push(i === 1 ? 'index' : 'index-' + i); }
+  return k;
+}
+const isIndex = (key) => key.startsWith('index');
+const indexNo = (key) => key === 'index' ? 1 : +key.split('-')[1];
 function pageMonth(key) { const r = /^m(\d+)/.exec(key); return r ? +r[1] : null; }
 const isBack = (key) => key.endsWith('-b');
 function pageLabel(key) {
   if (key === 'cover') return 'Titelblatt';
   if (key === 'cover-b') return 'Rückseite Titel';
-  if (key === 'index') return 'Bildregister';
+  if (isIndex(key)) return 'Bildregister' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   const m = pageMonth(key);
   return (isBack(key) ? 'Rückseite ' : '') + MONTHS[m];
 }
 function pageShort(key) {
   if (key === 'cover') return 'Titel';
   if (key === 'cover-b') return 'Titel R';
-  if (key === 'index') return 'Register';
+  if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
 }
 function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5 }; }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
-  if (key === 'index') p.layout = 'index';
+  if (isIndex(key)) p.layout = 'index';
   if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'white', size: 1, panel: 'none', ax: .08, ay: .9 };
   if (isBack(key)) { p.layout = 'cols2'; p.cal = { style: 'off' }; }
   return p;
 }
 function ensurePages() {
+  for (const k of baseKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of pageKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of Object.keys(S.pages)) {
     const p = S.pages[k];
@@ -656,11 +670,14 @@ function usage() {
   return u;
 }
 function calSettings(p) { return { ...S.doc.cal, ...(p.cal || {}) }; }
+// Kopien teilen sich die Bilddaten mit dem Original
+const blobId = (ph) => ph.copyOf || ph.id;
 
 /* ---------- Verlauf (Rückgängig) ---------- */
 const hist = { past: [], future: [], last: null };
 const snap = () => JSON.stringify({ doc: S.doc, pages: S.pages, photos: S.photos, demo: S.demo });
 function commit() {
+  ensurePages();          // z. B. neue Registerseiten
   const now = snap();
   if (now === hist.last) return;
   if (hist.last) { hist.past.push(hist.last); if (hist.past.length > 80) hist.past.shift(); }
@@ -1010,6 +1027,7 @@ async function makeDemoPhotos() {
 }
 /* ---------- Geometrie (alles in mm, Ursprung = Endformat oben links) ---------- */
 function slotRects(p, doc = S.doc) {
+  if (p.layout === 'index') return [];
   const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = doc.gap;
   const cw = W - 2 * m, ch = H - 2 * m, X = (u) => m + u * cw, Y = (v) => m + v * ch, e = 1e-6;
   const out = [];
@@ -1122,11 +1140,11 @@ function offsetItem(it, dx, dy) {
   if ('x' in o) o.x += dx; if ('y' in o) o.y += dy;
   return o;
 }
-const PANELS = { none: null, light: ['white', .82], dark: ['black', .5], paper: ['bg', 1] };
-function blockFrame(lay, anchor, f, panel) {
+const PANELS = { none: null, light: 'white', dark: 'black', paper: 'bg' };
+function blockFrame(lay, anchor, f, panel, opacity = 1) {
   const pad = PANELS[panel] ? 3 * f : 0, bw = lay.w + 2 * pad, bh = lay.h + 2 * pad;
   const x = anchor.ax * (S.doc.w - bw), y = anchor.ay * (S.doc.h - bh), items = [];
-  if (pad) { const [col, op] = PANELS[panel]; items.push({ t: 'rect', x, y, w: bw, h: bh, fill: col === 'bg' ? S.doc.bg : col, opacity: op }); }
+  if (pad) { const col = PANELS[panel]; items.push({ t: 'rect', x, y, w: bw, h: bh, fill: col === 'bg' ? S.doc.bg : col, opacity, role: 'panel' }); }
   for (const it of lay.items) items.push(offsetItem(it, x + pad, y + pad));
   return { x, y, w: bw, h: bh, items };
 }
@@ -1136,7 +1154,7 @@ function calBlock(p) {
   const f = c.size * Math.min(S.doc.w, S.doc.h) / 300;
   const lay = (c.style === 'v' ? calV : c.style === 'g' ? calG : calH)(S.doc.year, m, f, c);
   const a = (p.cal && p.cal.pos && p.cal.pos[c.style]) || S.doc.cal.def[c.style];
-  return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel) };
+  return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel, c.opacity ?? .85) };
 }
 function titleBlock(p) {
   if (!p.title) return null;
@@ -1146,7 +1164,7 @@ function titleBlock(p) {
   if (t.text) { items.push(T(0, y, t.text, 'bold', ts, t.color)); w = textWidth(t.text, 'bold', ts); }
   if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'regular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'regular', ss)); }
   if (!items.length) return null;
-  return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel) };
+  return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel, t.opacity ?? .85) };
 }
 
 /* ---------- Anzeigeliste einer Seite ---------- */
@@ -1182,48 +1200,58 @@ function miniPage(p, tx, ty, s) {
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
   return out;
 }
-function indexItems(p, opt) {
-  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f, items = [];
-  const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
-  items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
-  items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
-  const entries = pageKeys().filter(k => k !== 'index' && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo]));
-  if (!entries.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
-  const n = entries.length, cols = W / H > 1.15 ? (n > 12 ? 4 : 3) : (n > 12 ? 3 : n > 6 ? 3 : 2), rows = Math.ceil(n / cols);
-  const top = mg + 20 * f, gx = 7 * f, gy = 6 * f;
-  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, cellH = (H - top - mg - (rows - 1) * gy) / rows;
-  const side = cellW / cellH > 1.1; // Miniatur links, Text rechts
-  entries.forEach((k, n) => {
-    const pg = S.pages[k], cx = mg + (n % cols) * (cellW + gx), cy = top + Math.floor(n / cols) * (cellH + gy);
-    let mw, mh;
-    if (side) { mh = Math.min(cellH, cellW * .48 * H / W); mw = mh * W / H; }
-    else { mw = cellW; mh = mw * H / W; if (mh > cellH * .55) { mh = cellH * .55; mw = mh * W / H; } }
-    const s = mw / W;
-    items.push(...miniPage(pg, cx, cy, s));
-    let num = 0; const caps = [];
+// Register: Einträge fließen über so viele Seiten wie nötig, Text wird nicht abgeschnitten
+function indexEntries() { return baseKeys().filter(k => S.pages[k] && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo])); }
+function indexLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
+  const cols = W / H > 1.15 ? 4 : 3, gx = 7 * f, gy = 6 * f;
+  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = cellW * .45, mh = mw * H / W, tw = cellW - mw - 4 * f;
+  const ls = 2.35 * f, lh = 3.25 * f, labelH = 3.1 * f * .74 + f;
+  const entries = indexEntries().map(k => {
+    const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
       const sl = pg.slots[r.i]; if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
-      num++;
-      const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, bx = cx + (vis.x + vis.w / 2) * s, by = cy + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
-      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white', opacity: .9 });
-      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
-      caps.push([num, S.photos[sl.photo].caption]);
+      caps.push([++num, S.photos[sl.photo].caption, r]);
     }
-    const tx = side ? cx + mw + 4 * f : cx, tw = side ? cellW - mw - 4 * f : cellW;
-    let y = side ? cy + 3.1 * f * .74 : cy + mh + 5 * f;
-    items.push(T(tx, y, pageLabel(k), 'bold', 3.1 * f, col));
-    y += 1 * f;
-    const ls = 2.35 * f, lh = 3.25 * f, maxY = cy + cellH;
-    for (const [i, cap] of caps) {
-      if (!cap) continue;
-      const lines = wrap(cap, 'regular', ls, tw - 4 * f);
-      lines.forEach((l, j) => {
-        y += lh; if (y > maxY) return;
-        if (j === 0) items.push(T(tx, y, String(i), 'bold', ls, col));
-        items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
-      });
-    }
+    const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
+    return { k, caps, lines, h: Math.max(mh, labelH + lines.length * lh + f) };
   });
+  const pages = []; let cur = [], y = mg + 20 * f;
+  for (let i = 0; i < entries.length; i += cols) {
+    const row = entries.slice(i, i + cols), rh = Math.max(...row.map(e => e.h));
+    if (cur.length && y + rh > H - mg) { pages.push(cur); cur = []; y = mg + 12 * f; }
+    row.forEach((e, j) => cur.push({ ...e, x: mg + j * (cellW + gx), y }));
+    y += rh + gy;
+  }
+  pages.push(cur);
+  pages.geom = { f, mg, mw, mh, ls, lh };
+  return pages;
+}
+function indexItems(p) {
+  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), { f, mg, mw, ls, lh } = L.geom;
+  const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
+  const n = indexNo(p.key), list = L[n - 1] || [];
+  if (n === 1) {
+    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
+    items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
+    if (!list.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
+  } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
+  for (const e of list) {
+    const s = mw / W;
+    items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
+    for (const [num, , r] of e.caps) {
+      const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
+      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
+      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+    }
+    const tx = e.x + mw + 4 * f; let y = e.y + 3.1 * f * .74;
+    items.push(T(tx, y, pageLabel(e.k), 'bold', 3.1 * f, col)); y += f;
+    for (const [num, l] of e.lines) {
+      y += lh;
+      if (num != null) items.push(T(tx, y, String(num), 'bold', ls, col));
+      items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
+    }
+  }
   return items;
 }
 
@@ -1248,7 +1276,7 @@ function svgPage(p, o = {}) {
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
@@ -1289,13 +1317,24 @@ function svgPage(p, o = {}) {
       over += `<rect x="${sm}" y="${sm}" width="${W - 2 * sm}" height="${H - 2 * sm}" fill="none" stroke="#00a0e3" stroke-width="0.3" stroke-dasharray="1 1.5" pointer-events="none"/>`;
     }
     if (o.showBind) over += bindingSvg(true);
+    // Ausschnitt-Modus: das ganze Foto blass zeigen, auch außerhalb des Rahmens
+    const ci = ui.crop != null && items.find(i => i.t === 'img' && i.slot === ui.crop);
+    if (ci) {
+      const c = ci.clip, pl = ci.place, gid = `${id}g`;
+      defs.push(`<clipPath id="${gid}"><path clip-rule="evenodd" d="M${-pad} ${-pad}h${W + 2 * pad}v${H + 2 * pad}h${-(W + 2 * pad)}zM${c.x} ${c.y}v${c.h}h${c.w}v${-c.h}z"/></clipPath>`);
+      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" opacity=".38" preserveAspectRatio="none"/></g>`;
+    }
+    if (ui.selBlock) {
+      const bl = items.find(i => i.t === 'block' && i.kind === ui.selBlock);
+      if (bl) over += `<rect x="${bl.x - 1.5}" y="${bl.y - 1.5}" width="${bl.w + 3}" height="${bl.h + 3}" fill="none" stroke="var(--accent)" stroke-width=".8" stroke-dasharray="2 1.5" pointer-events="none"/>`;
+    }
     // Auswahl
     if (ui.sel != null) {
       const r = slotRects(p).find(r => r.i === ui.sel);
       if (r) {
-        over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1" pointer-events="none"/>`;
+        over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1"${ui.crop === r.i ? ' stroke-dasharray="3 2"' : ''} pointer-events="none"/>`;
         if (ui.swapFrom != null) over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="var(--accent)" fill-opacity=".18" pointer-events="none"/>`;
-        if (r.overlay) {
+        if (r.overlay && ui.crop == null) {
           const hs = Math.max(5, Math.min(W, H) * .022);
           over += `<g data-handle="ov" data-slot-h="${r.i}" style="cursor:move"><circle cx="${r.x}" cy="${r.y}" r="${hs}" fill="var(--accent)"/><path d="M${r.x - hs * .6} ${r.y}h${hs * 1.2}M${r.x} ${r.y - hs * .6}v${hs * 1.2}M${r.x - hs * .38} ${r.y - hs * .22}l${-hs * .22} ${hs * .22}l${hs * .22} ${hs * .22}M${r.x + hs * .38} ${r.y - hs * .22}l${hs * .22} ${hs * .22}l${-hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y - hs * .38}l${hs * .22} ${-hs * .22}l${hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y + hs * .38}l${hs * .22} ${hs * .22}l${hs * .22} ${-hs * .22}" stroke="#fff" stroke-width="${hs * .13}" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>`;
           over += `<g data-handle="ovs" data-slot-h="${r.i}" style="cursor:nwse-resize"><rect x="${r.x + r.w - hs * .8}" y="${r.y + r.h - hs * .8}" width="${hs * 1.6}" height="${hs * 1.6}" rx="${hs * .3}" fill="var(--accent)"/></g>`;
@@ -1312,6 +1351,8 @@ function svgPage(p, o = {}) {
 
 // Ringbindung und Aufhänger-Ausschnitt
 function bindingConf(type) {
+  const B = S.doc.bind;
+  if (type === 'custom') return { p: Math.max(3, B.p || 8.47), hw: B.hw || 4, hh: B.hh || 3.2, cy: B.cy || 5.5, round: false };
   return type === 'wire21' ? { p: 12.7, hw: 5.5, hh: 4.2, cy: 6.5, round: false }
     : type === 'spiral' ? { p: 8.47, hw: 4.5, hh: 4.5, cy: 6, round: true }
     : { p: 8.47, hw: 4, hh: 3.2, cy: 5.5, round: false };
@@ -1364,15 +1405,18 @@ function busy(title, sub) {
   };
 }
 function setView(v) {
-  ui.view = v; ui.sel = null; ui.swapFrom = null;
+  ui.view = v; ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null;
   try { localStorage.setItem('kw-view', v); } catch (e) { /* egal */ }
   renderAll();
   window.scrollTo(0, 0);
 }
 function renderAll() {
+  ensurePages();
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
   $('#banner').hidden = !(S.demo && ui.banner);
+  // Höhe von Kopfleiste und Hinweis, damit der Editor genau in den Bildschirm passt
+  document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight)) + 'px');
   if (ui.view === 'project') renderProject();
   if (ui.view === 'photos') renderPhotos();
   if (ui.view === 'design') renderDesign();
@@ -1381,8 +1425,8 @@ function renderAll() {
 }
 const swatches = (ids, cur, act) => `<div class="swatches">${ids.map(c => `<button class="swatch" style="background:${COLORS[c].rgb}" title="${COLORS[c].name}" aria-label="${COLORS[c].name}" aria-pressed="${c === cur}" data-act="${act}" data-v="${c}"></button>`).join('')}</div>`;
 const seg = (opts, cur, act) => `<div class="seg">${opts.map(([v, l]) => `<button aria-pressed="${v === cur}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-const range = (id, bind, val, min, max, step, unit, label) =>
-  `<div class="field"><label for="${id}">${label}</label><div class="range"><input type="range" id="${id}" data-bind="${bind}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${fmt1(val)}${unit}</output></div></div>`;
+const range = (id, bind, val, min, max, step, unit, label, scale = 1) =>
+  `<div class="field"><label for="${id}">${label}</label><div class="range"><input type="range" id="${id}" data-bind="${bind}" data-unit="${unit}" data-scale="${scale}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${fmt1(val * scale)}${unit}</output></div></div>`;
 
 /* ----- Projekt ----- */
 function renderProject() {
@@ -1390,7 +1434,7 @@ function renderProject() {
   const sheetsCount = d.backs ? pageKeys().filter(k => !isBack(k)).length : n;
   $('#v-project').innerHTML = `<div class="project">
     <div class="cards">
-      <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden.</p></header>
+      <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden. Ein Wechsel ist auch später möglich, die Seiten passen sich an.</p></header>
         <div class="formats">${FORMATS.map(f => {
           const w = f.w || d.w, h = f.h || d.h, s = 34 / Math.max(w, h);
           return `<button class="fmt" aria-pressed="${d.format === f.id}" data-act="format" data-v="${f.id}"><i style="width:${w * s}px;height:${h * s}px"></i><span><b>${f.name}</b><br><span class="muted">${f.sub}</span></span></button>`;
@@ -1402,7 +1446,7 @@ function renderProject() {
         <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover ? 'checked' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
         <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Eine Seite, die alle Fotos mit Bildtexten erklärt.</span></span></label>
         <label class="check"><input type="checkbox" id="bk" data-bind="doc.backs" ${d.backs ? 'checked' : ''}><span>Rückseiten mit Fotos<span class="hint">Jedes Blatt beidseitig bedruckt.</span></span></label>
-        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten Kopf an Fuß drehen<span class="hint">Üblich bei Wandkalendern mit Bindung oben: Beim Umblättern steht die Rückseite richtig herum.</span></span></label>` : ''}
+        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF um 180° drehen<span class="hint">Nur einschalten, wenn das Datenblatt der Druckerei das verlangt.</span></span></label>` : ''}
       </section>
       <section class="card"><header><h2>Bilder und Abstände</h2><p>Gilt für alle Seiten.</p></header>
         ${range('gp', 'doc.gap', d.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern')}
@@ -1416,9 +1460,10 @@ function renderProject() {
         <label class="check"><input type="checkbox" id="hn" data-bind="doc.cal.names" ${d.cal.names ? 'checked' : ''}><span>Feiertage beim Namen nennen</span></label>
         <div class="field"><span class="lbl">Sonn- und Feiertage</span>${seg([['red', 'Rot'], ['bold', 'Fett'], ['none', 'Normal']], d.cal.hi, 'defhi')}</div>
       </section>
-      <section class="card"><header><h2>Bindung und Beschnitt</h2><p>Die Bindung wird nur angezeigt, nicht gedruckt.</p></header>
+      <section class="card"><header><h2>Bindung und Beschnitt</h2><p>Wird nur angezeigt, nicht gedruckt. Die Vorgaben sind allgemeine Richtwerte, nicht aus einem Datenblatt einer Druckerei.</p></header>
         <div class="field"><label for="bt">Bindung oben</label><select id="bt" data-bind="doc.bind.type">
-          ${[['wire31', 'Wire-O 3:1 (Teilung 8,5 mm)'], ['wire21', 'Wire-O 2:1 (Teilung 12,7 mm)'], ['spiral', 'Spirale, runde Löcher'], ['none', 'Keine Lochung']].map(([v, l]) => `<option value="${v}" ${d.bind.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          ${[['wire31', 'Wire-O 3:1, Richtwerte'], ['wire21', 'Wire-O 2:1, Richtwerte'], ['spiral', 'Spirale, Richtwerte'], ['custom', 'Eigene Maße aus dem Datenblatt'], ['none', 'Keine Lochung']].map(([v, l]) => `<option value="${v}" ${d.bind.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        ${d.bind.type === 'custom' ? `<div class="row">${[['bp', 'p', 'Lochabstand mm'], ['bhw', 'hw', 'Lochbreite mm'], ['bhh', 'hh', 'Lochhöhe mm'], ['bcy', 'cy', 'Lochmitte ab Kante mm']].map(([id, k, l]) => `<div class="field" style="flex:1;min-width:110px"><label for="${id}">${l}</label><input type="number" id="${id}" data-bind="doc.bind.${k}" min="1" max="30" step="0.1" value="${d.bind[k]}"></div>`).join('')}</div>` : ''}
         <label class="check"><input type="checkbox" id="bc" data-bind="doc.bind.cut" ${d.bind.cut ? 'checked' : ''}><span>Halbrunder Ausschnitt für den Aufhänger</span></label>
         ${d.bind.cut ? range('bw', 'doc.bind.cutW', d.bind.cutW, 20, 70, 1, ' mm', 'Ausschnitt Breite') + range('bd', 'doc.bind.cutD', d.bind.cutD, 3, 20, .5, ' mm', 'Ausschnitt Tiefe') : ''}
         ${range('bl', 'doc.bleed', d.bleed, 0, 5, .5, ' mm', 'Beschnittzugabe')}
@@ -1506,20 +1551,33 @@ function renderStage() {
   $('#stageTools').innerHTML = `<h2>${esc(pageLabel(ui.page))} <span class="muted">${i + 1} / ${keys.length}</span></h2>
     <button class="icon-btn" data-act="prevpage" aria-label="Vorige Seite" ${i <= 0 ? 'disabled' : ''}>${ICON.left}</button>
     <button class="icon-btn" data-act="nextpage" aria-label="Nächste Seite" ${i >= keys.length - 1 ? 'disabled' : ''}>${ICON.right}</button>
+    <span class="row" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">Beschnitt</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">Bindung</button>
     <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
-  $('#canvasWrap').innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
-  bindEditor($('#editor'));
+  const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
+  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
+  const svg = $('#editor');
+  // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
+  wrap.classList.toggle('zoomed', ui.viewZoom > 1);
+  if (ui.viewZoom > 1) {
+    const vb = svg.viewBox.baseVal, cs = getComputedStyle(wrap);
+    const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ah = window.innerWidth > 980 ? wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) : Infinity;
+    const k = Math.min(aw / vb.width, ah / vb.height) * ui.viewZoom;
+    svg.style.width = vb.width * k + 'px'; svg.style.height = vb.height * k + 'px'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none';
+    wrap.scrollLeft = sx; wrap.scrollTop = sy;
+  }
+  bindEditor(svg);
 }
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   if (ui.swapFrom != null) { fb.innerHTML = `<span>Tippe auf den Rahmen, mit dem getauscht werden soll.</span><button class="btn small" data-act="swapcancel">Abbrechen</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Im Rahmen ziehen verschiebt das Bild, Mausrad oder zwei Finger zoomen. Kalendarium frei verschieben.'}</span>`;
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Kalendarium mit der Maus verschieben, am Handy erst antippen.'}</span>`;
     return;
   }
   const r = slotRects(p).find(r => r.i === ui.sel), sl = p.slots[ui.sel], ph = sl && S.photos[sl.photo];
@@ -1528,12 +1586,14 @@ function renderFrameBar() {
   if (ph) {
     const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < 150 ? 'bad' : d < 200 ? 'warn' : 'ok';
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b><span class="pill ${cls}">${d} dpi${d < 150 ? ' · zu klein' : d < 200 ? ' · knapp' : ''}</span></div>
+      <button class="btn small ${ui.crop === ui.sel ? 'primary' : ''}" data-act="crop" aria-pressed="${ui.crop === ui.sel}">${ui.crop === ui.sel ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>
       <div class="range"><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <button class="btn small" data-act="fit">Einpassen</button>
       <input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
       <button class="btn small" data-act="swap">Tauschen</button>
       <button class="btn small danger" data-act="unslot">Entfernen</button>`;
   } else h += `<span class="hint">Leerer Rahmen: Foto aus der Liste rechts hineinziehen oder antippen.</span>`;
+  if (ui.crop === ui.sel && ph) h += `<span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
   if (r.overlay) h += `<div class="range"><span class="small muted">Größe</span><input type="range" id="ovs" aria-label="Größe Einleger" min="0.5" max="1.8" step="0.01" value="${(p.ov[ui.sel] || {}).s ?? 1}" data-act-input="ovsize"></div>`;
   fb.innerHTML = h;
 }
@@ -1541,6 +1601,7 @@ function renderPanel() {
   const p = curPage();
   const third = p.key === 'cover' ? ['title', 'Titel'] : p.layout === 'index' ? ['index', 'Register'] : ['cal', 'Kalender'];
   const tabs = p.layout === 'index' ? [third] : [['layout', 'Layout'], ['photos', 'Fotos'], third];
+  if (p.layout === 'index') ui.sel = null;
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = tabs[0][0];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-act="tab" data-v="${k}" aria-selected="${ui.tab === k}">${l}</button>`).join('');
   const body = $('#tabBody');
@@ -1577,7 +1638,7 @@ function panelPhotos(p) {
       ${MONTHS.map((n, i) => `<option value="${i}" ${f === String(i) ? 'selected' : ''}>${n} (${Object.values(S.photos).filter(x => x.month === i).length})</option>`).join('')}
       <option value="fav" ${f === 'fav' ? 'selected' : ''}>Favoriten</option><option value="free" ${f === 'free' ? 'selected' : ''}>Noch nicht verwendet</option><option value="all" ${f === 'all' ? 'selected' : ''}>Alle Fotos</option></select></div>
     <div class="pool">${list.map(ph => photoThumb(ph, u)).join('') || '<p class="empty-note">Keine Fotos in dieser Auswahl. Unter „Fotos“ hinzufügen.</p>'}</div>
-    <p class="hint">Ziehen mit der Maus, auf dem Handy lange drücken und ziehen. Oder Foto antippen und dann den Rahmen antippen.</p>`;
+    <p class="hint">Ziehen mit der Maus, auf dem Handy lange drücken und ziehen. Oder Foto antippen und dann den Rahmen antippen.${pageMonth(p.key) != null ? ` Ein Foto aus einem anderen Monat wird dabei ${MONTHS[pageMonth(p.key)]} zugeordnet.` : ''}</p>`;
 }
 function panelCal(p) {
   const c = calSettings(p);
@@ -1587,6 +1648,7 @@ function panelCal(p) {
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
     <div class="field"><span class="lbl">Fläche dahinter</span>${seg([['none', 'Keine'], ['light', 'Hell'], ['dark', 'Dunkel'], ['paper', 'Papier']], c.panel, 'calpanel')}</div>
+    ${c.panel !== 'none' ? range('co', 'page.cal.opacity', c.opacity ?? .85, .2, 1, .05, ' %', 'Deckkraft der Fläche', 100) : ''}
     <div class="field"><span class="lbl">Sonn- und Feiertage</span>${seg([['red', 'Rot'], ['bold', 'Fett'], ['none', 'Normal']], c.hi, 'calhi')}</div>
     <div class="field"><span class="lbl">Position</span>
       <p class="hint">${custom ? 'Auf dieser Seite verschoben.' : 'Steht an der Standardposition.'} Zum Verschieben im Bild ziehen.</p>
@@ -1601,12 +1663,12 @@ function panelTitle(p) {
     ${range('tz', 'page.title.size', t.size, .5, 2, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, t.color, 'titlecolor')}</div>
     <div class="field"><span class="lbl">Fläche dahinter</span>${seg([['none', 'Keine'], ['light', 'Hell'], ['dark', 'Dunkel'], ['paper', 'Papier']], t.panel, 'titlepanel')}</div>
+    ${t.panel !== 'none' ? range('to', 'page.title.opacity', t.opacity ?? .85, .2, 1, .05, ' %', 'Deckkraft der Fläche', 100) : ''}
     <p class="hint">Den Titel im Bild an die gewünschte Stelle ziehen.</p>`;
 }
 function panelIndex() {
   const rows = [];
-  for (const k of pageKeys()) {
-    if (k === 'index') continue;
+  for (const k of baseKeys()) {
     const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
     if (!ps.length) continue;
     rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
@@ -1636,9 +1698,17 @@ function checks() {
     }
   }
   if (d.index) {
-    const missing = pageKeys().flatMap(k => k === 'index' ? [] : visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
+    const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
     if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
   }
+  // Jedes Foto gehört zu genau einem Monat; Mehrfachnutzung sichtbar machen
+  for (const [id, keys] of Object.entries(usage())) {
+    const ph = S.photos[id]; if (!ph) continue;
+    const wrong = keys.filter(k => pageMonth(k) != null && pageMonth(k) !== ph.month);
+    if (wrong.length) out.push(['warn', `${wrong.map(pageLabel).join(', ')}: Foto „${ph.caption || ph.name}“ gehört zu ${ph.month < 0 ? 'keinem Monat' : MONTHS[ph.month]}`, wrong[0]]);
+    if (keys.length > 1) out.push(['warn', `Foto „${ph.caption || ph.name}“ steht mehrfach: ${keys.map(pageLabel).join(', ')}`, keys[0]]);
+  }
+  if (d.bind.type !== 'none' && d.bind.type !== 'custom') out.push(['warn', 'Lochung und Aufhänger nutzen Richtwerte. Für die Druckerei die Maße aus deren Datenblatt eintragen.', null]);
   if (d.bleed < 3) out.push(['warn', `Beschnitt nur ${fmt1(d.bleed)} mm, üblich sind 3 mm`, null]);
   return out;
 }
@@ -1647,21 +1717,22 @@ function renderPrint() {
   const keys = pageKeys();
   $('#v-print').innerHTML = `<div class="print">
     <div style="display:grid;gap:16px;min-width:0">
-      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${bad} Fehler, ${warn} Hinweise` : warn ? `Keine Fehler, ${warn} Hinweise` : 'Alles bereit für die Druckerei.'}</p></header>
-        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend.</li>'}
+      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${bad} Fehler, ${warn} Hinweise` : warn ? `Keine Fehler, ${warn} Hinweise` : 'Keine Probleme gefunden.'} Die Prüfung ersetzt nicht die Vorgaben der Druckerei.</p></header>
+        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
-      <section class="card"><header><h2>Druck-PDF</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge.</p></header>
+      <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
         <dl class="specs"><dt>Seiten</dt><dd>${keys.length}${d.backs ? ' (Vorder- und Rückseiten im Wechsel)' : ''}</dd>
           <dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm</dd>
-          <dt>Farbraum</dt><dd>CMYK (Bilder und Text)</dd><dt>Schrift</dt><dd>Jost, eingebettet</dd></dl>
+          <dt>Farbraum</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
+          <dt>Transparenz</dt><dd>keine (Flächen werden eingerechnet)</dd><dt>Fehlt noch</dt><dd>ICC-Ausgabeprofil, PDF/X, Druckerei-Profil</dd></dl>
         <div class="field"><label for="dpi">Bildauflösung</label><select id="dpi" data-bind="doc.dpi">
           ${[[300, '300 dpi – Druck'], [200, '200 dpi – kleinere Datei'], [100, '100 dpi – schneller Probeausdruck']].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="field"><label for="jq">JPEG-Qualität</label><select id="jq" data-bind="doc.quality">
           ${[[95, 'Sehr hoch'], [90, 'Hoch'], [80, 'Mittel']].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <label class="check"><input type="checkbox" id="crm" data-bind="doc.cropMarks" ${d.cropMarks ? 'checked' : ''}><span>Schnittmarken<span class="hint">Nur wenn die Druckerei sie verlangt.</span></span></label>
-        <button class="btn primary" data-act="export">Druck-PDF erstellen</button>
+        <button class="btn primary" data-act="export">PDF-Entwurf erstellen</button>
         <div id="exportOut"></div>
-        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet (Schwarz wird reines K). Für farbverbindliche Ergebnisse vorher bei der Druckerei nach deren Profil fragen, z. B. PSO Coated v3 oder FOGRA39.</p>
+        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
       </section>
     </div>
     <section class="card"><header><h2>Leuchttisch</h2><p>Alle Seiten im Endformat, mit Lochung und Aufhänger.</p></header>
@@ -1704,9 +1775,10 @@ function onBind(el, final) {
   if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); }
   if (path === 'doc.year') { if (!final) return; v = clamp(Math.round(v), 2000, 2100); const cv = S.pages.cover; if (cv && cv.title && cv.title.sub === String(S.doc.year)) cv.title.sub = String(v); }
   setPath(path, v);
+  if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
   const out = el.parentElement.querySelector('output');
-  if (out) out.textContent = fmt1(v) + (path.endsWith('size') ? '×' : ' mm');
-  const structural = /doc\.(cover|index|backs|format|bind\.cut|backRotate)/.test(path);
+  if (out) out.textContent = fmt1(v * (+el.dataset.scale || 1)) + (el.dataset.unit ?? ' mm');
+  const structural = /doc\.(cover|index|backs|format|bind\.cut|bind\.type|backRotate)/.test(path);
   if (structural) ensurePages();
   if (final) {
     commit();
@@ -1744,24 +1816,28 @@ document.addEventListener('change', (e) => {
   if (el.dataset.bind) { onBind(el, true); return; }
   const act = el.dataset.actChange;
   if (act === 'pool') { ui.pool = el.value; renderPanel(); }
-  if (act === 'moveto' && el.value !== '') {
-    for (const id of ui.photoSel) if (S.photos[id]) { S.photos[id].month = +el.value; S.photos[id].src = 'von Hand'; }
-    toast(`${ui.photoSel.size} Fotos nach ${+el.value < 0 ? '„Ohne Monat“' : MONTHS[+el.value]} verschoben.`);
-    ui.photoSel.clear(); commit(); renderPhotos();
-  }
+  if (act === 'moveto' && el.value !== '') moveToMonth([...ui.photoSel], +el.value).then(ok => { if (ok) ui.photoSel.clear(); renderPhotos(); });
 });
 
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
-  format: (el) => {
-    const f = FORMATS.find(f => f.id === el.dataset.v); S.doc.format = f.id;
+  format: async (el) => {
+    const f = FORMATS.find(f => f.id === el.dataset.v);
+    if (f.id === S.doc.format) return;
+    const used = Object.keys(usage()).length;
+    if (used && f.w && (f.w !== S.doc.w || f.h !== S.doc.h)) {
+      const ok = await ask({ title: `Auf ${f.name} ${f.sub} wechseln?`, text: `Auf den Seiten stehen ${used} Fotos. Rahmen und Kalendarium passen sich dem neuen Format an, Bildausschnitte bleiben so weit wie möglich erhalten. Danach die Seiten bitte einmal durchsehen. Rückgängig ist jederzeit möglich.`,
+        buttons: [{ label: 'Format wechseln', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      if (!ok) return;
+    }
+    S.doc.format = f.id;
     if (f.w) { S.doc.w = f.w; S.doc.h = f.h; }
-    commit(); renderAll();
+    ensurePages(); commit(); renderAll();
   },
   bg: (el) => { S.doc.bg = el.dataset.v; commit(); renderAll(); },
   defstyle: (el) => { S.doc.cal.style = el.dataset.v; commit(); renderAll(); },
   defhi: (el) => { S.doc.cal.hi = el.dataset.v; commit(); renderAll(); },
-  page: (el) => { ui.page = el.dataset.v; ui.sel = null; ui.swapFrom = null; ui.pool = null; renderDesign(); },
+  page: (el) => { ui.page = el.dataset.v; ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; ui.pool = null; renderDesign(); },
   prevpage: () => { const k = pageKeys(), i = k.indexOf(ui.page); if (i > 0) ACTIONS.page({ dataset: { v: k[i - 1] } }); },
   nextpage: () => { const k = pageKeys(), i = k.indexOf(ui.page); if (i < k.length - 1) ACTIONS.page({ dataset: { v: k[i + 1] } }); },
   jump: (el) => { ui.page = el.dataset.v; setView('design'); },
@@ -1771,7 +1847,7 @@ const ACTIONS = {
     const p = curPage(); p.layout = el.dataset.v;
     while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
     for (const s of p.slots) { s.zoom = 1; s.cx = .5; s.cy = .5; }
-    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb();
+    ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
   },
   autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${n} Fotos eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
   clearpage: () => { for (const s of curPage().slots) Object.assign(s, newSlot()); ui.sel = null; commit(); renderDesign(); },
@@ -1809,7 +1885,8 @@ const ACTIONS = {
   delphotos: () => {
     if (!ui.confirmDel) { ui.confirmDel = true; renderPhotos(); setTimeout(() => { ui.confirmDel = false; if (ui.view === 'photos') renderPhotos(); }, 4000); return; }
     ui.confirmDel = false;
-    for (const id of ui.photoSel) { delete S.photos[id]; DB.del('blobs', id); }
+    for (const id of ui.photoSel) delete S.photos[id];
+    for (const id of ui.photoSel) if (!Object.values(S.photos).some(p => blobId(p) === id)) DB.del('blobs', id);
     for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     ui.photoSel.clear(); commit(); renderPhotos();
   },
@@ -1819,7 +1896,17 @@ const ACTIONS = {
     if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = 'Wirklich alles löschen?'; setTimeout(() => { el.dataset.sure = ''; el.textContent = 'Leeres Projekt beginnen'; }, 4000); return; }
     await resetProject(false);
   },
-  export: () => exportPDF(),
+  export: async () => {
+    const bad = checks().filter(c => c[0] === 'bad').length;
+    if (bad) {
+      const ok = await ask({ title: `${bad} Fehler gefunden`, text: 'Zum Beispiel leere Rahmen oder zu kleine Fotos. Für die Druckerei sollten sie behoben sein. Ein Entwurf zum Ansehen geht trotzdem.',
+        buttons: [{ label: 'Trotzdem Entwurf erstellen', value: true }, { label: 'Abbrechen', value: false, primary: true }] });
+      if (!ok) return;
+    }
+    exportPDF();
+  },
+  crop: () => setCrop(ui.crop == null ? ui.sel : null),
+  vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
@@ -1877,6 +1964,66 @@ async function setupDemo() {
   for (let m = 0; m < 12; m++) autoFill('m' + m, used);
   autoFill('cover', used);
 }
+
+/* ---------- Rückfragen (statt confirm(), das im Artefakt nicht erscheint) ---------- */
+function ask({ title, text, buttons }) {
+  return new Promise((resolve) => {
+    const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><p class="hint">${esc(text)}</p><div class="row">${buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    const done = (v) => { document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
+    const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(buttons[buttons.length - 1].value); } };
+    el.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) done(buttons[+b.dataset.i].value); });
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(el);
+    (el.querySelector('.btn.primary') || el.querySelector('.btn')).focus();
+  });
+}
+
+/* ---------- Jedes Foto gehört genau einem Monat ---------- */
+// Seiten anderer Monate, auf denen das Foto steht (Titel und Register zählen nicht)
+const usedInOtherMonths = (id, m) => (usage()[id] || []).filter(k => pageMonth(k) != null && pageMonth(k) !== m);
+function clearPhotoFrom(id, keys) {
+  for (const k of keys) for (const s of visibleSlots(S.pages[k])) if (s.photo === id) Object.assign(s, newSlot());
+}
+function copyPhoto(id, m) {
+  const ph = S.photos[id], nid = uid();
+  S.photos[nid] = { ...ph, id: nid, copyOf: blobId(ph), month: m, src: 'Kopie', fav: false };
+  RT.prev[nid] = RT.prev[id]; RT.thumb[nid] = RT.thumb[id]; if (RT.file[id]) RT.file[nid] = RT.file[id];
+  return S.photos[nid];
+}
+async function placePhoto(slot, id) {
+  const p = curPage(), m = pageMonth(p.key), ph = S.photos[id];
+  if (m == null || ph.month === m) { assignPhoto(slot, id); return; }
+  const other = usedInOtherMonths(id, m), from = ph.month < 0 ? 'keinem Monat' : MONTHS[ph.month];
+  if (!other.length) {
+    ph.month = m; ph.src = 'von Hand';
+    assignPhoto(slot, id);
+    toast(`Foto von ${from} nach ${MONTHS[m]} verschoben.`);
+    return;
+  }
+  const r = await ask({ title: 'Foto wird schon verwendet',
+    text: `Das Foto gehört zu ${from} und steht auf: ${other.map(pageLabel).join(', ')}. Jedes Foto gehört zu genau einem Monat.`,
+    buttons: [{ label: `Nach ${MONTHS[m]} verschieben, dort entfernen`, value: 'move', primary: true }, { label: `Kopie für ${MONTHS[m]} anlegen`, value: 'copy' }, { label: 'Abbrechen', value: null }] });
+  if (r === 'move') { clearPhotoFrom(id, other); ph.month = m; ph.src = 'von Hand'; assignPhoto(slot, id); renderStrip(); }
+  else if (r === 'copy') { const c = copyPhoto(id, m); assignPhoto(slot, c.id); }
+}
+async function moveToMonth(ids, m) {
+  ids = ids.filter(id => S.photos[id] && S.photos[id].month !== m);
+  if (!ids.length) return true;
+  const conflicts = ids.filter(id => usedInOtherMonths(id, m).length);
+  if (conflicts.length) {
+    const pages = [...new Set(conflicts.flatMap(id => usedInOtherMonths(id, m)))];
+    const ok = await ask({ title: `${conflicts.length} ${conflicts.length > 1 ? 'Fotos stehen' : 'Foto steht'} schon auf Seiten`,
+      text: `Betroffen: ${pages.map(pageLabel).join(', ')}. Beim Verschieben werden ${conflicts.length > 1 ? 'sie' : 'es'} dort aus den Rahmen genommen.`,
+      buttons: [{ label: 'Verschieben und dort entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+    if (!ok) return false;
+    for (const id of conflicts) clearPhotoFrom(id, usedInOtherMonths(id, m));
+  }
+  for (const id of ids) { S.photos[id].month = m; S.photos[id].src = 'von Hand'; }
+  commit(); if (ui.view === 'photos') renderPhotos();
+  toast(`${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} nach ${m < 0 ? '„Ohne Monat“' : MONTHS[m]} verschoben.`);
+  return true;
+}
 /* ---------- Bedienung im Seiteneditor ---------- */
 function svgPoint(svg, e) {
   const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -1893,12 +2040,20 @@ function zoomAt(r, ph, sl, z, at) {
 }
 function liveImage(svg, slot) {
   const p = curPage(), r = slotRects(p).find(r => r.i === slot), sl = p.slots[slot], ph = S.photos[sl.photo];
-  const img = svg.querySelector(`g[data-slot="${slot}"] image`); if (!img) return;
   const pl = placeImage(r, ph, sl);
-  img.setAttribute('x', pl.x); img.setAttribute('y', pl.y); img.setAttribute('width', pl.w); img.setAttribute('height', pl.h);
+  for (const img of svg.querySelectorAll(`g[data-slot="${slot}"] image`)) {
+    img.setAttribute('x', pl.x); img.setAttribute('y', pl.y); img.setAttribute('width', pl.w); img.setAttribute('height', pl.h);
+  }
 }
 function selectSlot(i) {
-  ui.sel = i; renderEditor(); renderFrameBar();
+  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null;
+  renderEditor(); renderFrameBar();
+}
+function setCrop(i) {
+  const sl = i != null && curPage().slots[i];
+  ui.crop = sl && sl.photo && S.photos[sl.photo] ? i : null;
+  if (ui.crop != null) { ui.sel = i; ui.selBlock = null; }
+  renderEditor(); renderFrameBar();
 }
 function assignPhoto(slot, id) {
   const p = curPage();
@@ -1907,8 +2062,11 @@ function assignPhoto(slot, id) {
   $('#toast').classList.remove('on');
   commit(); renderEditor(); renderFrameBar(); updateThumb(); renderPanelKeepScroll();
 }
+// Bedienung: Antippen wählt aus. Im Ausschnitt-Modus (Doppelklick, zweites Antippen oder Schaltfläche)
+// wird das Foto unter dem Rahmen verschoben und gezoomt. Mausrad und zwei Finger zoomen nur dort.
 function bindEditor(svg) {
   if (!svg) return;
+  svg.classList.toggle('locked', ui.crop != null || ui.selBlock != null);
   const pointers = new Map();
   let g = null; // laufende Geste
 
@@ -1930,19 +2088,23 @@ function bindEditor(svg) {
       const i = +handle.dataset.slotH, r = slotRects(p).find(r => r.i === i), L = layoutById(p.layout), base = L.ov[i - L.slots.length];
       const o = p.ov[i] ||= { x: base[0], y: base[1], s: 1 };
       g = { type: handle.dataset.handle, slot: i, start: pt, o0: { ...o }, r0: r };
+    } else if (slotEl && ui.crop != null && +slotEl.dataset.slot === ui.crop) {
+      const sl = p.slots[ui.crop];
+      g = { type: 'pan', slot: ui.crop, start: pt, cx: sl.cx, cy: sl.cy, moved: false, ghost: !!e.target.closest('.cropghost') };
     } else if (block) {
-      const it = pageItems(p).find(x => x.t === 'block' && x.kind === block.dataset.block);
-      g = { type: 'block', kind: block.dataset.block, start: pt, it, el: block, moved: false };
+      // Mit der Maus direkt ziehen; mit dem Finger erst antippen, dann ziehen
+      const kind = block.dataset.block;
+      const it = pageItems(p).find(x => x.t === 'block' && x.kind === kind);
+      g = e.pointerType === 'mouse' || ui.selBlock === kind ? { type: 'block', kind, start: pt, it, el: block, moved: false } : { type: 'selblock', kind, start: pt };
     } else if (slotEl) {
-      const i = +slotEl.dataset.slot, sl = p.slots[i];
-      g = { type: sl && sl.photo && S.photos[sl.photo] ? 'pan' : 'tap', slot: i, start: pt, cx: sl.cx, cy: sl.cy, moved: false };
+      g = { type: 'tap', slot: +slotEl.dataset.slot, start: pt, moved: false };
     } else { g = { type: 'none', start: pt }; }
   });
   svg.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId) || !g) return;
     const pt = svgPoint(svg, e); pointers.set(e.pointerId, pt);
     const p = curPage(), dx = pt.x - g.start.x, dy = pt.y - g.start.y;
-    if (!g.moved && Math.hypot(dx, dy) > 1.2) { g.moved = true; svg.classList.add('dragging'); }
+    if (!g.moved && Math.hypot(dx, dy) > 1.2) { g.moved = true; if (g.type !== 'tap' && g.type !== 'none' && g.type !== 'selblock') svg.classList.add('dragging'); }
     if (!g.moved) return;
     if (g.type === 'pan') {
       const r = slotRects(p).find(r => r.i === g.slot), sl = p.slots[g.slot], ph = S.photos[sl.photo];
@@ -1995,31 +2157,43 @@ function bindEditor(svg) {
       commit(); renderEditor(); updateThumb(); if (ui.tab === 'cal') renderPanelKeepScroll();
       return;
     }
+    if ((gg.type === 'block' || gg.type === 'selblock') && !gg.moved) {
+      ui.selBlock = gg.kind; ui.sel = null; ui.crop = null; renderEditor(); renderFrameBar();
+      if (ui.tab !== (gg.kind === 'cal' ? 'cal' : 'title')) { ui.tab = gg.kind === 'cal' ? 'cal' : 'title'; renderPanel(); }
+      return;
+    }
     if ((gg.type === 'pan' || gg.type === 'pinch') && gg.moved) { commit(); updateThumb(); renderFrameBarMeta(); return; }
     if (gg.type === 'ov' || gg.type === 'ovs') { commit(); renderEditor(); updateThumb(); renderFrameBar(); return; }
-    if (!gg.moved && (gg.type === 'pan' || gg.type === 'tap')) {
+    if (!gg.moved && (gg.type === 'tap' || gg.type === 'pan')) {
       if (ui.swapFrom != null && ui.swapFrom !== gg.slot) {
         const a = p.slots[ui.swapFrom], b = p.slots[gg.slot];
         [a.photo, b.photo] = [b.photo, a.photo]; Object.assign(a, { zoom: 1, cx: .5, cy: .5 }); Object.assign(b, { zoom: 1, cx: .5, cy: .5 });
         ui.swapFrom = null; ui.sel = gg.slot; commit(); renderEditor(); renderFrameBar(); updateThumb(); return;
       }
-      if (ui.armed) { assignPhoto(gg.slot, ui.armed); return; }
-      selectSlot(ui.sel === gg.slot && gg.type === 'pan' ? gg.slot : gg.slot);
-      if (gg.type === 'tap' && ui.tab !== 'photos' && window.innerWidth > 980) { ui.tab = 'photos'; renderPanel(); }
+      if (ui.armed) { placePhoto(gg.slot, ui.armed); return; }
+      if (gg.type === 'pan') { if (gg.ghost) setCrop(null); return; } // Antippen außerhalb des Rahmens beendet den Ausschnitt-Modus
+      if (ui.sel === gg.slot) { setCrop(gg.slot); return; }   // zweites Antippen: Ausschnitt bearbeiten
+      selectSlot(gg.slot);
+      const sl = p.slots[gg.slot];
+      if (!(sl && sl.photo && S.photos[sl.photo]) && ui.tab !== 'photos' && window.innerWidth > 980) { ui.tab = 'photos'; renderPanel(); }
       return;
     }
-    if (gg.type === 'none' && !gg.moved && ui.sel != null) { ui.sel = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
+    if (gg.type === 'none' && !gg.moved && (ui.sel != null || ui.selBlock != null || ui.crop != null)) { ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
-  svg.addEventListener('wheel', (e) => {
+  svg.addEventListener('dblclick', (e) => {
     const slotEl = e.target.closest('[data-slot]'); if (!slotEl) return;
-    const p = curPage(), i = +slotEl.dataset.slot, sl = p.slots[i], ph = sl && S.photos[sl.photo]; if (!ph) return;
+    setCrop(+slotEl.dataset.slot);
+  });
+  svg.addEventListener('wheel', (e) => {
+    if (ui.crop == null) return;                             // ohne Ausschnitt-Modus scrollt die Seite normal
+    const slotEl = e.target.closest('[data-slot]'); if (!slotEl || +slotEl.dataset.slot !== ui.crop) return;
+    const p = curPage(), i = ui.crop, sl = p.slots[i], ph = sl && S.photos[sl.photo]; if (!ph) return;
     e.preventDefault();
     const r = slotRects(p).find(r => r.i === i);
     zoomAt(r, ph, sl, (sl.zoom || 1) * Math.exp(-e.deltaY * .0015), svgPoint(svg, e));
     liveImage(svg, i);
-    if (ui.sel !== i) { ui.sel = i; }
     clearTimeout(bindEditor._w); bindEditor._w = setTimeout(() => { commit(); renderEditor(); renderFrameBar(); updateThumb(); }, 350);
   }, { passive: false });
 }
@@ -2083,12 +2257,9 @@ document.addEventListener('pointerup', (e) => {
     const tgt = drag.over;
     drag.ghost.remove(); drag.ghost = null; drag.active = false; drag.hl = null;
     if (tgt && tgt.classList) tgt.classList.remove('over');
-    if (tgt && tgt.dataset.slot != null) assignPhoto(+tgt.dataset.slot, drag.ids[0]);
-    else if (tgt && tgt.dataset.bucket != null) {
-      const m = +tgt.dataset.bucket;
-      for (const id of drag.ids) { S.photos[id].month = m; S.photos[id].src = 'von Hand'; }
-      commit(); renderPhotos();
-    } else highlightSlot(null);
+    if (tgt && tgt.dataset.slot != null) placePhoto(+tgt.dataset.slot, drag.ids[0]);
+    else if (tgt && tgt.dataset.bucket != null) moveToMonth(drag.ids, +tgt.dataset.bucket);
+    else highlightSlot(null);
     drag.pend = null; drag.over = null;
     setTimeout(() => drag.suppressClick = false, 50);
     return;
@@ -2103,7 +2274,7 @@ function photoTap(id, e) {
     else { ui.photoSel.add(id); ui.photoFocus = id; }
     renderPhotos();
   } else if (ui.view === 'design') {
-    if (ui.sel != null && curPage().slots[ui.sel] && !ui.armed) { assignPhoto(ui.sel, id); return; }
+    if (ui.sel != null && curPage().slots[ui.sel] && !ui.armed) { placePhoto(ui.sel, id); return; }
     ui.armed = ui.armed === id ? null : id;
     renderPanelKeepScroll(); renderFrameBar();
     if (ui.armed) toast('Jetzt auf einen Rahmen tippen.');
@@ -2116,12 +2287,15 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inField) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !inField) { e.preventDefault(); redo(); return; }
   if (inField || ui.view !== 'design') return;
-  if (e.key === 'Escape') { ui.sel = null; ui.swapFrom = null; ui.armed = null; renderEditor(); renderFrameBar(); }
+  if (e.key === 'Escape') {
+    if (ui.crop != null) ui.crop = null; else { ui.sel = null; ui.selBlock = null; ui.swapFrom = null; ui.armed = null; }
+    renderEditor(); renderFrameBar();
+  }
   if ((e.key === 'Delete' || e.key === 'Backspace') && ui.sel != null) { ACTIONS.unslot(); }
   if (e.key === 'PageDown' || (e.key === 'ArrowRight' && e.altKey)) ACTIONS.nextpage();
   if (e.key === 'PageUp' || (e.key === 'ArrowLeft' && e.altKey)) ACTIONS.prevpage();
 });
-/* ---------- Druck-PDF ---------- */
+/* ---------- PDF-Entwurf ---------- */
 const MAXPX = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 16e6 : 36e6;
 const srcCache = { id: null, bmp: null };
 async function sourceFor(ph) {
@@ -2129,11 +2303,12 @@ async function sourceFor(ph) {
   if (srcCache.id === ph.id) return srcCache.bmp;
   if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close();
   let blob = RT.file[ph.id];
-  if (!blob) { const rec = await DB.get('blobs', ph.id); blob = rec && (rec.file || rec.prev); }
+  if (!blob) { const rec = await DB.get('blobs', blobId(ph)); blob = rec && (rec.file || rec.prev); }
   srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
-async function renderCrop(it, dpi) {
+// panels: halbtransparente Flächen, die ins Bild eingerechnet werden (keine PDF-Transparenz)
+async function renderCrop(it, dpi, panels = []) {
   const ph = S.photos[it.photo], { clip, place } = it;
   const sx = (clip.x - place.x) / place.w * ph.w, sy = (clip.y - place.y) / place.h * ph.h;
   const sw = clip.w / place.w * ph.w, sh = clip.h / place.h * ph.h;
@@ -2154,6 +2329,13 @@ async function renderCrop(it, dpi) {
       x.drawImage(srcOf(bmp), sx * sc, sy * sc, sw * sc, sh * sc, 0, 0, ow, oh);
     }
   }
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  for (const pn of panels) {
+    const r = intersect(pn, clip); if (!r) continue;
+    x.globalAlpha = pn.opacity; x.fillStyle = cRGB(pn.fill);
+    x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
+    x.globalAlpha = 1;
+  }
   const rgba = x.getImageData(0, 0, ow, oh).data, cmyk = new Uint8Array(ow * oh * 4);
   for (let i = 0; i < rgba.length; i += 4) {
     const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2], mx = Math.max(r, g, b);
@@ -2167,12 +2349,14 @@ async function renderCrop(it, dpi) {
 const pdfNum = (v) => (Math.round(v * 1000) / 1000).toString();
 const pdfStr = (t) => [...t].map(ch => { const s = String.fromCharCode(winAnsi(ch)); return s === '(' || s === ')' || s === '\\' ? '\\' + s : s; }).join('');
 const kop = (id) => (COLORS[id] || COLORS.black).cmyk.map(pdfNum).join(' ');
+// Fläche mit Deckkraft a über einer Vektorfläche: Farben vorab mischen
+const kmix = (top, a, under) => { const t = (COLORS[top] || COLORS.black).cmyk, u = (COLORS[under] || COLORS.white).cmyk; return t.map((v, i) => pdfNum(a * v + (1 - a) * u[i])).join(' '); };
 let lastPdf = null;
 
 async function exportPDF() {
   const d = S.doc, keys = pageKeys();
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
-  const bar = busy('Druck-PDF wird erstellt', 'Vorbereitung …');
+  const bar = busy('PDF-Entwurf wird erstellt', 'Vorbereitung …');
   let done = 0;
   try {
     const pdf = new PDFWriter(); pdf.begin(); await pdf.addFonts();
@@ -2180,17 +2364,19 @@ async function exportPDF() {
     const MW = (d.w + 2 * off) * MM, MH = (d.h + 2 * off) * MM;
     const X = (x) => pdfNum((x + off) * MM), Y = (y) => pdfNum(MH - (y + off) * MM);
     for (let pi = 0; pi < keys.length; pi++) {
-      const k = keys[pi], p = S.pages[k], ops = [], images = {}, alphas = new Set();
+      const k = keys[pi], p = S.pages[k], ops = [], images = {};
       if (isBack(k) && d.backRotate) ops.push(`-1 0 0 -1 ${pdfNum(MW)} ${pdfNum(MH)} cm`);
       const flat = [];
       for (const it of pageItems(p, { export: true })) { if (it.t === 'block') flat.push(...it.items); else flat.push(it); }
+      const panels = flat.filter(it => it.role === 'panel' && it.opacity < 1);
+      const rectOp = (r, color) => `q ${color} k ${X(r.x)} ${Y(r.y + r.h)} ${pdfNum(r.w * MM)} ${pdfNum(r.h * MM)} re f Q`;
       for (const it of flat) {
         if (it.t === 'rect') {
-          if (it.role === 'bg' && it.fill === 'white') continue;
-          let a = ''; if (it.opacity != null && it.opacity < 1) { const n = Math.round(it.opacity * 100); alphas.add(n / 100); a = `/GA${n} gs `; }
-          ops.push(`q ${a}${kop(it.fill)} k ${X(it.x)} ${Y(it.y + it.h)} ${pdfNum(it.w * MM)} ${pdfNum(it.h * MM)} re f Q`);
+          if (it.role === 'panel' && it.opacity < 1) continue;          // schon eingerechnet
+          if (!(it.role === 'bg' && it.fill === 'white')) ops.push(rectOp(it, kop(it.fill)));
+          for (const pn of panels) { const r = intersect(pn, it); if (r) ops.push(rectOp(r, kmix(pn.fill, pn.opacity, it.fill))); }
         } else if (it.t === 'circle') {
-          const n = Math.round((it.opacity ?? 1) * 100); let a = ''; if (n < 100) { alphas.add(n / 100); a = `/GA${n} gs `; }
+          const a = '';
           const cx = (it.x + off) * MM, cy = MH - (it.y + off) * MM, r = it.r * MM, c = r * .5523;
           ops.push(`q ${a}${kop(it.fill)} k ${pdfNum(cx + r)} ${pdfNum(cy)} m ${pdfNum(cx + r)} ${pdfNum(cy + c)} ${pdfNum(cx + c)} ${pdfNum(cy + r)} ${pdfNum(cx)} ${pdfNum(cy + r)} c ${pdfNum(cx - c)} ${pdfNum(cy + r)} ${pdfNum(cx - r)} ${pdfNum(cy + c)} ${pdfNum(cx - r)} ${pdfNum(cy)} c ${pdfNum(cx - r)} ${pdfNum(cy - c)} ${pdfNum(cx - c)} ${pdfNum(cy - r)} ${pdfNum(cx)} ${pdfNum(cy - r)} c ${pdfNum(cx + c)} ${pdfNum(cy - r)} ${pdfNum(cx + r)} ${pdfNum(cy - c)} ${pdfNum(cx + r)} ${pdfNum(cy)} c f Q`);
         } else if (it.t === 'frame') {
@@ -2203,7 +2389,7 @@ async function exportPDF() {
           bar.update(done / nImg, `Seite ${pi + 1} von ${keys.length} · ${pageLabel(k)} · Bild wird umgerechnet`);
           await sleep0();
           const dpi = it.mini ? Math.min(d.dpi, 200) : d.dpi;
-          const r = await renderCrop(it, dpi);
+          const r = await renderCrop(it, dpi, panels);
           const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
           const name = 'Im' + Object.keys(images).length;
           images[name] = pdf.addJpeg(jpg, r.w, r.h);
@@ -2220,10 +2406,10 @@ async function exportPDF() {
         ops.push(`q 1 1 1 1 K .25 w ${L.join(' ')} S Q`);
       }
       const bl = cm * MM;
-      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [...alphas] });
+      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [] });
     }
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
-    const name = `Familienkalender-${d.year}-CMYK.pdf`;
+    const name = `Familienkalender-${d.year}-Entwurf.pdf`;
     const blob = pdf.finish(`Familienkalender ${d.year}`);
     lastPdf = { blob, name };
     bar.close();
@@ -2277,8 +2463,11 @@ async function loadSaved() {
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {
     const rec = await DB.get('blobs', id);
-    if (!S.photos[id]) { DB.del('blobs', id); continue; }
+    if (!S.photos[id] && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
     if (rec) { setUrls(id, rec.prev, rec.thumb); if (rec.file) RT.file[id] = rec.file; }
+  }
+  for (const ph of Object.values(S.photos)) if (ph.copyOf && RT.thumb[ph.copyOf]) {
+    RT.prev[ph.id] = RT.prev[ph.copyOf]; RT.thumb[ph.id] = RT.thumb[ph.copyOf]; if (RT.file[ph.copyOf]) RT.file[ph.id] = RT.file[ph.copyOf];
   }
   for (const id of Object.keys(S.photos)) if (!RT.thumb[id]) delete S.photos[id];
   return true;

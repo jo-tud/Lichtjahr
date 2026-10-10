@@ -9,12 +9,16 @@ Im Ordner `prototyp/` liegt der erste klickbare Prototyp („Kalenderwerkstatt�
 Was der Prototyp kann:
 
 - Fotos importieren (Dateien, Ordner, Drag & Drop); Monat aus Ordnername, EXIF-Aufnahmedatum oder Dateiname
-- 15 Seitenvorlagen, Bildabstand 0–5 mm, Einleger-Bilder, Bildausschnitt verschieben und zoomen
-- Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Feiertage nach Bundesland
-- Titelblatt, Bildregister, optionale Rückseiten, Anzeige von Lochung und Aufhänger-Ausschnitt
-- PDF mit Beschnitt, TrimBox, eingebetteter Schrift und CMYK-Bildern
+- Formate 29,7 × 29,7 cm, DIN A3 quer und weitere; Formatwechsel auch später, die Seiten passen sich an
+- 15 Seitenvorlagen, Bildabstand 0–5 mm, Einleger-Bilder
+- Rahmen antippen wählt aus; Doppelklick oder zweites Antippen öffnet den Ausschnitt-Modus, in dem das Foto unter dem Rahmen verschoben und gezoomt wird (Mausrad und zwei Finger nur dort). Eigener Ansichtszoom
+- Jedes Foto gehört zu genau einem Monat: Einsetzen auf einer anderen Monatsseite ordnet es um; steht es dort schon, fragt die App nach (verschieben oder Kopie)
+- Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft, Feiertage nach Bundesland
+- Titelblatt, Bildregister über beliebig viele Seiten, optionale Rückseiten
+- Lochung und Aufhänger-Ausschnitt als Richtwerte oder mit eigenen Maßen aus dem Datenblatt
+- PDF-Entwurf mit Beschnitt, TrimBox, eingebetteter Schrift, CMYK-Bildern und ohne Transparenz (Flächen werden eingerechnet)
 
-Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, keine Transparenzreduzierung, Bindungsmaße generisch und unverifiziert. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
+Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, kein Druckerei-Profil. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
 
 ## Prototyp bauen
 

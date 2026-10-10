@@ -14,12 +14,20 @@ function zoomAt(r, ph, sl, z, at) {
 }
 function liveImage(svg, slot) {
   const p = curPage(), r = slotRects(p).find(r => r.i === slot), sl = p.slots[slot], ph = S.photos[sl.photo];
-  const img = svg.querySelector(`g[data-slot="${slot}"] image`); if (!img) return;
   const pl = placeImage(r, ph, sl);
-  img.setAttribute('x', pl.x); img.setAttribute('y', pl.y); img.setAttribute('width', pl.w); img.setAttribute('height', pl.h);
+  for (const img of svg.querySelectorAll(`g[data-slot="${slot}"] image`)) {
+    img.setAttribute('x', pl.x); img.setAttribute('y', pl.y); img.setAttribute('width', pl.w); img.setAttribute('height', pl.h);
+  }
 }
 function selectSlot(i) {
-  ui.sel = i; renderEditor(); renderFrameBar();
+  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null;
+  renderEditor(); renderFrameBar();
+}
+function setCrop(i) {
+  const sl = i != null && curPage().slots[i];
+  ui.crop = sl && sl.photo && S.photos[sl.photo] ? i : null;
+  if (ui.crop != null) { ui.sel = i; ui.selBlock = null; }
+  renderEditor(); renderFrameBar();
 }
 function assignPhoto(slot, id) {
   const p = curPage();
@@ -28,8 +36,11 @@ function assignPhoto(slot, id) {
   $('#toast').classList.remove('on');
   commit(); renderEditor(); renderFrameBar(); updateThumb(); renderPanelKeepScroll();
 }
+// Bedienung: Antippen wählt aus. Im Ausschnitt-Modus (Doppelklick, zweites Antippen oder Schaltfläche)
+// wird das Foto unter dem Rahmen verschoben und gezoomt. Mausrad und zwei Finger zoomen nur dort.
 function bindEditor(svg) {
   if (!svg) return;
+  svg.classList.toggle('locked', ui.crop != null || ui.selBlock != null);
   const pointers = new Map();
   let g = null; // laufende Geste
 
@@ -51,19 +62,23 @@ function bindEditor(svg) {
       const i = +handle.dataset.slotH, r = slotRects(p).find(r => r.i === i), L = layoutById(p.layout), base = L.ov[i - L.slots.length];
       const o = p.ov[i] ||= { x: base[0], y: base[1], s: 1 };
       g = { type: handle.dataset.handle, slot: i, start: pt, o0: { ...o }, r0: r };
+    } else if (slotEl && ui.crop != null && +slotEl.dataset.slot === ui.crop) {
+      const sl = p.slots[ui.crop];
+      g = { type: 'pan', slot: ui.crop, start: pt, cx: sl.cx, cy: sl.cy, moved: false, ghost: !!e.target.closest('.cropghost') };
     } else if (block) {
-      const it = pageItems(p).find(x => x.t === 'block' && x.kind === block.dataset.block);
-      g = { type: 'block', kind: block.dataset.block, start: pt, it, el: block, moved: false };
+      // Mit der Maus direkt ziehen; mit dem Finger erst antippen, dann ziehen
+      const kind = block.dataset.block;
+      const it = pageItems(p).find(x => x.t === 'block' && x.kind === kind);
+      g = e.pointerType === 'mouse' || ui.selBlock === kind ? { type: 'block', kind, start: pt, it, el: block, moved: false } : { type: 'selblock', kind, start: pt };
     } else if (slotEl) {
-      const i = +slotEl.dataset.slot, sl = p.slots[i];
-      g = { type: sl && sl.photo && S.photos[sl.photo] ? 'pan' : 'tap', slot: i, start: pt, cx: sl.cx, cy: sl.cy, moved: false };
+      g = { type: 'tap', slot: +slotEl.dataset.slot, start: pt, moved: false };
     } else { g = { type: 'none', start: pt }; }
   });
   svg.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId) || !g) return;
     const pt = svgPoint(svg, e); pointers.set(e.pointerId, pt);
     const p = curPage(), dx = pt.x - g.start.x, dy = pt.y - g.start.y;
-    if (!g.moved && Math.hypot(dx, dy) > 1.2) { g.moved = true; svg.classList.add('dragging'); }
+    if (!g.moved && Math.hypot(dx, dy) > 1.2) { g.moved = true; if (g.type !== 'tap' && g.type !== 'none' && g.type !== 'selblock') svg.classList.add('dragging'); }
     if (!g.moved) return;
     if (g.type === 'pan') {
       const r = slotRects(p).find(r => r.i === g.slot), sl = p.slots[g.slot], ph = S.photos[sl.photo];
@@ -116,31 +131,43 @@ function bindEditor(svg) {
       commit(); renderEditor(); updateThumb(); if (ui.tab === 'cal') renderPanelKeepScroll();
       return;
     }
+    if ((gg.type === 'block' || gg.type === 'selblock') && !gg.moved) {
+      ui.selBlock = gg.kind; ui.sel = null; ui.crop = null; renderEditor(); renderFrameBar();
+      if (ui.tab !== (gg.kind === 'cal' ? 'cal' : 'title')) { ui.tab = gg.kind === 'cal' ? 'cal' : 'title'; renderPanel(); }
+      return;
+    }
     if ((gg.type === 'pan' || gg.type === 'pinch') && gg.moved) { commit(); updateThumb(); renderFrameBarMeta(); return; }
     if (gg.type === 'ov' || gg.type === 'ovs') { commit(); renderEditor(); updateThumb(); renderFrameBar(); return; }
-    if (!gg.moved && (gg.type === 'pan' || gg.type === 'tap')) {
+    if (!gg.moved && (gg.type === 'tap' || gg.type === 'pan')) {
       if (ui.swapFrom != null && ui.swapFrom !== gg.slot) {
         const a = p.slots[ui.swapFrom], b = p.slots[gg.slot];
         [a.photo, b.photo] = [b.photo, a.photo]; Object.assign(a, { zoom: 1, cx: .5, cy: .5 }); Object.assign(b, { zoom: 1, cx: .5, cy: .5 });
         ui.swapFrom = null; ui.sel = gg.slot; commit(); renderEditor(); renderFrameBar(); updateThumb(); return;
       }
-      if (ui.armed) { assignPhoto(gg.slot, ui.armed); return; }
-      selectSlot(ui.sel === gg.slot && gg.type === 'pan' ? gg.slot : gg.slot);
-      if (gg.type === 'tap' && ui.tab !== 'photos' && window.innerWidth > 980) { ui.tab = 'photos'; renderPanel(); }
+      if (ui.armed) { placePhoto(gg.slot, ui.armed); return; }
+      if (gg.type === 'pan') { if (gg.ghost) setCrop(null); return; } // Antippen außerhalb des Rahmens beendet den Ausschnitt-Modus
+      if (ui.sel === gg.slot) { setCrop(gg.slot); return; }   // zweites Antippen: Ausschnitt bearbeiten
+      selectSlot(gg.slot);
+      const sl = p.slots[gg.slot];
+      if (!(sl && sl.photo && S.photos[sl.photo]) && ui.tab !== 'photos' && window.innerWidth > 980) { ui.tab = 'photos'; renderPanel(); }
       return;
     }
-    if (gg.type === 'none' && !gg.moved && ui.sel != null) { ui.sel = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
+    if (gg.type === 'none' && !gg.moved && (ui.sel != null || ui.selBlock != null || ui.crop != null)) { ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
-  svg.addEventListener('wheel', (e) => {
+  svg.addEventListener('dblclick', (e) => {
     const slotEl = e.target.closest('[data-slot]'); if (!slotEl) return;
-    const p = curPage(), i = +slotEl.dataset.slot, sl = p.slots[i], ph = sl && S.photos[sl.photo]; if (!ph) return;
+    setCrop(+slotEl.dataset.slot);
+  });
+  svg.addEventListener('wheel', (e) => {
+    if (ui.crop == null) return;                             // ohne Ausschnitt-Modus scrollt die Seite normal
+    const slotEl = e.target.closest('[data-slot]'); if (!slotEl || +slotEl.dataset.slot !== ui.crop) return;
+    const p = curPage(), i = ui.crop, sl = p.slots[i], ph = sl && S.photos[sl.photo]; if (!ph) return;
     e.preventDefault();
     const r = slotRects(p).find(r => r.i === i);
     zoomAt(r, ph, sl, (sl.zoom || 1) * Math.exp(-e.deltaY * .0015), svgPoint(svg, e));
     liveImage(svg, i);
-    if (ui.sel !== i) { ui.sel = i; }
     clearTimeout(bindEditor._w); bindEditor._w = setTimeout(() => { commit(); renderEditor(); renderFrameBar(); updateThumb(); }, 350);
   }, { passive: false });
 }
@@ -204,12 +231,9 @@ document.addEventListener('pointerup', (e) => {
     const tgt = drag.over;
     drag.ghost.remove(); drag.ghost = null; drag.active = false; drag.hl = null;
     if (tgt && tgt.classList) tgt.classList.remove('over');
-    if (tgt && tgt.dataset.slot != null) assignPhoto(+tgt.dataset.slot, drag.ids[0]);
-    else if (tgt && tgt.dataset.bucket != null) {
-      const m = +tgt.dataset.bucket;
-      for (const id of drag.ids) { S.photos[id].month = m; S.photos[id].src = 'von Hand'; }
-      commit(); renderPhotos();
-    } else highlightSlot(null);
+    if (tgt && tgt.dataset.slot != null) placePhoto(+tgt.dataset.slot, drag.ids[0]);
+    else if (tgt && tgt.dataset.bucket != null) moveToMonth(drag.ids, +tgt.dataset.bucket);
+    else highlightSlot(null);
     drag.pend = null; drag.over = null;
     setTimeout(() => drag.suppressClick = false, 50);
     return;
@@ -224,7 +248,7 @@ function photoTap(id, e) {
     else { ui.photoSel.add(id); ui.photoFocus = id; }
     renderPhotos();
   } else if (ui.view === 'design') {
-    if (ui.sel != null && curPage().slots[ui.sel] && !ui.armed) { assignPhoto(ui.sel, id); return; }
+    if (ui.sel != null && curPage().slots[ui.sel] && !ui.armed) { placePhoto(ui.sel, id); return; }
     ui.armed = ui.armed === id ? null : id;
     renderPanelKeepScroll(); renderFrameBar();
     if (ui.armed) toast('Jetzt auf einen Rahmen tippen.');
@@ -237,7 +261,10 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inField) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !inField) { e.preventDefault(); redo(); return; }
   if (inField || ui.view !== 'design') return;
-  if (e.key === 'Escape') { ui.sel = null; ui.swapFrom = null; ui.armed = null; renderEditor(); renderFrameBar(); }
+  if (e.key === 'Escape') {
+    if (ui.crop != null) ui.crop = null; else { ui.sel = null; ui.selBlock = null; ui.swapFrom = null; ui.armed = null; }
+    renderEditor(); renderFrameBar();
+  }
   if ((e.key === 'Delete' || e.key === 'Backspace') && ui.sel != null) { ACTIONS.unslot(); }
   if (e.key === 'PageDown' || (e.key === 'ArrowRight' && e.altKey)) ACTIONS.nextpage();
   if (e.key === 'PageUp' || (e.key === 'ArrowLeft' && e.altKey)) ACTIONS.prevpage();

@@ -27,9 +27,10 @@ function onBind(el, final) {
   if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); }
   if (path === 'doc.year') { if (!final) return; v = clamp(Math.round(v), 2000, 2100); const cv = S.pages.cover; if (cv && cv.title && cv.title.sub === String(S.doc.year)) cv.title.sub = String(v); }
   setPath(path, v);
+  if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
   const out = el.parentElement.querySelector('output');
-  if (out) out.textContent = fmt1(v) + (path.endsWith('size') ? '×' : ' mm');
-  const structural = /doc\.(cover|index|backs|format|bind\.cut|backRotate)/.test(path);
+  if (out) out.textContent = fmt1(v * (+el.dataset.scale || 1)) + (el.dataset.unit ?? ' mm');
+  const structural = /doc\.(cover|index|backs|format|bind\.cut|bind\.type|backRotate)/.test(path);
   if (structural) ensurePages();
   if (final) {
     commit();
@@ -67,24 +68,28 @@ document.addEventListener('change', (e) => {
   if (el.dataset.bind) { onBind(el, true); return; }
   const act = el.dataset.actChange;
   if (act === 'pool') { ui.pool = el.value; renderPanel(); }
-  if (act === 'moveto' && el.value !== '') {
-    for (const id of ui.photoSel) if (S.photos[id]) { S.photos[id].month = +el.value; S.photos[id].src = 'von Hand'; }
-    toast(`${ui.photoSel.size} Fotos nach ${+el.value < 0 ? '„Ohne Monat“' : MONTHS[+el.value]} verschoben.`);
-    ui.photoSel.clear(); commit(); renderPhotos();
-  }
+  if (act === 'moveto' && el.value !== '') moveToMonth([...ui.photoSel], +el.value).then(ok => { if (ok) ui.photoSel.clear(); renderPhotos(); });
 });
 
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
-  format: (el) => {
-    const f = FORMATS.find(f => f.id === el.dataset.v); S.doc.format = f.id;
+  format: async (el) => {
+    const f = FORMATS.find(f => f.id === el.dataset.v);
+    if (f.id === S.doc.format) return;
+    const used = Object.keys(usage()).length;
+    if (used && f.w && (f.w !== S.doc.w || f.h !== S.doc.h)) {
+      const ok = await ask({ title: `Auf ${f.name} ${f.sub} wechseln?`, text: `Auf den Seiten stehen ${used} Fotos. Rahmen und Kalendarium passen sich dem neuen Format an, Bildausschnitte bleiben so weit wie möglich erhalten. Danach die Seiten bitte einmal durchsehen. Rückgängig ist jederzeit möglich.`,
+        buttons: [{ label: 'Format wechseln', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      if (!ok) return;
+    }
+    S.doc.format = f.id;
     if (f.w) { S.doc.w = f.w; S.doc.h = f.h; }
-    commit(); renderAll();
+    ensurePages(); commit(); renderAll();
   },
   bg: (el) => { S.doc.bg = el.dataset.v; commit(); renderAll(); },
   defstyle: (el) => { S.doc.cal.style = el.dataset.v; commit(); renderAll(); },
   defhi: (el) => { S.doc.cal.hi = el.dataset.v; commit(); renderAll(); },
-  page: (el) => { ui.page = el.dataset.v; ui.sel = null; ui.swapFrom = null; ui.pool = null; renderDesign(); },
+  page: (el) => { ui.page = el.dataset.v; ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; ui.pool = null; renderDesign(); },
   prevpage: () => { const k = pageKeys(), i = k.indexOf(ui.page); if (i > 0) ACTIONS.page({ dataset: { v: k[i - 1] } }); },
   nextpage: () => { const k = pageKeys(), i = k.indexOf(ui.page); if (i < k.length - 1) ACTIONS.page({ dataset: { v: k[i + 1] } }); },
   jump: (el) => { ui.page = el.dataset.v; setView('design'); },
@@ -94,7 +99,7 @@ const ACTIONS = {
     const p = curPage(); p.layout = el.dataset.v;
     while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
     for (const s of p.slots) { s.zoom = 1; s.cx = .5; s.cy = .5; }
-    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb();
+    ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
   },
   autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${n} Fotos eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
   clearpage: () => { for (const s of curPage().slots) Object.assign(s, newSlot()); ui.sel = null; commit(); renderDesign(); },
@@ -132,7 +137,8 @@ const ACTIONS = {
   delphotos: () => {
     if (!ui.confirmDel) { ui.confirmDel = true; renderPhotos(); setTimeout(() => { ui.confirmDel = false; if (ui.view === 'photos') renderPhotos(); }, 4000); return; }
     ui.confirmDel = false;
-    for (const id of ui.photoSel) { delete S.photos[id]; DB.del('blobs', id); }
+    for (const id of ui.photoSel) delete S.photos[id];
+    for (const id of ui.photoSel) if (!Object.values(S.photos).some(p => blobId(p) === id)) DB.del('blobs', id);
     for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     ui.photoSel.clear(); commit(); renderPhotos();
   },
@@ -142,7 +148,17 @@ const ACTIONS = {
     if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = 'Wirklich alles löschen?'; setTimeout(() => { el.dataset.sure = ''; el.textContent = 'Leeres Projekt beginnen'; }, 4000); return; }
     await resetProject(false);
   },
-  export: () => exportPDF(),
+  export: async () => {
+    const bad = checks().filter(c => c[0] === 'bad').length;
+    if (bad) {
+      const ok = await ask({ title: `${bad} Fehler gefunden`, text: 'Zum Beispiel leere Rahmen oder zu kleine Fotos. Für die Druckerei sollten sie behoben sein. Ein Entwurf zum Ansehen geht trotzdem.',
+        buttons: [{ label: 'Trotzdem Entwurf erstellen', value: true }, { label: 'Abbrechen', value: false, primary: true }] });
+      if (!ok) return;
+    }
+    exportPDF();
+  },
+  crop: () => setCrop(ui.crop == null ? ui.sel : null),
+  vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
@@ -199,4 +215,64 @@ async function setupDemo() {
   const used = new Set();
   for (let m = 0; m < 12; m++) autoFill('m' + m, used);
   autoFill('cover', used);
+}
+
+/* ---------- Rückfragen (statt confirm(), das im Artefakt nicht erscheint) ---------- */
+function ask({ title, text, buttons }) {
+  return new Promise((resolve) => {
+    const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><p class="hint">${esc(text)}</p><div class="row">${buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    const done = (v) => { document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
+    const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(buttons[buttons.length - 1].value); } };
+    el.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) done(buttons[+b.dataset.i].value); });
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(el);
+    (el.querySelector('.btn.primary') || el.querySelector('.btn')).focus();
+  });
+}
+
+/* ---------- Jedes Foto gehört genau einem Monat ---------- */
+// Seiten anderer Monate, auf denen das Foto steht (Titel und Register zählen nicht)
+const usedInOtherMonths = (id, m) => (usage()[id] || []).filter(k => pageMonth(k) != null && pageMonth(k) !== m);
+function clearPhotoFrom(id, keys) {
+  for (const k of keys) for (const s of visibleSlots(S.pages[k])) if (s.photo === id) Object.assign(s, newSlot());
+}
+function copyPhoto(id, m) {
+  const ph = S.photos[id], nid = uid();
+  S.photos[nid] = { ...ph, id: nid, copyOf: blobId(ph), month: m, src: 'Kopie', fav: false };
+  RT.prev[nid] = RT.prev[id]; RT.thumb[nid] = RT.thumb[id]; if (RT.file[id]) RT.file[nid] = RT.file[id];
+  return S.photos[nid];
+}
+async function placePhoto(slot, id) {
+  const p = curPage(), m = pageMonth(p.key), ph = S.photos[id];
+  if (m == null || ph.month === m) { assignPhoto(slot, id); return; }
+  const other = usedInOtherMonths(id, m), from = ph.month < 0 ? 'keinem Monat' : MONTHS[ph.month];
+  if (!other.length) {
+    ph.month = m; ph.src = 'von Hand';
+    assignPhoto(slot, id);
+    toast(`Foto von ${from} nach ${MONTHS[m]} verschoben.`);
+    return;
+  }
+  const r = await ask({ title: 'Foto wird schon verwendet',
+    text: `Das Foto gehört zu ${from} und steht auf: ${other.map(pageLabel).join(', ')}. Jedes Foto gehört zu genau einem Monat.`,
+    buttons: [{ label: `Nach ${MONTHS[m]} verschieben, dort entfernen`, value: 'move', primary: true }, { label: `Kopie für ${MONTHS[m]} anlegen`, value: 'copy' }, { label: 'Abbrechen', value: null }] });
+  if (r === 'move') { clearPhotoFrom(id, other); ph.month = m; ph.src = 'von Hand'; assignPhoto(slot, id); renderStrip(); }
+  else if (r === 'copy') { const c = copyPhoto(id, m); assignPhoto(slot, c.id); }
+}
+async function moveToMonth(ids, m) {
+  ids = ids.filter(id => S.photos[id] && S.photos[id].month !== m);
+  if (!ids.length) return true;
+  const conflicts = ids.filter(id => usedInOtherMonths(id, m).length);
+  if (conflicts.length) {
+    const pages = [...new Set(conflicts.flatMap(id => usedInOtherMonths(id, m)))];
+    const ok = await ask({ title: `${conflicts.length} ${conflicts.length > 1 ? 'Fotos stehen' : 'Foto steht'} schon auf Seiten`,
+      text: `Betroffen: ${pages.map(pageLabel).join(', ')}. Beim Verschieben werden ${conflicts.length > 1 ? 'sie' : 'es'} dort aus den Rahmen genommen.`,
+      buttons: [{ label: 'Verschieben und dort entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+    if (!ok) return false;
+    for (const id of conflicts) clearPhotoFrom(id, usedInOtherMonths(id, m));
+  }
+  for (const id of ids) { S.photos[id].month = m; S.photos[id].src = 'von Hand'; }
+  commit(); if (ui.view === 'photos') renderPhotos();
+  toast(`${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} nach ${m < 0 ? '„Ohne Monat“' : MONTHS[m]} verschoben.`);
+  return true;
 }

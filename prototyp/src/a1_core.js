@@ -13,9 +13,10 @@ const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString('de-DE');
 const sleep0 = () => new Promise(r => setTimeout(r, 0));
 
 const FORMATS = [
+  { id: 'sq297', name: 'Quadratisch', sub: '29,7 × 29,7 cm', w: 297, h: 297 },
+  { id: 'a3l', name: 'DIN A3 quer', sub: '42 × 29,7 cm', w: 420, h: 297 },
   { id: 'sq30', name: 'Quadratisch', sub: '30 × 30 cm', w: 300, h: 300 },
   { id: 'sq21', name: 'Quadratisch', sub: '21 × 21 cm', w: 210, h: 210 },
-  { id: 'a3l', name: 'DIN A3 quer', sub: '42 × 29,7 cm', w: 420, h: 297 },
   { id: 'a4l', name: 'DIN A4 quer', sub: '29,7 × 21 cm', w: 297, h: 210 },
   { id: 'a3p', name: 'DIN A3 hoch', sub: '29,7 × 42 cm', w: 297, h: 420 },
   { id: 'custom', name: 'Eigenes', sub: 'Maße frei', w: 0, h: 0 },
@@ -106,54 +107,64 @@ const slotCount = (id) => { const l = layoutById(id); return l.slots.length + (l
 /* ---------- Zustand ---------- */
 function defaultDoc() {
   return {
-    year: new Date().getFullYear() + 1, format: 'sq30', w: 300, h: 300,
+    year: new Date().getFullYear() + 1, format: 'sq297', w: 297, h: 297,
     bleed: 3, gap: 3, margin: 0, ovBorder: 3, bg: 'white',
-    cover: true, index: true, backs: false, backRotate: true, region: 'DE', cropMarks: false,
-    bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8 },
-    cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', size: 1, names: true,
+    cover: true, index: true, backs: false, backRotate: false, region: lastRegion(), cropMarks: false,
+    bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
+    cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true,
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
     indexTitle: 'Die Fotos des Jahres',
     dpi: 300, quality: 90,
   };
 }
+// Das zuletzt gewählte Bundesland gilt auch für neue Projekte
+function lastRegion() { try { return localStorage.getItem('kw-region') || 'DE'; } catch (e) { return 'DE'; } }
 let S = { doc: defaultDoc(), pages: {}, photos: {}, demo: false };
 const RT = { thumb: {}, prev: {}, file: {} };     // Laufzeit: Bild-URLs und Originaldateien
 const ui = {
-  view: 'design', page: 'm0', sel: null, tab: 'layout', armed: null, swapFrom: null, pool: null,
+  view: 'design', page: 'm0', sel: null, crop: null, selBlock: null, viewZoom: 1, tab: 'layout', armed: null, swapFrom: null, pool: null,
   showBleed: true, showBind: true, showGuides: true, photoSel: new Set(), photoFocus: null, banner: true,
 };
 
-function pageKeys(doc = S.doc) {
+// Seiten ohne Register; das Register hängt davon ab, wie viele Seiten es braucht
+function baseKeys(doc = S.doc) {
   const k = [];
   if (doc.cover) { k.push('cover'); if (doc.backs) k.push('cover-b'); }
   for (let m = 0; m < 12; m++) { k.push('m' + m); if (doc.backs) k.push('m' + m + '-b'); }
-  if (doc.index) k.push('index');
   return k;
 }
+function pageKeys(doc = S.doc) {
+  const k = baseKeys(doc);
+  if (doc.index) { const n = indexLayout().length; for (let i = 1; i <= n; i++) k.push(i === 1 ? 'index' : 'index-' + i); }
+  return k;
+}
+const isIndex = (key) => key.startsWith('index');
+const indexNo = (key) => key === 'index' ? 1 : +key.split('-')[1];
 function pageMonth(key) { const r = /^m(\d+)/.exec(key); return r ? +r[1] : null; }
 const isBack = (key) => key.endsWith('-b');
 function pageLabel(key) {
   if (key === 'cover') return 'Titelblatt';
   if (key === 'cover-b') return 'Rückseite Titel';
-  if (key === 'index') return 'Bildregister';
+  if (isIndex(key)) return 'Bildregister' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   const m = pageMonth(key);
   return (isBack(key) ? 'Rückseite ' : '') + MONTHS[m];
 }
 function pageShort(key) {
   if (key === 'cover') return 'Titel';
   if (key === 'cover-b') return 'Titel R';
-  if (key === 'index') return 'Register';
+  if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
 }
 function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5 }; }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
-  if (key === 'index') p.layout = 'index';
+  if (isIndex(key)) p.layout = 'index';
   if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'white', size: 1, panel: 'none', ax: .08, ay: .9 };
   if (isBack(key)) { p.layout = 'cols2'; p.cal = { style: 'off' }; }
   return p;
 }
 function ensurePages() {
+  for (const k of baseKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of pageKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of Object.keys(S.pages)) {
     const p = S.pages[k];
@@ -169,11 +180,14 @@ function usage() {
   return u;
 }
 function calSettings(p) { return { ...S.doc.cal, ...(p.cal || {}) }; }
+// Kopien teilen sich die Bilddaten mit dem Original
+const blobId = (ph) => ph.copyOf || ph.id;
 
 /* ---------- Verlauf (Rückgängig) ---------- */
 const hist = { past: [], future: [], last: null };
 const snap = () => JSON.stringify({ doc: S.doc, pages: S.pages, photos: S.photos, demo: S.demo });
 function commit() {
+  ensurePages();          // z. B. neue Registerseiten
   const now = snap();
   if (now === hist.last) return;
   if (hist.last) { hist.past.push(hist.last); if (hist.past.length > 80) hist.past.shift(); }

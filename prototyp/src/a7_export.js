@@ -1,4 +1,4 @@
-/* ---------- Druck-PDF ---------- */
+/* ---------- PDF-Entwurf ---------- */
 const MAXPX = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 16e6 : 36e6;
 const srcCache = { id: null, bmp: null };
 async function sourceFor(ph) {
@@ -6,11 +6,12 @@ async function sourceFor(ph) {
   if (srcCache.id === ph.id) return srcCache.bmp;
   if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close();
   let blob = RT.file[ph.id];
-  if (!blob) { const rec = await DB.get('blobs', ph.id); blob = rec && (rec.file || rec.prev); }
+  if (!blob) { const rec = await DB.get('blobs', blobId(ph)); blob = rec && (rec.file || rec.prev); }
   srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
-async function renderCrop(it, dpi) {
+// panels: halbtransparente Flächen, die ins Bild eingerechnet werden (keine PDF-Transparenz)
+async function renderCrop(it, dpi, panels = []) {
   const ph = S.photos[it.photo], { clip, place } = it;
   const sx = (clip.x - place.x) / place.w * ph.w, sy = (clip.y - place.y) / place.h * ph.h;
   const sw = clip.w / place.w * ph.w, sh = clip.h / place.h * ph.h;
@@ -31,6 +32,13 @@ async function renderCrop(it, dpi) {
       x.drawImage(srcOf(bmp), sx * sc, sy * sc, sw * sc, sh * sc, 0, 0, ow, oh);
     }
   }
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  for (const pn of panels) {
+    const r = intersect(pn, clip); if (!r) continue;
+    x.globalAlpha = pn.opacity; x.fillStyle = cRGB(pn.fill);
+    x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
+    x.globalAlpha = 1;
+  }
   const rgba = x.getImageData(0, 0, ow, oh).data, cmyk = new Uint8Array(ow * oh * 4);
   for (let i = 0; i < rgba.length; i += 4) {
     const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2], mx = Math.max(r, g, b);
@@ -44,12 +52,14 @@ async function renderCrop(it, dpi) {
 const pdfNum = (v) => (Math.round(v * 1000) / 1000).toString();
 const pdfStr = (t) => [...t].map(ch => { const s = String.fromCharCode(winAnsi(ch)); return s === '(' || s === ')' || s === '\\' ? '\\' + s : s; }).join('');
 const kop = (id) => (COLORS[id] || COLORS.black).cmyk.map(pdfNum).join(' ');
+// Fläche mit Deckkraft a über einer Vektorfläche: Farben vorab mischen
+const kmix = (top, a, under) => { const t = (COLORS[top] || COLORS.black).cmyk, u = (COLORS[under] || COLORS.white).cmyk; return t.map((v, i) => pdfNum(a * v + (1 - a) * u[i])).join(' '); };
 let lastPdf = null;
 
 async function exportPDF() {
   const d = S.doc, keys = pageKeys();
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
-  const bar = busy('Druck-PDF wird erstellt', 'Vorbereitung …');
+  const bar = busy('PDF-Entwurf wird erstellt', 'Vorbereitung …');
   let done = 0;
   try {
     const pdf = new PDFWriter(); pdf.begin(); await pdf.addFonts();
@@ -57,17 +67,19 @@ async function exportPDF() {
     const MW = (d.w + 2 * off) * MM, MH = (d.h + 2 * off) * MM;
     const X = (x) => pdfNum((x + off) * MM), Y = (y) => pdfNum(MH - (y + off) * MM);
     for (let pi = 0; pi < keys.length; pi++) {
-      const k = keys[pi], p = S.pages[k], ops = [], images = {}, alphas = new Set();
+      const k = keys[pi], p = S.pages[k], ops = [], images = {};
       if (isBack(k) && d.backRotate) ops.push(`-1 0 0 -1 ${pdfNum(MW)} ${pdfNum(MH)} cm`);
       const flat = [];
       for (const it of pageItems(p, { export: true })) { if (it.t === 'block') flat.push(...it.items); else flat.push(it); }
+      const panels = flat.filter(it => it.role === 'panel' && it.opacity < 1);
+      const rectOp = (r, color) => `q ${color} k ${X(r.x)} ${Y(r.y + r.h)} ${pdfNum(r.w * MM)} ${pdfNum(r.h * MM)} re f Q`;
       for (const it of flat) {
         if (it.t === 'rect') {
-          if (it.role === 'bg' && it.fill === 'white') continue;
-          let a = ''; if (it.opacity != null && it.opacity < 1) { const n = Math.round(it.opacity * 100); alphas.add(n / 100); a = `/GA${n} gs `; }
-          ops.push(`q ${a}${kop(it.fill)} k ${X(it.x)} ${Y(it.y + it.h)} ${pdfNum(it.w * MM)} ${pdfNum(it.h * MM)} re f Q`);
+          if (it.role === 'panel' && it.opacity < 1) continue;          // schon eingerechnet
+          if (!(it.role === 'bg' && it.fill === 'white')) ops.push(rectOp(it, kop(it.fill)));
+          for (const pn of panels) { const r = intersect(pn, it); if (r) ops.push(rectOp(r, kmix(pn.fill, pn.opacity, it.fill))); }
         } else if (it.t === 'circle') {
-          const n = Math.round((it.opacity ?? 1) * 100); let a = ''; if (n < 100) { alphas.add(n / 100); a = `/GA${n} gs `; }
+          const a = '';
           const cx = (it.x + off) * MM, cy = MH - (it.y + off) * MM, r = it.r * MM, c = r * .5523;
           ops.push(`q ${a}${kop(it.fill)} k ${pdfNum(cx + r)} ${pdfNum(cy)} m ${pdfNum(cx + r)} ${pdfNum(cy + c)} ${pdfNum(cx + c)} ${pdfNum(cy + r)} ${pdfNum(cx)} ${pdfNum(cy + r)} c ${pdfNum(cx - c)} ${pdfNum(cy + r)} ${pdfNum(cx - r)} ${pdfNum(cy + c)} ${pdfNum(cx - r)} ${pdfNum(cy)} c ${pdfNum(cx - r)} ${pdfNum(cy - c)} ${pdfNum(cx - c)} ${pdfNum(cy - r)} ${pdfNum(cx)} ${pdfNum(cy - r)} c ${pdfNum(cx + c)} ${pdfNum(cy - r)} ${pdfNum(cx + r)} ${pdfNum(cy - c)} ${pdfNum(cx + r)} ${pdfNum(cy)} c f Q`);
         } else if (it.t === 'frame') {
@@ -80,7 +92,7 @@ async function exportPDF() {
           bar.update(done / nImg, `Seite ${pi + 1} von ${keys.length} · ${pageLabel(k)} · Bild wird umgerechnet`);
           await sleep0();
           const dpi = it.mini ? Math.min(d.dpi, 200) : d.dpi;
-          const r = await renderCrop(it, dpi);
+          const r = await renderCrop(it, dpi, panels);
           const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
           const name = 'Im' + Object.keys(images).length;
           images[name] = pdf.addJpeg(jpg, r.w, r.h);
@@ -97,10 +109,10 @@ async function exportPDF() {
         ops.push(`q 1 1 1 1 K .25 w ${L.join(' ')} S Q`);
       }
       const bl = cm * MM;
-      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [...alphas] });
+      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [] });
     }
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
-    const name = `Familienkalender-${d.year}-CMYK.pdf`;
+    const name = `Familienkalender-${d.year}-Entwurf.pdf`;
     const blob = pdf.finish(`Familienkalender ${d.year}`);
     lastPdf = { blob, name };
     bar.close();
@@ -154,8 +166,11 @@ async function loadSaved() {
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {
     const rec = await DB.get('blobs', id);
-    if (!S.photos[id]) { DB.del('blobs', id); continue; }
+    if (!S.photos[id] && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
     if (rec) { setUrls(id, rec.prev, rec.thumb); if (rec.file) RT.file[id] = rec.file; }
+  }
+  for (const ph of Object.values(S.photos)) if (ph.copyOf && RT.thumb[ph.copyOf]) {
+    RT.prev[ph.id] = RT.prev[ph.copyOf]; RT.thumb[ph.id] = RT.thumb[ph.copyOf]; if (RT.file[ph.copyOf]) RT.file[ph.id] = RT.file[ph.copyOf];
   }
   for (const id of Object.keys(S.photos)) if (!RT.thumb[id]) delete S.photos[id];
   return true;

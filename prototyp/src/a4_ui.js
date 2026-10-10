@@ -13,15 +13,18 @@ function busy(title, sub) {
   };
 }
 function setView(v) {
-  ui.view = v; ui.sel = null; ui.swapFrom = null;
+  ui.view = v; ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null;
   try { localStorage.setItem('kw-view', v); } catch (e) { /* egal */ }
   renderAll();
   window.scrollTo(0, 0);
 }
 function renderAll() {
+  ensurePages();
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
   $('#banner').hidden = !(S.demo && ui.banner);
+  // Höhe von Kopfleiste und Hinweis, damit der Editor genau in den Bildschirm passt
+  document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight)) + 'px');
   if (ui.view === 'project') renderProject();
   if (ui.view === 'photos') renderPhotos();
   if (ui.view === 'design') renderDesign();
@@ -30,8 +33,8 @@ function renderAll() {
 }
 const swatches = (ids, cur, act) => `<div class="swatches">${ids.map(c => `<button class="swatch" style="background:${COLORS[c].rgb}" title="${COLORS[c].name}" aria-label="${COLORS[c].name}" aria-pressed="${c === cur}" data-act="${act}" data-v="${c}"></button>`).join('')}</div>`;
 const seg = (opts, cur, act) => `<div class="seg">${opts.map(([v, l]) => `<button aria-pressed="${v === cur}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-const range = (id, bind, val, min, max, step, unit, label) =>
-  `<div class="field"><label for="${id}">${label}</label><div class="range"><input type="range" id="${id}" data-bind="${bind}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${fmt1(val)}${unit}</output></div></div>`;
+const range = (id, bind, val, min, max, step, unit, label, scale = 1) =>
+  `<div class="field"><label for="${id}">${label}</label><div class="range"><input type="range" id="${id}" data-bind="${bind}" data-unit="${unit}" data-scale="${scale}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${fmt1(val * scale)}${unit}</output></div></div>`;
 
 /* ----- Projekt ----- */
 function renderProject() {
@@ -39,7 +42,7 @@ function renderProject() {
   const sheetsCount = d.backs ? pageKeys().filter(k => !isBack(k)).length : n;
   $('#v-project').innerHTML = `<div class="project">
     <div class="cards">
-      <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden.</p></header>
+      <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden. Ein Wechsel ist auch später möglich, die Seiten passen sich an.</p></header>
         <div class="formats">${FORMATS.map(f => {
           const w = f.w || d.w, h = f.h || d.h, s = 34 / Math.max(w, h);
           return `<button class="fmt" aria-pressed="${d.format === f.id}" data-act="format" data-v="${f.id}"><i style="width:${w * s}px;height:${h * s}px"></i><span><b>${f.name}</b><br><span class="muted">${f.sub}</span></span></button>`;
@@ -51,7 +54,7 @@ function renderProject() {
         <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover ? 'checked' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
         <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Eine Seite, die alle Fotos mit Bildtexten erklärt.</span></span></label>
         <label class="check"><input type="checkbox" id="bk" data-bind="doc.backs" ${d.backs ? 'checked' : ''}><span>Rückseiten mit Fotos<span class="hint">Jedes Blatt beidseitig bedruckt.</span></span></label>
-        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten Kopf an Fuß drehen<span class="hint">Üblich bei Wandkalendern mit Bindung oben: Beim Umblättern steht die Rückseite richtig herum.</span></span></label>` : ''}
+        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF um 180° drehen<span class="hint">Nur einschalten, wenn das Datenblatt der Druckerei das verlangt.</span></span></label>` : ''}
       </section>
       <section class="card"><header><h2>Bilder und Abstände</h2><p>Gilt für alle Seiten.</p></header>
         ${range('gp', 'doc.gap', d.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern')}
@@ -65,9 +68,10 @@ function renderProject() {
         <label class="check"><input type="checkbox" id="hn" data-bind="doc.cal.names" ${d.cal.names ? 'checked' : ''}><span>Feiertage beim Namen nennen</span></label>
         <div class="field"><span class="lbl">Sonn- und Feiertage</span>${seg([['red', 'Rot'], ['bold', 'Fett'], ['none', 'Normal']], d.cal.hi, 'defhi')}</div>
       </section>
-      <section class="card"><header><h2>Bindung und Beschnitt</h2><p>Die Bindung wird nur angezeigt, nicht gedruckt.</p></header>
+      <section class="card"><header><h2>Bindung und Beschnitt</h2><p>Wird nur angezeigt, nicht gedruckt. Die Vorgaben sind allgemeine Richtwerte, nicht aus einem Datenblatt einer Druckerei.</p></header>
         <div class="field"><label for="bt">Bindung oben</label><select id="bt" data-bind="doc.bind.type">
-          ${[['wire31', 'Wire-O 3:1 (Teilung 8,5 mm)'], ['wire21', 'Wire-O 2:1 (Teilung 12,7 mm)'], ['spiral', 'Spirale, runde Löcher'], ['none', 'Keine Lochung']].map(([v, l]) => `<option value="${v}" ${d.bind.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          ${[['wire31', 'Wire-O 3:1, Richtwerte'], ['wire21', 'Wire-O 2:1, Richtwerte'], ['spiral', 'Spirale, Richtwerte'], ['custom', 'Eigene Maße aus dem Datenblatt'], ['none', 'Keine Lochung']].map(([v, l]) => `<option value="${v}" ${d.bind.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        ${d.bind.type === 'custom' ? `<div class="row">${[['bp', 'p', 'Lochabstand mm'], ['bhw', 'hw', 'Lochbreite mm'], ['bhh', 'hh', 'Lochhöhe mm'], ['bcy', 'cy', 'Lochmitte ab Kante mm']].map(([id, k, l]) => `<div class="field" style="flex:1;min-width:110px"><label for="${id}">${l}</label><input type="number" id="${id}" data-bind="doc.bind.${k}" min="1" max="30" step="0.1" value="${d.bind[k]}"></div>`).join('')}</div>` : ''}
         <label class="check"><input type="checkbox" id="bc" data-bind="doc.bind.cut" ${d.bind.cut ? 'checked' : ''}><span>Halbrunder Ausschnitt für den Aufhänger</span></label>
         ${d.bind.cut ? range('bw', 'doc.bind.cutW', d.bind.cutW, 20, 70, 1, ' mm', 'Ausschnitt Breite') + range('bd', 'doc.bind.cutD', d.bind.cutD, 3, 20, .5, ' mm', 'Ausschnitt Tiefe') : ''}
         ${range('bl', 'doc.bleed', d.bleed, 0, 5, .5, ' mm', 'Beschnittzugabe')}
@@ -155,20 +159,33 @@ function renderStage() {
   $('#stageTools').innerHTML = `<h2>${esc(pageLabel(ui.page))} <span class="muted">${i + 1} / ${keys.length}</span></h2>
     <button class="icon-btn" data-act="prevpage" aria-label="Vorige Seite" ${i <= 0 ? 'disabled' : ''}>${ICON.left}</button>
     <button class="icon-btn" data-act="nextpage" aria-label="Nächste Seite" ${i >= keys.length - 1 ? 'disabled' : ''}>${ICON.right}</button>
+    <span class="row" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">Beschnitt</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">Bindung</button>
     <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
-  $('#canvasWrap').innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
-  bindEditor($('#editor'));
+  const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
+  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
+  const svg = $('#editor');
+  // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
+  wrap.classList.toggle('zoomed', ui.viewZoom > 1);
+  if (ui.viewZoom > 1) {
+    const vb = svg.viewBox.baseVal, cs = getComputedStyle(wrap);
+    const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ah = window.innerWidth > 980 ? wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) : Infinity;
+    const k = Math.min(aw / vb.width, ah / vb.height) * ui.viewZoom;
+    svg.style.width = vb.width * k + 'px'; svg.style.height = vb.height * k + 'px'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none';
+    wrap.scrollLeft = sx; wrap.scrollTop = sy;
+  }
+  bindEditor(svg);
 }
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   if (ui.swapFrom != null) { fb.innerHTML = `<span>Tippe auf den Rahmen, mit dem getauscht werden soll.</span><button class="btn small" data-act="swapcancel">Abbrechen</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Im Rahmen ziehen verschiebt das Bild, Mausrad oder zwei Finger zoomen. Kalendarium frei verschieben.'}</span>`;
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Kalendarium mit der Maus verschieben, am Handy erst antippen.'}</span>`;
     return;
   }
   const r = slotRects(p).find(r => r.i === ui.sel), sl = p.slots[ui.sel], ph = sl && S.photos[sl.photo];
@@ -177,12 +194,14 @@ function renderFrameBar() {
   if (ph) {
     const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < 150 ? 'bad' : d < 200 ? 'warn' : 'ok';
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b><span class="pill ${cls}">${d} dpi${d < 150 ? ' · zu klein' : d < 200 ? ' · knapp' : ''}</span></div>
+      <button class="btn small ${ui.crop === ui.sel ? 'primary' : ''}" data-act="crop" aria-pressed="${ui.crop === ui.sel}">${ui.crop === ui.sel ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>
       <div class="range"><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <button class="btn small" data-act="fit">Einpassen</button>
       <input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
       <button class="btn small" data-act="swap">Tauschen</button>
       <button class="btn small danger" data-act="unslot">Entfernen</button>`;
   } else h += `<span class="hint">Leerer Rahmen: Foto aus der Liste rechts hineinziehen oder antippen.</span>`;
+  if (ui.crop === ui.sel && ph) h += `<span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
   if (r.overlay) h += `<div class="range"><span class="small muted">Größe</span><input type="range" id="ovs" aria-label="Größe Einleger" min="0.5" max="1.8" step="0.01" value="${(p.ov[ui.sel] || {}).s ?? 1}" data-act-input="ovsize"></div>`;
   fb.innerHTML = h;
 }
@@ -190,6 +209,7 @@ function renderPanel() {
   const p = curPage();
   const third = p.key === 'cover' ? ['title', 'Titel'] : p.layout === 'index' ? ['index', 'Register'] : ['cal', 'Kalender'];
   const tabs = p.layout === 'index' ? [third] : [['layout', 'Layout'], ['photos', 'Fotos'], third];
+  if (p.layout === 'index') ui.sel = null;
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = tabs[0][0];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-act="tab" data-v="${k}" aria-selected="${ui.tab === k}">${l}</button>`).join('');
   const body = $('#tabBody');
@@ -226,7 +246,7 @@ function panelPhotos(p) {
       ${MONTHS.map((n, i) => `<option value="${i}" ${f === String(i) ? 'selected' : ''}>${n} (${Object.values(S.photos).filter(x => x.month === i).length})</option>`).join('')}
       <option value="fav" ${f === 'fav' ? 'selected' : ''}>Favoriten</option><option value="free" ${f === 'free' ? 'selected' : ''}>Noch nicht verwendet</option><option value="all" ${f === 'all' ? 'selected' : ''}>Alle Fotos</option></select></div>
     <div class="pool">${list.map(ph => photoThumb(ph, u)).join('') || '<p class="empty-note">Keine Fotos in dieser Auswahl. Unter „Fotos“ hinzufügen.</p>'}</div>
-    <p class="hint">Ziehen mit der Maus, auf dem Handy lange drücken und ziehen. Oder Foto antippen und dann den Rahmen antippen.</p>`;
+    <p class="hint">Ziehen mit der Maus, auf dem Handy lange drücken und ziehen. Oder Foto antippen und dann den Rahmen antippen.${pageMonth(p.key) != null ? ` Ein Foto aus einem anderen Monat wird dabei ${MONTHS[pageMonth(p.key)]} zugeordnet.` : ''}</p>`;
 }
 function panelCal(p) {
   const c = calSettings(p);
@@ -236,6 +256,7 @@ function panelCal(p) {
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
     <div class="field"><span class="lbl">Fläche dahinter</span>${seg([['none', 'Keine'], ['light', 'Hell'], ['dark', 'Dunkel'], ['paper', 'Papier']], c.panel, 'calpanel')}</div>
+    ${c.panel !== 'none' ? range('co', 'page.cal.opacity', c.opacity ?? .85, .2, 1, .05, ' %', 'Deckkraft der Fläche', 100) : ''}
     <div class="field"><span class="lbl">Sonn- und Feiertage</span>${seg([['red', 'Rot'], ['bold', 'Fett'], ['none', 'Normal']], c.hi, 'calhi')}</div>
     <div class="field"><span class="lbl">Position</span>
       <p class="hint">${custom ? 'Auf dieser Seite verschoben.' : 'Steht an der Standardposition.'} Zum Verschieben im Bild ziehen.</p>
@@ -250,12 +271,12 @@ function panelTitle(p) {
     ${range('tz', 'page.title.size', t.size, .5, 2, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, t.color, 'titlecolor')}</div>
     <div class="field"><span class="lbl">Fläche dahinter</span>${seg([['none', 'Keine'], ['light', 'Hell'], ['dark', 'Dunkel'], ['paper', 'Papier']], t.panel, 'titlepanel')}</div>
+    ${t.panel !== 'none' ? range('to', 'page.title.opacity', t.opacity ?? .85, .2, 1, .05, ' %', 'Deckkraft der Fläche', 100) : ''}
     <p class="hint">Den Titel im Bild an die gewünschte Stelle ziehen.</p>`;
 }
 function panelIndex() {
   const rows = [];
-  for (const k of pageKeys()) {
-    if (k === 'index') continue;
+  for (const k of baseKeys()) {
     const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
     if (!ps.length) continue;
     rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
@@ -285,9 +306,17 @@ function checks() {
     }
   }
   if (d.index) {
-    const missing = pageKeys().flatMap(k => k === 'index' ? [] : visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
+    const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
     if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
   }
+  // Jedes Foto gehört zu genau einem Monat; Mehrfachnutzung sichtbar machen
+  for (const [id, keys] of Object.entries(usage())) {
+    const ph = S.photos[id]; if (!ph) continue;
+    const wrong = keys.filter(k => pageMonth(k) != null && pageMonth(k) !== ph.month);
+    if (wrong.length) out.push(['warn', `${wrong.map(pageLabel).join(', ')}: Foto „${ph.caption || ph.name}“ gehört zu ${ph.month < 0 ? 'keinem Monat' : MONTHS[ph.month]}`, wrong[0]]);
+    if (keys.length > 1) out.push(['warn', `Foto „${ph.caption || ph.name}“ steht mehrfach: ${keys.map(pageLabel).join(', ')}`, keys[0]]);
+  }
+  if (d.bind.type !== 'none' && d.bind.type !== 'custom') out.push(['warn', 'Lochung und Aufhänger nutzen Richtwerte. Für die Druckerei die Maße aus deren Datenblatt eintragen.', null]);
   if (d.bleed < 3) out.push(['warn', `Beschnitt nur ${fmt1(d.bleed)} mm, üblich sind 3 mm`, null]);
   return out;
 }
@@ -296,21 +325,22 @@ function renderPrint() {
   const keys = pageKeys();
   $('#v-print').innerHTML = `<div class="print">
     <div style="display:grid;gap:16px;min-width:0">
-      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${bad} Fehler, ${warn} Hinweise` : warn ? `Keine Fehler, ${warn} Hinweise` : 'Alles bereit für die Druckerei.'}</p></header>
-        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend.</li>'}
+      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${bad} Fehler, ${warn} Hinweise` : warn ? `Keine Fehler, ${warn} Hinweise` : 'Keine Probleme gefunden.'} Die Prüfung ersetzt nicht die Vorgaben der Druckerei.</p></header>
+        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
-      <section class="card"><header><h2>Druck-PDF</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge.</p></header>
+      <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
         <dl class="specs"><dt>Seiten</dt><dd>${keys.length}${d.backs ? ' (Vorder- und Rückseiten im Wechsel)' : ''}</dd>
           <dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm</dd>
-          <dt>Farbraum</dt><dd>CMYK (Bilder und Text)</dd><dt>Schrift</dt><dd>Jost, eingebettet</dd></dl>
+          <dt>Farbraum</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
+          <dt>Transparenz</dt><dd>keine (Flächen werden eingerechnet)</dd><dt>Fehlt noch</dt><dd>ICC-Ausgabeprofil, PDF/X, Druckerei-Profil</dd></dl>
         <div class="field"><label for="dpi">Bildauflösung</label><select id="dpi" data-bind="doc.dpi">
           ${[[300, '300 dpi – Druck'], [200, '200 dpi – kleinere Datei'], [100, '100 dpi – schneller Probeausdruck']].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="field"><label for="jq">JPEG-Qualität</label><select id="jq" data-bind="doc.quality">
           ${[[95, 'Sehr hoch'], [90, 'Hoch'], [80, 'Mittel']].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <label class="check"><input type="checkbox" id="crm" data-bind="doc.cropMarks" ${d.cropMarks ? 'checked' : ''}><span>Schnittmarken<span class="hint">Nur wenn die Druckerei sie verlangt.</span></span></label>
-        <button class="btn primary" data-act="export">Druck-PDF erstellen</button>
+        <button class="btn primary" data-act="export">PDF-Entwurf erstellen</button>
         <div id="exportOut"></div>
-        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet (Schwarz wird reines K). Für farbverbindliche Ergebnisse vorher bei der Druckerei nach deren Profil fragen, z. B. PSO Coated v3 oder FOGRA39.</p>
+        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
       </section>
     </div>
     <section class="card"><header><h2>Leuchttisch</h2><p>Alle Seiten im Endformat, mit Lochung und Aufhänger.</p></header>

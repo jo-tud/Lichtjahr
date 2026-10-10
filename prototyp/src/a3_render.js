@@ -1,5 +1,6 @@
 /* ---------- Geometrie (alles in mm, Ursprung = Endformat oben links) ---------- */
 function slotRects(p, doc = S.doc) {
+  if (p.layout === 'index') return [];
   const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = doc.gap;
   const cw = W - 2 * m, ch = H - 2 * m, X = (u) => m + u * cw, Y = (v) => m + v * ch, e = 1e-6;
   const out = [];
@@ -112,11 +113,11 @@ function offsetItem(it, dx, dy) {
   if ('x' in o) o.x += dx; if ('y' in o) o.y += dy;
   return o;
 }
-const PANELS = { none: null, light: ['white', .82], dark: ['black', .5], paper: ['bg', 1] };
-function blockFrame(lay, anchor, f, panel) {
+const PANELS = { none: null, light: 'white', dark: 'black', paper: 'bg' };
+function blockFrame(lay, anchor, f, panel, opacity = 1) {
   const pad = PANELS[panel] ? 3 * f : 0, bw = lay.w + 2 * pad, bh = lay.h + 2 * pad;
   const x = anchor.ax * (S.doc.w - bw), y = anchor.ay * (S.doc.h - bh), items = [];
-  if (pad) { const [col, op] = PANELS[panel]; items.push({ t: 'rect', x, y, w: bw, h: bh, fill: col === 'bg' ? S.doc.bg : col, opacity: op }); }
+  if (pad) { const col = PANELS[panel]; items.push({ t: 'rect', x, y, w: bw, h: bh, fill: col === 'bg' ? S.doc.bg : col, opacity, role: 'panel' }); }
   for (const it of lay.items) items.push(offsetItem(it, x + pad, y + pad));
   return { x, y, w: bw, h: bh, items };
 }
@@ -126,7 +127,7 @@ function calBlock(p) {
   const f = c.size * Math.min(S.doc.w, S.doc.h) / 300;
   const lay = (c.style === 'v' ? calV : c.style === 'g' ? calG : calH)(S.doc.year, m, f, c);
   const a = (p.cal && p.cal.pos && p.cal.pos[c.style]) || S.doc.cal.def[c.style];
-  return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel) };
+  return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel, c.opacity ?? .85) };
 }
 function titleBlock(p) {
   if (!p.title) return null;
@@ -136,7 +137,7 @@ function titleBlock(p) {
   if (t.text) { items.push(T(0, y, t.text, 'bold', ts, t.color)); w = textWidth(t.text, 'bold', ts); }
   if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'regular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'regular', ss)); }
   if (!items.length) return null;
-  return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel) };
+  return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel, t.opacity ?? .85) };
 }
 
 /* ---------- Anzeigeliste einer Seite ---------- */
@@ -172,48 +173,58 @@ function miniPage(p, tx, ty, s) {
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
   return out;
 }
-function indexItems(p, opt) {
-  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f, items = [];
-  const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
-  items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
-  items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
-  const entries = pageKeys().filter(k => k !== 'index' && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo]));
-  if (!entries.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
-  const n = entries.length, cols = W / H > 1.15 ? (n > 12 ? 4 : 3) : (n > 12 ? 3 : n > 6 ? 3 : 2), rows = Math.ceil(n / cols);
-  const top = mg + 20 * f, gx = 7 * f, gy = 6 * f;
-  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, cellH = (H - top - mg - (rows - 1) * gy) / rows;
-  const side = cellW / cellH > 1.1; // Miniatur links, Text rechts
-  entries.forEach((k, n) => {
-    const pg = S.pages[k], cx = mg + (n % cols) * (cellW + gx), cy = top + Math.floor(n / cols) * (cellH + gy);
-    let mw, mh;
-    if (side) { mh = Math.min(cellH, cellW * .48 * H / W); mw = mh * W / H; }
-    else { mw = cellW; mh = mw * H / W; if (mh > cellH * .55) { mh = cellH * .55; mw = mh * W / H; } }
-    const s = mw / W;
-    items.push(...miniPage(pg, cx, cy, s));
-    let num = 0; const caps = [];
+// Register: Einträge fließen über so viele Seiten wie nötig, Text wird nicht abgeschnitten
+function indexEntries() { return baseKeys().filter(k => S.pages[k] && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo])); }
+function indexLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
+  const cols = W / H > 1.15 ? 4 : 3, gx = 7 * f, gy = 6 * f;
+  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = cellW * .45, mh = mw * H / W, tw = cellW - mw - 4 * f;
+  const ls = 2.35 * f, lh = 3.25 * f, labelH = 3.1 * f * .74 + f;
+  const entries = indexEntries().map(k => {
+    const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
       const sl = pg.slots[r.i]; if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
-      num++;
-      const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, bx = cx + (vis.x + vis.w / 2) * s, by = cy + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
-      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white', opacity: .9 });
-      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
-      caps.push([num, S.photos[sl.photo].caption]);
+      caps.push([++num, S.photos[sl.photo].caption, r]);
     }
-    const tx = side ? cx + mw + 4 * f : cx, tw = side ? cellW - mw - 4 * f : cellW;
-    let y = side ? cy + 3.1 * f * .74 : cy + mh + 5 * f;
-    items.push(T(tx, y, pageLabel(k), 'bold', 3.1 * f, col));
-    y += 1 * f;
-    const ls = 2.35 * f, lh = 3.25 * f, maxY = cy + cellH;
-    for (const [i, cap] of caps) {
-      if (!cap) continue;
-      const lines = wrap(cap, 'regular', ls, tw - 4 * f);
-      lines.forEach((l, j) => {
-        y += lh; if (y > maxY) return;
-        if (j === 0) items.push(T(tx, y, String(i), 'bold', ls, col));
-        items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
-      });
-    }
+    const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
+    return { k, caps, lines, h: Math.max(mh, labelH + lines.length * lh + f) };
   });
+  const pages = []; let cur = [], y = mg + 20 * f;
+  for (let i = 0; i < entries.length; i += cols) {
+    const row = entries.slice(i, i + cols), rh = Math.max(...row.map(e => e.h));
+    if (cur.length && y + rh > H - mg) { pages.push(cur); cur = []; y = mg + 12 * f; }
+    row.forEach((e, j) => cur.push({ ...e, x: mg + j * (cellW + gx), y }));
+    y += rh + gy;
+  }
+  pages.push(cur);
+  pages.geom = { f, mg, mw, mh, ls, lh };
+  return pages;
+}
+function indexItems(p) {
+  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), { f, mg, mw, ls, lh } = L.geom;
+  const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
+  const n = indexNo(p.key), list = L[n - 1] || [];
+  if (n === 1) {
+    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
+    items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
+    if (!list.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
+  } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
+  for (const e of list) {
+    const s = mw / W;
+    items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
+    for (const [num, , r] of e.caps) {
+      const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
+      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
+      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+    }
+    const tx = e.x + mw + 4 * f; let y = e.y + 3.1 * f * .74;
+    items.push(T(tx, y, pageLabel(e.k), 'bold', 3.1 * f, col)); y += f;
+    for (const [num, l] of e.lines) {
+      y += lh;
+      if (num != null) items.push(T(tx, y, String(num), 'bold', ls, col));
+      items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
+    }
+  }
   return items;
 }
 
@@ -238,7 +249,7 @@ function svgPage(p, o = {}) {
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
@@ -279,13 +290,24 @@ function svgPage(p, o = {}) {
       over += `<rect x="${sm}" y="${sm}" width="${W - 2 * sm}" height="${H - 2 * sm}" fill="none" stroke="#00a0e3" stroke-width="0.3" stroke-dasharray="1 1.5" pointer-events="none"/>`;
     }
     if (o.showBind) over += bindingSvg(true);
+    // Ausschnitt-Modus: das ganze Foto blass zeigen, auch außerhalb des Rahmens
+    const ci = ui.crop != null && items.find(i => i.t === 'img' && i.slot === ui.crop);
+    if (ci) {
+      const c = ci.clip, pl = ci.place, gid = `${id}g`;
+      defs.push(`<clipPath id="${gid}"><path clip-rule="evenodd" d="M${-pad} ${-pad}h${W + 2 * pad}v${H + 2 * pad}h${-(W + 2 * pad)}zM${c.x} ${c.y}v${c.h}h${c.w}v${-c.h}z"/></clipPath>`);
+      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" opacity=".38" preserveAspectRatio="none"/></g>`;
+    }
+    if (ui.selBlock) {
+      const bl = items.find(i => i.t === 'block' && i.kind === ui.selBlock);
+      if (bl) over += `<rect x="${bl.x - 1.5}" y="${bl.y - 1.5}" width="${bl.w + 3}" height="${bl.h + 3}" fill="none" stroke="var(--accent)" stroke-width=".8" stroke-dasharray="2 1.5" pointer-events="none"/>`;
+    }
     // Auswahl
     if (ui.sel != null) {
       const r = slotRects(p).find(r => r.i === ui.sel);
       if (r) {
-        over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1" pointer-events="none"/>`;
+        over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1"${ui.crop === r.i ? ' stroke-dasharray="3 2"' : ''} pointer-events="none"/>`;
         if (ui.swapFrom != null) over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="var(--accent)" fill-opacity=".18" pointer-events="none"/>`;
-        if (r.overlay) {
+        if (r.overlay && ui.crop == null) {
           const hs = Math.max(5, Math.min(W, H) * .022);
           over += `<g data-handle="ov" data-slot-h="${r.i}" style="cursor:move"><circle cx="${r.x}" cy="${r.y}" r="${hs}" fill="var(--accent)"/><path d="M${r.x - hs * .6} ${r.y}h${hs * 1.2}M${r.x} ${r.y - hs * .6}v${hs * 1.2}M${r.x - hs * .38} ${r.y - hs * .22}l${-hs * .22} ${hs * .22}l${hs * .22} ${hs * .22}M${r.x + hs * .38} ${r.y - hs * .22}l${hs * .22} ${hs * .22}l${-hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y - hs * .38}l${hs * .22} ${-hs * .22}l${hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y + hs * .38}l${hs * .22} ${hs * .22}l${hs * .22} ${-hs * .22}" stroke="#fff" stroke-width="${hs * .13}" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>`;
           over += `<g data-handle="ovs" data-slot-h="${r.i}" style="cursor:nwse-resize"><rect x="${r.x + r.w - hs * .8}" y="${r.y + r.h - hs * .8}" width="${hs * 1.6}" height="${hs * 1.6}" rx="${hs * .3}" fill="var(--accent)"/></g>`;
@@ -302,6 +324,8 @@ function svgPage(p, o = {}) {
 
 // Ringbindung und Aufhänger-Ausschnitt
 function bindingConf(type) {
+  const B = S.doc.bind;
+  if (type === 'custom') return { p: Math.max(3, B.p || 8.47), hw: B.hw || 4, hh: B.hh || 3.2, cy: B.cy || 5.5, round: false };
   return type === 'wire21' ? { p: 12.7, hw: 5.5, hh: 4.2, cy: 6.5, round: false }
     : type === 'spiral' ? { p: 8.47, hw: 4.5, hh: 4.5, cy: 6, round: true }
     : { p: 8.47, hw: 4, hh: 3.2, cy: 5.5, round: false };
