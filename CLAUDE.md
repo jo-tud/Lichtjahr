@@ -26,3 +26,9 @@
 - Das PDF ist ein Entwurf (CMYK ohne ICC-Profil, kein PDF/X) und darf nicht als druckfertig bezeichnet werden.
 - Vor einem Push im Browser testen (Playwright mit Chromium ist in der Cloud-Umgebung vorhanden),
   Desktop und Handy-Größe, und das exportierte PDF rendern.
+- Wenn sich das Aussehen deutlich ändert: `node tools/screenshots.cjs` erneuert die Bilder im README.
+
+## Open Source
+- Code unter MIT; Jost unter OFL; Schulferien-Daten (OpenHolidays API) unter ODbL – Quellenangabe in App,
+  Register und README erhalten.
+- README, CONTRIBUTING und Roadmap aktuell halten, wenn Funktionen dazukommen.

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Lokaler Dienst (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
+
+  prototype:
+    name: Oberfläche bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bauen
+        run: prototyp/build.sh
+      - name: JavaScript-Syntax prüfen
+        run: |
+          node -e "const h=require('fs').readFileSync('prototyp/dist/kalenderwerkstatt.html','utf8');require('fs').writeFileSync('/tmp/app.js',h.match(/<script>([\s\S]*)<\/script>/)[1])"
+          node --check /tmp/app.js
+      - name: Gebaute Dateien sind aktuell
+        run: |
+          git diff --exit-code -- prototyp/dist || {
+            echo "::error::prototyp/dist ist nicht aktuell. Bitte prototyp/build.sh ausführen und das Ergebnis committen."
+            exit 1
+          }

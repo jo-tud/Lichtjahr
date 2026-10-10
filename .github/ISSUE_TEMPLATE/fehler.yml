@@ -1,0 +1,33 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie erwartet.
+labels: [fehler]
+body:
+  - type: textarea
+    id: was
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du erwartet, und was ist stattdessen passiert?
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Schritte zum Nachstellen
+      placeholder: |
+        1. Ansicht „Gestalten“, Monat März
+        2. Foto auf den zweiten Rahmen ziehen
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: umgebung
+    attributes:
+      label: Browser und Gerät
+      placeholder: z. B. Firefox 131 unter Windows 11, Safari auf iPhone 15
+    validations:
+      required: true
+  - type: textarea
+    id: bilder
+    attributes:
+      label: Screenshot
+      description: Bitte keine privaten Fotos – die Beispielbilder der App reichen meist.

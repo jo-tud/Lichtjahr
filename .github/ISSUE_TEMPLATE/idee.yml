@@ -1,0 +1,19 @@
+name: Idee oder Wunsch
+description: Ein Vorschlag, wie Lichtjahr besser werden kann.
+labels: [idee]
+body:
+  - type: textarea
+    id: ziel
+    attributes:
+      label: Was möchtest du beim Kalendermachen erreichen?
+      description: Beschreibe die Situation, nicht nur die Lösung.
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: Wie könnte es aussehen?
+  - type: textarea
+    id: alternativen
+    attributes:
+      label: Wie machst du es bisher?
