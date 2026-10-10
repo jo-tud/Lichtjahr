@@ -142,7 +142,7 @@ function renderPhotos() {
   const byM = Array.from({ length: 13 }, () => []);
   for (const ph of all) byM[ph.month < 0 ? 12 : ph.month].push(ph);
   byM.forEach(l => l.sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.name.localeCompare(b.name)));
-  const photosN = (k) => plural(k, _t('Foto'), _t('Fotos'));
+  const photosN = (k) => _t(k === 1 ? '{n} Foto' : '{n} Fotos', { n: k });
   const bucket = (m, list) => `<section class="bucket ${m === 12 ? 'unassigned' : ''}" data-bucket="${m === 12 ? -1 : m}">
       <h3>${m === 12 ? _t('Noch keinem Monat zugeordnet') : MONTHS[m]} <span class="muted">${photosN(list.length)}${m < 12 ? ' · ' + _t('{n} verwendet', { n: list.filter(p => u[p.id]).length }) : ''}</span>${m === 12 && list.some(p => p.suggested != null) ? ` <button class="btn small" data-act="svcsuggest">${_t('{photos} nach Aufnahmedatum einsortieren', { photos: photosN(list.filter(p => p.suggested != null).length) })}</button>` : ''}</h3>
       <div class="thumbs">${list.map(ph => photoThumb(ph, u)).join('') || `<p class="empty-note">${_t('Fotos hierher ziehen')}</p>`}</div></section>`;
@@ -158,7 +158,7 @@ function renderPhotos() {
       <span class="grow"></span>
       <span class="muted small">${_t('{photos} · {n} ohne Monat', { photos: photosN(all.length), n: byM[12].length })}</span>
     </div>
-    ${(ui.importErrors || []).length ? `<section class="card notice"><header><h2>${_t('{files} nicht geöffnet', { files: plural(ui.importErrors.length, _t('Datei'), _t('Dateien')) })}</h2>
+    ${(ui.importErrors || []).length ? `<section class="card notice"><header><h2>${_t('{files} nicht geöffnet', { files: _t(ui.importErrors.length === 1 ? '{n} Datei' : '{n} Dateien', { n: ui.importErrors.length }) })}</h2>
       <p>${ui.importErrors.slice(0, 6).map(esc).join(', ')}${ui.importErrors.length > 6 ? ' …' : ''}</p></header>
       <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.') + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
       <div class="row"><button class="btn small" data-act="clearerr">${_t('Verstanden')}</button></div></section>` : ''}
@@ -195,7 +195,7 @@ function pageWarn(k) {
 }
 function renderStrip() {
   $('#strip').innerHTML = pageKeys().map(k => `<button class="pg" data-act="page" data-v="${k}" aria-current="${k === ui.page}">
-    ${svgPage(S.pages[k], { mode: 'thumb' })}<span>${esc(pageShort(k))} ${pageWarn(k) ? '<span class="warnmark" title="${_t('Leere Rahmen')}">•</span>' : ''}</span></button>`).join('');
+    ${svgPage(S.pages[k], { mode: 'thumb' })}<span>${esc(pageShort(k))} ${pageWarn(k) ? `<span class="warnmark" title="${_t('Leere Rahmen')}">•</span>` : ''}</span></button>`).join('');
   const cur = $('#strip [aria-current="true"]'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function updateThumb(k = ui.page) {
@@ -336,7 +336,7 @@ function panelCal(p) {
   if (opened && c.style === 'off' && !(p.cal && p.cal.style)) return where + `<p class="hint">${v.part === 'upper' ? _t('Auf dieser Seite steht kein Kalendarium, weil es auf der unteren Seite steht.') : _t('Auf dieser Seite steht kein Kalendarium, weil es auf der oberen Seite steht.')}</p>`;
   const m = pageMonth(p.key), bds = m != null ? (S.doc.birthdays || []).filter(b => +b.m === m + 1 && b.name) : [];
   const bdBox = m != null ? `<div class="field"><span class="lbl">${_t('Geburtstage im {month}', { month: MONTHS[m] })}</span>
-    ${bds.length ? `<p class="hint">${bds.sort((a, b) => a.d - b.d).map(b => _t('{d}. {name}', { d: +b.d, name: esc(b.name), mon: MONTHS_SHORT[m] })).join(' · ')}</p>` : ''}
+    ${bds.length ? `<p class="hint">${bds.sort((a, b) => a.d - b.d).map(b => _t('{d}. {name}', { d: +b.d, name: esc(b.name) })).join(' · ')}</p>` : ''}
     <div class="row bdquick"><input type="text" id="bdqn" placeholder="${_t('Name')}" aria-label="${_t('Name')}"><input type="number" id="bdqd" min="1" max="31" placeholder="${_t('Tag')}" aria-label="${_t('Tag')}"><button class="btn small" data-act="bdquick" data-v="${m + 1}">${_t('Hinzufügen')}</button></div>
     <button class="linkbtn" data-act="go" data-v="project">${_t('Alle Geburtstage und Anzeige …')}</button></div>` : '';
   const auto = pageMonth(p.key) != null ? `<div class="autoplace"><b>${_t('Platz automatisch finden')}</b><p class="hint">${_t('Sucht im Foto eine ruhige Fläche, etwa Himmel, Wiese oder Wasser, und wählt die passende Schriftfarbe. Danach lässt sich alles von Hand ändern.')}</p>

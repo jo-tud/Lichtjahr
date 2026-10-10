@@ -64,7 +64,9 @@ Object.assign(EN, {
   'Bitte Name und Tag eintragen.': 'Please enter a name and a day.',
   'Geburtstag von {name} eingetragen.': 'Added birthday for {name}.',
 
-  // Jedes Foto gehört genau einem Monat
+  // Jedes Foto gehört genau einem Monat (src-Werte erscheinen in der Fotoinfo unter „Monat aus“)
+  'von Hand': 'set by hand',
+  'Kopie': 'copy',
   'Foto nach {to} verschoben.': 'Moved photo to {to}.',
   'Foto von {from} nach {to} verschoben.': 'Moved photo from {from} to {to}.',
   'Foto wird schon verwendet': 'Photo already in use',
@@ -86,8 +88,8 @@ Object.assign(EN, {
   'Alle Rahmen sind schon gefüllt oder es gibt keine freien Fotos mehr.': 'All frames are already filled, or there are no unused photos left.',
   'Kalender wird gestaltet': 'Designing your calendar',
   'Kalendarien suchen ruhige Stellen …': 'Calendar grids are looking for calm spots …',
-  '1 Foto auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed 1 photo on {pages} newly designed and other pages, and moved the calendar grids to calm spots.',
-  '{n} Fotos auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed {n} photos on {pages} newly designed and other pages, and moved the calendar grids to calm spots.',
+  '1 Foto auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed 1 photo on the pages ({pages} newly designed) and moved the calendar grids to calm spots.',
+  '{n} Fotos auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed {n} photos on the pages ({pages} newly designed) and moved the calendar grids to calm spots.',
   '1 Foto auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed 1 photo on the pages and moved the calendar grids to calm spots.',
   '{n} Fotos auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.': 'Placed {n} photos on the pages and moved the calendar grids to calm spots.',
 
