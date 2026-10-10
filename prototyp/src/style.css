@@ -413,3 +413,5 @@ a.btn.primary { color: var(--accent-ink); }
   .tune-sliders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
   .tune-head b { display: none; }
 }
+
+.auto-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }

@@ -385,4 +385,8 @@ Object.assign(EN, {
   'Zurücksetzen': 'Reset',
   'Bild verbessert ✓': 'Photo enhanced ✓',
   'Bild verbessern': 'Enhance photo',
+  'Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter': 'Exposure, white balance, contrast and color automatically, with priority for faces',
+  'Auto': 'Auto',
+  'Alle Fotos automatisch': 'All photos automatically',
+  'Stärke der Automatik': 'Auto strength',
 });

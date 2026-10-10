@@ -242,12 +242,14 @@ const dpiPill = (ph, r, sl) => {
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
 function tuneBar(ph) {
-  const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {};
-  return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b><span class="sp"></span>
+  const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {}, auto = !!r.auto;
+  return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b>
+      <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(_t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
+      <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
-    <div class="tune-sliders">${ADJ_SLIDERS().map(([k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`).join('')}</div>`;
+    <div class="tune-sliders">${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(([k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`).join('')}</div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 function renderFrameBar() {

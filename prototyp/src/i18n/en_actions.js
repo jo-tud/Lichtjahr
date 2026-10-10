@@ -129,4 +129,8 @@ Object.assign(EN, {
   'Kalendarien werden platziert': 'Placing calendar grids',
   '1 Kalendarium auf eine ruhige Bildstelle gesetzt. Jede Seite lässt sich danach von Hand korrigieren.': 'Moved 1 calendar grid to a calm spot in the photo. You can still adjust each page by hand.',
   '{n} Kalendarien auf ruhige Bildstellen gesetzt. Jede Seite lässt sich danach von Hand korrigieren.': 'Moved {n} calendar grids to calm spots in the photos. You can still adjust each page by hand.',
+  'Das Foto lässt sich gerade nicht analysieren.': 'The photo can’t be analyzed right now.',
+  'Fotos werden verbessert': 'Enhancing photos',
+  '1 Foto automatisch verbessert. Jedes lässt sich einzeln nachregeln.': '1 photo enhanced automatically. Each one can be fine-tuned individually.',
+  '{n} Fotos automatisch verbessert. Jedes lässt sich einzeln nachregeln.': '{n} photos enhanced automatically. Each one can be fine-tuned individually.',
 });
