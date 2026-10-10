@@ -13,7 +13,8 @@ async function sourceFor(ph) {
 }
 // Rahmeninhalt in Druckauflösung rendern: Foto mit Zoom, Verschiebung und Drehung wie im Editor.
 // panels: halbtransparente Flächen, die ins Bild eingerechnet werden (keine PDF-Transparenz)
-async function renderCrop(it, dpi, panels = []) {
+// rgb: sRGB-JPEG zurückgeben; die Umrechnung nach CMYK übernimmt dann der Dienst mit dem Farbprofil
+async function renderCrop(it, dpi, panels = [], rgb = false) {
   const ph = S.photos[it.photo], { clip, place: pl } = it;
   // Pixel pro mm: Zielauflösung, aber nie feiner als das Foto selbst (kein Hochrechnen)
   let k = Math.min(dpi / 25.4, ph.w / pl.w);
@@ -38,6 +39,11 @@ async function renderCrop(it, dpi, panels = []) {
     x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
     x.globalAlpha = 1;
   }
+  if (rgb) {
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .95));
+    c.width = c.height = 0;
+    return { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
+  }
   const rgba = x.getImageData(0, 0, ow, oh).data, cmyk = new Uint8Array(ow * oh * 4);
   for (let i = 0; i < rgba.length; i += 4) {
     const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2], mx = Math.max(r, g, b);
@@ -55,10 +61,12 @@ const kop = (id) => (COLORS[id] || COLORS.black).cmyk.map(pdfNum).join(' ');
 const kmix = (top, a, under) => { const t = (COLORS[top] || COLORS.black).cmyk, u = (COLORS[under] || COLORS.white).cmyk; return t.map((v, i) => pdfNum(a * v + (1 - a) * u[i])).join(' '); };
 let lastPdf = null;
 
-async function exportPDF() {
-  const d = S.doc, keys = pageKeys();
+// mode 'draft': CMYK mit einfacher Formel, ganz im Browser. 'print': Fotos als sRGB an den lokalen Dienst,
+// der sie mit dem Farbprofil der Druckerei umrechnet, ein PDF/X-1a schreibt und es prüft.
+async function exportPDF(mode = 'draft') {
+  const d = S.doc, keys = pageKeys(), print = mode === 'print';
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
-  const bar = busy('PDF-Entwurf wird erstellt', 'Vorbereitung …');
+  const bar = busy(print ? 'Druck-PDF wird erstellt' : 'PDF-Entwurf wird erstellt', 'Vorbereitung …');
   let done = 0;
   try {
     const pdf = new PDFWriter(); pdf.begin(); await pdf.addFonts();
@@ -90,11 +98,14 @@ async function exportPDF() {
         } else if (it.t === 'img') {
           bar.update(done / nImg, `Seite ${pi + 1} von ${keys.length} · ${pageLabel(k)} · Bild wird umgerechnet`);
           await sleep0();
-          const dpi = it.mini ? Math.min(d.dpi, 200) : d.dpi;
-          const r = await renderCrop(it, dpi, panels);
-          const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
+          const dpi = print ? (it.mini ? 200 : 300) : it.mini ? Math.min(d.dpi, 200) : d.dpi;
+          const r = await renderCrop(it, dpi, panels, print);
           const name = 'Im' + Object.keys(images).length;
-          images[name] = pdf.addJpeg(jpg, r.w, r.h);
+          if (print) images[name] = pdf.addJpeg(r.jpeg, r.w, r.h, 'DeviceRGB');
+          else {
+            const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
+            images[name] = pdf.addJpeg(jpg, r.w, r.h);
+          }
           const c = it.clip;
           ops.push(`q ${pdfNum(c.w * MM)} 0 0 ${pdfNum(c.h * MM)} ${X(c.x)} ${Y(c.y + c.h)} cm /${name} Do Q`);
           done++;
@@ -111,8 +122,9 @@ async function exportPDF() {
       await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [] });
     }
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
-    const name = `Familienkalender-${d.year}-Entwurf.pdf`;
+    const name = `Familienkalender-${d.year}-${print ? 'Druck' : 'Entwurf'}.pdf`;
     const blob = pdf.finish(`Familienkalender ${d.year}`);
+    if (print) { await printExport(blob, name, bar); return; }
     lastPdf = { blob, name, path: null };
     if (SVC.pid) { bar.update(1, 'Wird im Projektordner abgelegt …'); lastPdf.path = await serviceExport(blob, name); }
     bar.close();

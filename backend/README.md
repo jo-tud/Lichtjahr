@@ -46,7 +46,8 @@ Hand): neue Dateien kommen dazu, verschobene werden wiedererkannt, fehlende geme
 | Kopie für einen weiteren Monat | Eigene Datei im zweiten Monatsordner |
 | Foto entfernen | Nur aussortiert, die Datei bleibt liegen; „zurückholen“ geht jederzeit |
 | Gestalten, Bildtexte, Favoriten | `lichtjahr.json`, automatisch gespeichert |
-| PDF erzeugen | `Export/Familienkalender-2027-Entwurf.pdf` |
+| Druck-PDF erzeugen | `Export/Familienkalender-2027-Druck.pdf` (PDF/X-1a, mit Prüfbericht) |
+| PDF-Entwurf erzeugen | `Export/Familienkalender-2027-Entwurf.pdf` |
 
 ### Vom Handy im Heimnetz
 
@@ -90,6 +91,20 @@ Kalender-2027/
 Vorschaubilder liegen nicht im Projektordner, sondern im Cache (`~/.cache/lichtjahr`). Die Liste der
 bekannten Projekte und gerettete Entwürfe liegen unter `~/.local/share/lichtjahr`.
 
+## Druck-PDF
+
+`POST /api/projects/{id}/export/print` nimmt das PDF der Oberfläche (Fotos als sRGB-JPEG, alles andere CMYK) und
+ein Druckprofil entgegen (`lichtjahr/printing.py`):
+
+1. Fotos mit Pillow/LittleCMS über das ICC-Profil nach CMYK, als CMYK-JPEG ohne Adobe-Konvention (alle PDF-Leser zeigen es gleich)
+2. PDF/X-1a:2001: PDF 1.3 ohne Objektströme, OutputIntent mit eingebettetem Profil, `GTS_PDFXVersion`, `Trapped`, Datumsangaben (pikepdf/qpdf)
+3. Preflight auf die fertige Datei: PDF/X-Pflichtangaben, nur CMYK, Gesamtfarbauftrag, Beschnitt, Schriften, Transparenz, Bildauflösung
+4. Ablage in `Export/`, Antwort mit Pfad und Prüfbericht
+
+Druckprofile: mitgeliefert unter `lichtjahr/icc/` (basICColor, zlib-Lizenz), eigene ICC-Dateien über
+`POST /api/printers` (landen im Datenordner unter `printers/`). Das Profil muss ein CMYK-Ausgabeprofil der
+ICC-Version 2 sein; die Druckbedingung (z. B. FOGRA51) wird aus Beschreibung oder Messdaten erkannt.
+
 ## Grundsätze
 
 - **Originale bleiben unangetastet.** Fotos werden nie verändert oder überschrieben. Verschieben ändert nur
@@ -128,6 +143,9 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Vorschaubild |
 | GET | `/api/projects/{id}/assets/{aid}/original` | Originaldatei |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Monat wechseln / ausdrücklich kopieren |
+| POST | `/api/projects/{id}/export/print` | Druck-PDF (PDF/X-1a) mit Farbprofil und Prüfbericht |
+| GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
+| GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
 
 Schreibende Aufrufe brauchen die Kopfzeile `X-Lichtjahr-Session` mit der Sitzung aus dem Sperr-Erwerb.
@@ -147,8 +165,9 @@ Die Tests decken unter anderem ab:
 - bytegetreues Verschieben ohne Überschreiben
 - die EXIF-Ausrichtung der Vorschaubilder
 - Duplikate beim Hochladen, Aussortieren, Speichern nur erlaubter Felder, Export, Hostnamen-Prüfung
+- Druck-PDF: Farbumrechnung, PDF/X-1a-Merkmale, Preflight-Befunde, eigene Druckprofile
 
 ## Ausblick
 
 - Nextcloud über WebDAV als zweiter Speicherort mit derselben Schnittstelle (Sperre am gemeinsamen Endpunkt mit ETag-Prüfung).
-- Druckexport im Dienst mit Farbmanagement (LittleCMS) und Preflight.
+- PDF/X-4 und Softproof.

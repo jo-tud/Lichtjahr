@@ -16,12 +16,14 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from . import __version__
 from .config import Registry, Settings
 from .lock import Locked, LockLost, new_session
+from .printing import PrinterRegistry, PrintError, make_print_pdf
 from .project import Project, ProjectError, RevisionConflict
-from .schema import Manifest
+from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
 
 
@@ -53,11 +55,13 @@ class SaveRequest(BaseModel):
     calendarYear: int | None = None
     format: dict[str, Any] | None = None
     assets: dict[str, dict[str, Any]] | None = None   # Asset-ID → caption, favorite, rating, excluded
+    printerProfileId: str | None = None
 
 
 def create_app(settings: Settings | None = None, static_dir: str | None = None) -> FastAPI:
     settings = settings or Settings.default()
     registry = Registry(settings)
+    printers = PrinterRegistry(settings.data_dir)
     app = FastAPI(title="Lichtjahr", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json")
     projects: dict[str, Project] = {}
 
@@ -90,6 +94,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.exception_handler(ProjectError)
     async def _perr(_, exc: ProjectError):
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    @app.exception_handler(PrintError)
+    async def _print(_, exc: PrintError):
         return JSONResponse({"detail": str(exc)}, status_code=400)
 
     @app.exception_handler(StorageError)
@@ -220,13 +228,52 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         """Automatisches Speichern des Editors: Gestaltungsstand plus Bildtexte, Favoriten und
         aussortierte Fotos in einer Revision. Schutz vor zwei Schreibern bietet die Sperre."""
         saved = get_project(project_id).save_state(session, req.editor, calendar_year=req.calendarYear,
-                                                   format=req.format, assets=req.assets)
+                                                   format=req.format, assets=req.assets, printer=req.printerProfileId)
         return {"revision": saved.revision, "updated": saved.updated}
 
     @app.post("/api/projects/{project_id}/export")
     async def save_export(project_id: str, file: UploadFile = File(...), session: str | None = Depends(session_header)):
         path = get_project(project_id).save_export(session, file.filename or "Kalender.pdf", await file.read())
         return {"path": path}
+
+    @app.post("/api/projects/{project_id}/export/print")
+    async def print_export(project_id: str, file: UploadFile = File(...), printer: str = Form(...),
+                           title: str = Form(default="Kalender"), session: str | None = Depends(session_header)):
+        """Druck-PDF: Fotos mit dem Farbprofil der Druckerei nach CMYK, PDF/X-1a, Preflight; Ablage in Export/."""
+        p = get_project(project_id)
+        p.lock.check(session)
+        profile = printers.get(printer)
+        data = await file.read()
+        pdf, report = await run_in_threadpool(make_print_pdf, data, profile, title)
+        path = p.save_export(session, file.filename or "Kalender-Druck.pdf", pdf)
+        return {"path": path, "size": len(pdf), "report": report}
+
+    @app.get("/api/projects/{project_id}/export/{name}")
+    def get_export(project_id: str, name: str):
+        p = get_project(project_id)
+        safe = os.path.basename(name)
+        local = p.storage.local_path(f"{EXPORT_DIR}/{safe}")
+        if not safe.lower().endswith(".pdf") or not local or not os.path.exists(local):
+            raise HTTPException(404, "Datei nicht gefunden.")
+        return FileResponse(local, media_type="application/pdf", filename=safe)
+
+    # -- Druckprofile ---------------------------------------------------------------------
+    @app.get("/api/printers")
+    def list_printers():
+        return [p.public() for p in printers.all()]
+
+    @app.post("/api/printers")
+    async def add_printer(file: UploadFile = File(...), name: str | None = Form(default=None), tac: int | None = Form(default=None),
+                          bleed: float | None = Form(default=None), intent: str | None = Form(default=None)):
+        data = await file.read()
+        if len(data) > 20_000_000:
+            raise HTTPException(400, "Die Datei ist zu groß für ein ICC-Profil.")
+        return printers.add(data, name, tac=tac, bleed=bleed, intent=intent).public()
+
+    @app.delete("/api/printers/{printer_id}")
+    def delete_printer(printer_id: str):
+        printers.remove(printer_id)
+        return {"ok": True}
 
     # -- Fotos ----------------------------------------------------------------------------
     @app.post("/api/projects/{project_id}/scan")

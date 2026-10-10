@@ -23,7 +23,9 @@
 ## Prototyp (`prototyp/`)
 - Eine einzelne HTML-Datei, gebaut mit `prototyp/build.sh` aus `prototyp/src/`. Nach Änderungen neu bauen
   und `prototyp/dist/kalenderwerkstatt.html` mit committen.
-- Das PDF ist ein Entwurf (CMYK ohne ICC-Profil, kein PDF/X) und darf nicht als druckfertig bezeichnet werden.
+- Zwei Exporte: der PDF-Entwurf im Browser (CMYK ohne ICC-Profil, nicht druckfertig) und das Druck-PDF über den
+  Dienst (`backend/lichtjahr/printing.py`: LittleCMS, PDF/X-1a, Preflight). Auch das Druck-PDF nicht als
+  „zertifiziert“ bezeichnen: geprüft wird mit dem eigenen Preflight. Keine ECI- oder Adobe-Profile ins Repo.
 - Vor einem Push im Browser testen (Playwright mit Chromium ist in der Cloud-Umgebung vorhanden),
   Desktop und Handy-Größe, und das exportierte PDF rendern.
 - Wenn sich das Aussehen deutlich ändert: `node tools/screenshots.cjs` erneuert die Bilder im README.

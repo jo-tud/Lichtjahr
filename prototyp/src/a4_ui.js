@@ -418,7 +418,9 @@ function checks() {
     if (keys.length > 1) out.push(['warn', `Foto „${ph.caption || ph.name}“ steht mehrfach: ${keys.map(pageLabel).join(', ')}`, keys[0]]);
   }
   if (d.bind.type !== 'none' && d.bind.type !== 'custom') out.push(['warn', 'Lochung und Aufhänger nutzen Richtwerte. Für die Druckerei die Maße aus deren Datenblatt eintragen.', null]);
-  if (d.bleed < 3) out.push(['warn', `Beschnitt nur ${fmt1(d.bleed)} mm, üblich sind 3 mm`, null]);
+  const pr = SVC.pid && PRN.loaded ? printerOf() : null;
+  if (pr && d.bleed + 1e-6 < pr.bleed) out.push(['bad', `Beschnitt ${fmt1(d.bleed)} mm, das Druckprofil verlangt ${pr.bleed} mm`, null, { act: 'fixbleed', label: 'Anpassen' }]);
+  else if (!pr && d.bleed < 3) out.push(['warn', `Beschnitt nur ${fmt1(d.bleed)} mm, üblich sind 3 mm`, null]);
   return out;
 }
 // Schrift steht überwiegend auf Papier bzw. leerem Rahmen und hat fast dessen Farbe (z. B. weiß auf weiß)
@@ -439,7 +441,8 @@ function renderPrint() {
         ${list.some(c => c[3]) ? `<div class="row"><button class="btn small primary" data-act="autodesign">Leere Rahmen überall füllen</button></div>` : ''}
         <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k, fix]) => `<li><span class="dot ${lvl}"></span><span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}${fix ? ` <button class="btn small fixbtn" data-act="${fix.act}" data-v="${k}">${fix.label}</button>` : ''}</span></li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
-      <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
+      ${SVC.pid ? printCard() : ''}
+      <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken${SVC.pid ? '; für die Druckerei das Druck-PDF oben nehmen' : ', noch nicht nach den Vorgaben einer Druckerei geprüft'}.</p></header>
         <p>${allSheets().length} Blätter, ${keys.length} Seiten, ${fmt1(d.w / 10)} × ${fmt1(d.h / 10)} cm${d.duplex ? ', beidseitig' : ''}.</p>
         <div class="field"><label for="dpi">Qualität</label><select id="dpi" data-bind="doc.dpi">
           ${[[300, 'Für den Druck (300 dpi)'], [200, 'Kleinere Datei (200 dpi)'], [100, 'Schnelle Vorschau (100 dpi)']].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -451,9 +454,9 @@ function renderPrint() {
           ${[[95, 'Sehr hoch'], [90, 'Hoch'], [80, 'Mittel']].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <label class="check"><input type="checkbox" id="crm" data-bind="doc.cropMarks" ${d.cropMarks ? 'checked' : ''}><span>Schnittmarken<span class="hint">Nur wenn die Druckerei sie verlangt.</span></span></label>
         </details>
-        <button class="btn primary" data-act="export">PDF-Entwurf erstellen</button>
+        <button class="btn ${SVC.pid ? '' : 'primary'}" data-act="export">PDF-Entwurf erstellen</button>
         <div id="exportOut"></div>
-        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
+        <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. ${SVC.pid ? 'Farbverbindlich ist das Druck-PDF.' : 'Farbverbindlich wird es erst mit dem Profil der Druckerei: Dafür Lichtjahr mit dem lokalen Dienst starten (siehe README), dann gibt es hier das Druck-PDF als PDF/X-1a.'}</p>
       </section>
     </div>
     <section class="card"><header class="lt-head"><div><h2>Leuchttisch</h2><p>${ui.ltMode === 'sheets' ? 'Die Druckbogen in Druckreihenfolge, Vorder- und Rückseite nebeneinander.' : 'So sieht der Kalender aufgehängt aus, mit Lochung und Aufhänger.'}</p></div><button class="btn small" data-act="wall">An der Wand ansehen</button></header>

@@ -353,13 +353,15 @@ class Project:
 
     # -- Gestaltungsstand und Export --------------------------------------------------------
     def save_state(self, session: str | None, editor: dict, *, calendar_year: int | None = None,
-                   format: dict | None = None, assets: dict[str, dict] | None = None) -> Manifest:
+                   format: dict | None = None, assets: dict[str, dict] | None = None, printer: str | None = None) -> Manifest:
         """Speichert den Gestaltungsstand des Editors zusammen mit Bildtexten, Favoriten und dem
         Aussortieren von Fotos in einem Schritt (eine Revision)."""
         allowed = {"caption": str, "favorite": bool, "rating": int, "excluded": bool}
 
         def apply(man: Manifest) -> None:
             man.editor = editor
+            if printer is not None:
+                man.printerProfileId = printer or None
             if calendar_year:
                 man.calendarYear = calendar_year
             if format:

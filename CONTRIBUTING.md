@@ -52,6 +52,8 @@ pytest
   So kommt später WebDAV/Nextcloud ohne Umbau dazu.
 - Änderungen am Manifest gehen über `Project.save()`/`update()` mit Revision; nie an der Sperre vorbei.
 - Neue Funktionen bringen Tests mit. Die Sperrtests starten mehrere Prozesse – bitte nicht abschwächen.
+- Druck-PDF (`lichtjahr/printing.py`, Tests in `tests/test_printing.py`): Nur ICC-Profile einchecken, die frei
+  weitergegeben werden dürfen (siehe `lichtjahr/icc/README.md`); ECI- und Adobe-Profile gehören nicht ins Repository.
 
 ## Prüfen vor dem Pull Request
 

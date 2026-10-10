@@ -354,3 +354,16 @@ body[data-view="design"] .toast { bottom: calc(118px + env(safe-area-inset-botto
 .svc-path code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .banner.svc { background: color-mix(in srgb, var(--warn) 16%, var(--surface)); }
 @media (max-width: 560px) { .picker-box { padding: 20px; } .picker h1 { font-size: 24px; } }
+
+/* ----- Druck-PDF ----- */
+.print-card code { font-family: var(--font-mono); font-size: .92em; }
+.bad-text { color: var(--bad); }
+.dot.info { background: var(--line); }
+.report { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--ok) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
+.report.bad { background: color-mix(in srgb, var(--bad) 8%, var(--surface)); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+.report details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.report details .checks { margin-top: 6px; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; color: inherit; }
+a.btn.primary { color: var(--accent-ink); }
+.prn-form { width: min(460px, 100%); display: grid; gap: 12px; }
+.prn-form code { font-family: var(--font-mono); font-size: .92em; }

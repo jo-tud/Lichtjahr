@@ -128,9 +128,19 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await B.waitForFunction(() => /schon da/.test(document.querySelector('#toast').textContent));
     assert.deepEqual(fs.readdirSync(path.join(K, 'Fotos', '05 Mai')).sort(), ['m05_1.jpg', 'm05_2.jpg', 'm05_3.jpg']);
 
-    step('PDF landet in Export/');
+    step('PDF-Entwurf landet in Export/');
     await B.evaluate(async () => { S.doc.dpi = 100; await exportPDF(); });
     await waitFor(() => fs.existsSync(path.join(K, 'Export', 'Familienkalender-2027-Entwurf.pdf')));
+
+    step('Druck-PDF: Farbprofil, PDF/X-1a, Preflight');
+    await B.evaluate(() => setView('print'));
+    await B.waitForSelector('#prn');
+    await B.evaluate(async () => { await exportPDF('print'); });
+    await B.waitForSelector('.report', { timeout: 120000 });
+    assert.ok(await B.$('.report.ok'), 'Prüfbericht nicht bestanden: ' + (await B.textContent('.report')));
+    const printPdf = fs.readFileSync(path.join(K, 'Export', 'Familienkalender-2027-Druck.pdf'));
+    assert.equal(printPdf.subarray(0, 8).toString(), '%PDF-1.3');
+    assert.ok(printPdf.includes('GTS_PDFX') && printPdf.includes('PDF/X-1a:2001') && printPdf.includes('FOGRA39'));
 
     step('Sperre verloren: Stand wird gesichert und beim nächsten Öffnen angeboten');
     const lockFile = path.join(K, '.lichtjahr', 'lock.json');

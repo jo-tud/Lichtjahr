@@ -24,6 +24,8 @@ SOFTWARE.
 Third-party content with its own licence:
 
 - Jost font (prototyp/fonts/): SIL Open Font License 1.1, see prototyp/fonts/OFL.txt
+- ICC printing profiles (backend/lichtjahr/icc/*.icc): basICColor GmbH,
+  zlib/libpng License, see backend/lichtjahr/icc/LICENSE-basICColor.txt
 - School holiday data (prototyp/src/schoolholidays.js): derived from the
   OpenHolidays API (https://www.openholidaysapi.org), made available under the
   Open Database License (ODbL) 1.0, https://opendatacommons.org/licenses/odbl/1-0/
