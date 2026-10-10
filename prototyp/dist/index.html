@@ -2688,7 +2688,10 @@ function pageItems(p, opt = {}) {
   if (p.layout === 'index') return items.concat(indexItems(p, opt));
   for (const r of slotRects(p)) {
     const sl = slotOf(p, r.i) || newSlot(), ph = sl.photo && S.photos[sl.photo];
-    if (r.border > 0) items.push({ t: 'rect', x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border, fill: doc.bg, slot: r.i, role: 'ovb' });
+    if (r.border > 0) {                       // Rand in Hintergrundfarbe, nie über Blatt und Beschnitt hinaus
+      const br = intersect({ x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border }, { x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b });
+      if (br) items.push({ t: 'rect', ...br, fill: doc.bg, slot: r.i, role: 'ovb' });
+    }
     if (ph && sl.fit === 'contain') items.push({ t: 'rect', ...r, fill: doc.bg, slot: r.i, role: 'ovb' });
     if (ph) items.push({ t: 'img', slot: r.i, clip: r, place: placeImage(r, ph, sl), photo: ph.id, overlay: r.overlay });
     else items.push({ t: 'empty', slot: r.i, clip: r, overlay: r.overlay });
