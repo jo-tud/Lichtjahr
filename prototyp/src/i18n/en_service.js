@@ -205,4 +205,5 @@ Object.assign(EN, {
   'Neu platzieren': 'Place again',
   'Gesichter werden gesucht …': 'Looking for faces …',
   '{page}: Kalendarium neu platziert.': '{page}: Calendar grid placed again.',
+  'Nextcloud sperrt gerade kurz, nächster Versuch gleich …': 'Nextcloud is briefly locked, trying again shortly …',
 });

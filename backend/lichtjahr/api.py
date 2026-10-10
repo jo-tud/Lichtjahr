@@ -30,7 +30,7 @@ from .printing import STANDARDS, PrinterRegistry, PrintError, make_print_pdf, pr
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
-from .storage.webdav import WebDavStorage
+from .storage.webdav import ServerLocked, WebDavStorage
 
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -124,6 +124,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     @app.exception_handler(PrintError)
     async def _print(_, exc: PrintError):
         return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    @app.exception_handler(ServerLocked)
+    async def _locked(_, exc: ServerLocked):                 # vorübergehend: Klartext, 503 mit Retry-After
+        return JSONResponse({"detail": str(exc)}, status_code=503, headers={"Retry-After": "10"})
 
     @app.exception_handler(StorageError)
     async def _serr(_, exc: StorageError):

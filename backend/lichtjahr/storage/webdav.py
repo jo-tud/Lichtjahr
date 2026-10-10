@@ -21,6 +21,7 @@ import ipaddress
 import posixpath
 import re
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from typing import Iterator
 from urllib.parse import quote, unquote, urlsplit
@@ -45,8 +46,16 @@ PROPFIND_BODY = (b'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DA
                  b"<d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/></d:prop></d:propfind>")
 
 
+class ServerLocked(StorageError):
+    """Der Server (etwa Nextcloud) hält die Datei selbst gesperrt (HTTP 423), nicht Lichtjahr."""
+
+
 class WebDavStorage:
     kind = "webdav"
+    # Nextcloud antwortet mit 423, solange ein anderer Vorgang die Datei gerade schreibt (Sync-Client,
+    # zweite Anfrage) oder nach einem abgebrochenen Upload noch eine Sperre hängt. Die Anfrage wurde dann
+    # nicht ausgeführt; nach kurzer Pause noch einmal versuchen ist sicher.
+    RETRY_LOCKED = (0.3, 0.8, 1.5, 3.0)
 
     def __init__(self, url: str, username: str = "", password: str = "", *, timeout: float = 60.0,
                  transport: httpx.BaseTransport | None = None) -> None:
@@ -91,10 +100,16 @@ class WebDavStorage:
         return p[len(base):].strip("/")
 
     def _request(self, method: str, path: str, **kw) -> httpx.Response:
-        try:
-            r = self.client.request(method, self._href(path), **kw)
-        except httpx.HTTPError as e:
-            raise StorageError(_t("Der WebDAV-Server ist nicht erreichbar: {error}", error=e)) from e
+        for wait in (*self.RETRY_LOCKED, None):
+            try:
+                r = self.client.request(method, self._href(path), **kw)
+            except httpx.HTTPError as e:
+                raise StorageError(_t("Der WebDAV-Server ist nicht erreichbar: {error}", error=e)) from e
+            if r.status_code != 423:
+                break
+            if wait is None:
+                raise ServerLocked(_t("Nextcloud hält {path} gerade gesperrt (WebDAV 423). Meist schreibt gleichzeitig ein anderes Programm an der Datei, etwa der Nextcloud-Sync, oder ein abgebrochener Upload hat eine Sperre hinterlassen. Nextcloud gibt sie nach einiger Zeit selbst frei; bitte gleich noch einmal versuchen.", path=path))
+            time.sleep(wait)
         if r.status_code in (401, 403):
             raise StorageError(_t("Anmeldung am WebDAV-Server abgelehnt. Benutzername und App-Passwort prüfen."))
         return r
