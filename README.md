@@ -136,6 +136,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Binding:** Wire binding and hanger cut-out as guideline values or with measurements from the print shop's data sheet.
 - **Photo spacing:** 0–5 mm, for all pages or per page.
 - **Enhance photo:** *Auto* corrects exposure, tonal range, white balance, contrast and color with one click, with an adjustable strength; *All photos automatically* does it for the whole calendar. Faces count, but no skin tone is ever targeted: a visibly exposed face only means "the subject is fine, brighten little". Sunsets keep their warmth. Looks (Vivid, Warm, Soft, Film, Black & white, B&W strong) appear as tiles of your own photo, each with its own strength. On top, brightness, contrast, warmth and color, and on request highlights, shadows and tint, right below the picture; press and hold *Original* to compare.
+- **Who appears how often:** With the local service Lichtjahr recognizes faces across photos and shows who is in how many photos and how often in the calendar, with whoever is still missing listed first; give names, show all photos of a person, and the check list reminds you of anyone named who isn't in the calendar yet. Everything runs on your computer; the recognition model (10 MB) is downloaded once when you first use it, and face features stay in the service's local cache – the project only stores names.
 - **Burst series:** Five nearly identical shots of the same moment? Lichtjahr finds such series (same month and day, very similar picture) and suggests the best one: the sharpest, well exposed, faces clearly visible, favorites count. The rest can be set aside with one click; if one of them is already in the calendar, the chosen photo takes its place.
 - **Match all months:** Exposure and color mood of the twelve months are brought closer together, as much as you like, shown side by side with a press-and-hold before view. The seasons stay recognizable. The check list points out months that are noticeably darker or brighter than the rest. The originals stay untouched; the same recipe drives the preview, the soft proof and the PDF.
 - **Undo/redo** with a jump to the changed page; the history survives a reload.
@@ -296,6 +297,7 @@ GitHub Pages), it works in the browser only, as before.
 | `src/b1_service.js` | Connection to the local service: project selection, lock, saving, sync, upload |
 | `src/b2_print.js` | Print PDF via the local service: print profile, export, check report |
 | `src/b3_faces.js` | Faces from the service: crop around faces, keep the calendar grid off heads, warnings |
+| `src/b6_people.js` | Who appears how often: group faces into people, names, filter, check |
 | `src/b5_series.js` | Burst series: similar photos (dHash, color, aspect), best one by sharpness, exposure, faces |
 | `src/b4_adjust.js` | Enhance photos: recipes compiled to color matrix and tone curve, SVG filter, pixels |
 | `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |
@@ -324,7 +326,8 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Wide color (Display P3, Adobe RGB) printed straight from the original
 - [x] Faces: automatic crops keep them in the picture, the calendar grid avoids them, cut-off faces are flagged
 - [x] Optimize photos for print: automatic mode, looks, manual sliders, matching months, print adaptation
-- [ ] Who appears how often in the photos
+- [x] Who appears how often in the photos (local face recognition)
+- [x] Burst series: best photo suggested
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -338,6 +341,7 @@ tested and reviewed is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Code:** [MIT License](LICENSE)
 - **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
 - **School holidays:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The extract in `prototyp/src/schoolholidays.js` is also licensed under the ODbL. No guarantee of accuracy.
+- **Face recognition:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; not included in the repository, downloaded on first use and checked against its SHA-256.
 - **Face detection:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) by Shiqi Yu, MIT license ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); it finds faces, it does not recognize people. Test photos in `backend/tests/data/` are NASA portraits in the public domain.
 - **ICC print profiles:** `ISOcoated_v2_300_bas.icc` and `PSO_Uncoated_ISO12647_bas.icc` by basICColor GmbH, zlib/libpng license ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
 - **Service libraries:** FastAPI, Pillow with LittleCMS, pikepdf/qpdf (each under its own free license)

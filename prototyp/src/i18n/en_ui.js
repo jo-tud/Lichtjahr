@@ -411,4 +411,6 @@ Object.assign(EN, {
   '{n} Serien fast gleicher Fotos': '{n} series of near-identical photos',
   'Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.': 'Lichtjahr suggests the best photo of each series; the other {n} can be set aside with one click.',
   'Vergleichen': 'Compare',
+  'Nur Fotos mit {name}': 'Only photos with {name}',
+  'Alle Fotos zeigen': 'Show all photos',
 });

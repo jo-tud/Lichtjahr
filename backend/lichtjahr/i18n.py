@@ -146,6 +146,9 @@ EN = {
     "1 Foto mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "1 photo with a wide color space ({names}) converted straight from the original",
     "{n} Fotos mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "{n} photos with a wide color space ({names}) converted straight from the original",
     "Kleinste Bildauflösung {dpi} dpi": "Lowest image resolution {dpi} dpi",
+    # Personen
+    "Für die Gesichtserkennung fehlt OpenCV im Dienst.": "OpenCV is missing in the service, so faces can’t be recognized.",
+    "Das Erkennungsmodell ließ sich nicht laden: {error}": "The recognition model couldn’t be loaded: {error}",
     # Befehlszeile
     "Hinweis: Der Dienst ist im Netz erreichbar ({host}). Zugriff nur mit Schlüssel.": "Note: the service is reachable on the network ({host}). Access only with the key.",
     "{path}: {error}  Neues Projekt mit „lichtjahr init {path}“ anlegen.": "{path}: {error}  Create a new project with “lichtjahr init {path}”.",

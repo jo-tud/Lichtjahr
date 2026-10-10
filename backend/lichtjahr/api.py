@@ -398,6 +398,40 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
                     out[aid] = []
         return {"available": True, "faces": out}
 
+    # -- Wer ist wie oft auf den Fotos ------------------------------------------------------
+    @app.get("/api/people/model")
+    def people_model():
+        return {"available": facedet.available(), "ready": facedet.recognizer_ready(settings.data_dir), "size": facedet.REC_SIZE}
+
+    @app.post("/api/people/model")
+    def people_model_download():
+        """Erkennungsmodell einmalig laden (OpenCV Zoo, 10 MB, Prüfsumme wird kontrolliert)."""
+        if not facedet.available():
+            raise HTTPException(400, _t("Für die Gesichtserkennung fehlt OpenCV im Dienst."))
+        if not facedet.recognizer_ready(settings.data_dir):
+            try:
+                facedet.download_recognizer(settings.data_dir)
+            except Exception as e:
+                raise HTTPException(502, _t("Das Erkennungsmodell ließ sich nicht laden: {error}", error=e))
+        return {"available": True, "ready": True, "size": facedet.REC_SIZE}
+
+    @app.post("/api/projects/{project_id}/people")
+    def people(project_id: str, req: FacesRequest):
+        """Gesichter mit Merkmalen für die angefragten Fotos; das Gruppieren nach Personen macht die Oberfläche."""
+        p = get_project(project_id)
+        if not facedet.recognizer_ready(settings.data_dir):
+            return {"ready": False, "faces": {}}
+        man, _ = p.load()
+        out = {}
+        for aid in dict.fromkeys(req.ids):
+            a = man.asset(aid)
+            if a and a.status != "missing":
+                try:
+                    out[aid] = p.face_features(a, settings.data_dir)
+                except Exception:                              # ein unlesbares Foto hält die anderen nicht auf
+                    out[aid] = []
+        return {"ready": True, "faces": out}
+
     @app.get("/api/projects/{project_id}/assets/{asset_id}/proof")
     def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False,
               adj: str = "", tune: bool = False):

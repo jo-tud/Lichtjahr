@@ -191,6 +191,8 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
 | GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |
+| GET / POST | `/api/people/model` | Status des Erkennungsmodells / einmalig laden (SFace, 10 MB, SHA-256 geprüft) in den Datenordner |
+| POST | `/api/projects/{id}/people` | Gesichter mit je 128 Merkmalen für die angegebenen Fotos; nur lokal zwischengespeichert, nie im Projektordner; die Oberfläche gruppiert sie zu Personen |
 | POST | `/api/projects/{id}/faces` | Gesichter in den angegebenen Fotos (`{ids: [...]}`): Rechtecke in Bruchteilen des Fotos, je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
 

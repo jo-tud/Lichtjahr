@@ -262,6 +262,17 @@ const ACTIONS = {
   adjmore: () => { ui.adjMore = !ui.adjMore; renderFrameBar(); },
   matchmonths: () => openMatchDialog(),
   series: () => openSeriesDialog(),
+  people: () => openPeopleDialog(),
+  peopleoff: () => { S.doc.peopleOff = true; commit(); renderPhotos(); },
+  personclear: () => { ui.personFilter = null; ui.personName = null; renderPhotos(); },
+  peopleload: async () => {
+    const bar = busy(_t('Erkennungsmodell wird geladen'), _t('Einmalig 10 MB aus dem OpenCV-Modellkatalog'));
+    try { await api('people/model', { method: 'POST' }); PEOPLE.ready = true; }
+    catch (e) { bar.close(); toast(e.message, 8000); return; }
+    bar.update(0, _t('Gesichter werden verglichen …'));
+    try { await loadPeopleFaces(Object.keys(S.photos), bar); PEOPLE.groups = groupPeople(); PEOPLE.key = peopleKey(); } finally { bar.close(); }
+    renderPhotos(); if (PEOPLE.groups && PEOPLE.groups.length) openPeopleDialog(); else toast(_t('Niemand ist auf mehreren Fotos zu sehen.'));
+  },
   adjall: async () => {
     const ids = Object.keys(usage()).filter(id => S.photos[id]);
     if (!ids.length) return;
