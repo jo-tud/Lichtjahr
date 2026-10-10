@@ -163,6 +163,7 @@ function renderPhotos() {
       <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt.') + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
       <div class="row"><button class="btn small" data-act="clearerr">${_t('Verstanden')}</button></div></section>` : ''}
     ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>${_t('Fotos auf die Seiten bringen')}</h2><p class="hint">${_t('Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.')}</p></div><button class="btn primary" data-act="autodesign">${_t('Kalender automatisch gestalten')}</button></section>` : ''}
+    ${seriesCard()}
     <div class="dropzone" id="dropzone"><span>${SVC.pid ? _t('Fotos oder ganze Ordner hierher ziehen, sie werden in die Monatsordner des Projekts kopiert.') : _t('Fotos oder ganze Ordner hierher ziehen.')} ${_t('Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.')}${SVC.pid ? ' ' + _t('Du kannst Dateien auch direkt in die Monatsordner legen und dann abgleichen.') : ''}</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
@@ -263,6 +264,15 @@ function tuneBar(ph) {
       <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
+// Hinweis in der Fotoübersicht, wenn es Serien fast gleicher Fotos gibt (im Hintergrund gesucht)
+function seriesCard() {
+  refreshSeries(() => { if (ui.view === 'photos' && seriesReady() && SERIES.groups.length) renderPhotos(); });
+  if (!seriesReady() || !SERIES.groups.length) return '';
+  const g = SERIES.groups, extra = g.reduce((n, x) => n + x.ids.length - 1, 0);
+  return `<section class="card cta"><div><h2>${g.length === 1 ? _t('1 Serie fast gleicher Fotos') : _t('{n} Serien fast gleicher Fotos', { n: g.length })}</h2>
+    <p class="hint">${_t('Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.', { n: extra })}</p></div>
+    <button class="btn primary" data-act="series">${_t('Vergleichen')}</button></section>`;
+}
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   fb.classList.remove('tuning');

@@ -136,6 +136,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
 - **Bild verbessern:** *Auto* korrigiert Belichtung, Tonwertumfang, Weißabgleich, Kontrast und Farbe mit einem Klick, mit einstellbarer Stärke; *Alle Fotos automatisch* macht das für den ganzen Kalender. Gesichter zählen mit, ein Hautton wird aber nie angesteuert: Ein sichtbar belichtetes Gesicht heißt nur „das Motiv stimmt, wenig aufhellen“. Sonnenuntergänge behalten ihre Wärme. Looks (Lebendig, Warm, Sanft, Film, Schwarzweiß, S/W kräftig) erscheinen als Kacheln des eigenen Fotos, jeweils mit eigener Stärke. Dazu Helligkeit, Kontrast, Wärme und Farbe, auf Wunsch auch Lichter, Tiefen und Tönung, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen.
+- **Serienbilder:** Fünfmal fast dasselbe Motiv? Lichtjahr findet solche Serien (gleicher Monat und Tag, sehr ähnliches Bild) und schlägt das beste Foto vor: am schärfsten, gut belichtet, Gesichter gut sichtbar, Favoriten zählen mit. Die übrigen lassen sich mit einem Klick aussortieren; steht eines davon schon im Kalender, rückt das gewählte an seine Stelle.
 - **Alle Monate angleichen:** Belichtung und Farbstimmung der zwölf Monate werden einander angenähert, so weit man möchte, mit allen Monaten nebeneinander und einer Vorher-Ansicht zum Gedrückthalten. Die Jahreszeiten bleiben erkennbar. Die Prüfliste meldet Monate, die deutlich dunkler oder heller sind als die anderen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
 - **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
@@ -296,6 +297,7 @@ arbeitet sie wie bisher nur im Browser.
 | `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
 | `src/b2_print.js` | Druck-PDF über den lokalen Dienst: Druckprofil, Export, Prüfbericht |
 | `src/b3_faces.js` | Gesichter vom Dienst: Ausschnitt um Gesichter, Kalendarium meidet Köpfe, Hinweise |
+| `src/b5_series.js` | Serienbilder: ähnliche Fotos (dHash, Farbe, Seitenverhältnis), bestes nach Schärfe, Belichtung, Gesichtern |
 | `src/b4_adjust.js` | Bilder verbessern: Rezepte als Farbmatrix und Tonkurve, SVG-Filter, Pixel |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
 | `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |

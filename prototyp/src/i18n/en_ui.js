@@ -407,4 +407,8 @@ Object.assign(EN, {
   '{page} ist deutlich dunkler als die anderen Monate': '{page} is noticeably darker than the other months',
   '{page} ist deutlich heller als die anderen Monate': '{page} is noticeably brighter than the other months',
   'Angleichen': 'Match',
+  '1 Serie fast gleicher Fotos': '1 series of near-identical photos',
+  '{n} Serien fast gleicher Fotos': '{n} series of near-identical photos',
+  'Lichtjahr schlägt je Serie das beste Foto vor; die übrigen {n} lassen sich mit einem Klick aussortieren.': 'Lichtjahr suggests the best photo of each series; the other {n} can be set aside with one click.',
+  'Vergleichen': 'Compare',
 });
