@@ -71,6 +71,19 @@ function renderProject() {
         <div class="field"><label for="rg">Feiertage</label><select id="rg" data-bind="doc.region">${REGIONS.map(([v, l]) => `<option value="${v}" ${d.region === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <label class="check"><input type="checkbox" id="hn" data-bind="doc.cal.names" ${d.cal.names ? 'checked' : ''}><span>Feiertage beim Namen nennen</span></label>
         <div class="field"><span class="lbl">Sonn- und Feiertage</span>${seg([['red', 'Rot'], ['bold', 'Fett'], ['none', 'Normal']], d.cal.hi, 'defhi')}</div>
+        <label class="check"><input type="checkbox" id="sch" data-bind="doc.cal.school" ${d.cal.school ? 'checked' : ''} ${hasSchoolData() ? '' : 'disabled'}><span>Schulferien markieren<span class="hint">${hasSchoolData() ? `Feiner Strich unter den Ferientagen. Daten: ${SCHOOL_SOURCE.name}, Stand ${SCHOOL_SOURCE.fetched}, 2025–2028. Vor dem Druck mit dem Kultusministerium abgleichen.` : 'Dafür oben ein Bundesland wählen.'}</span></span></label>
+        <label class="check"><input type="checkbox" id="kw" data-bind="doc.cal.kw" ${d.cal.kw ? 'checked' : ''}><span>Kalenderwochen</span></label>
+      </section>
+      <section class="card"><header><h2>Geburtstage</h2><p>Erscheinen dezent im Kalendarium und mit Namen im Register.</p></header>
+        <div class="bdlist">${(d.birthdays || []).map(b => `<div class="bdrow">
+          <input type="text" aria-label="Name" placeholder="Name" value="${esc(b.name)}" data-bd="${b.id}" data-f="name">
+          <input type="number" aria-label="Tag" placeholder="Tag" min="1" max="31" value="${esc(b.d)}" data-bd="${b.id}" data-f="d">
+          <select aria-label="Monat" data-bd="${b.id}" data-f="m">${MONTHS.map((mn, i) => `<option value="${i + 1}" ${+b.m === i + 1 ? 'selected' : ''}>${mn}</option>`).join('')}</select>
+          <input type="number" aria-label="Geburtsjahr (optional)" placeholder="Jahr" min="1900" max="2100" value="${esc(b.y || '')}" data-bd="${b.id}" data-f="y">
+          <button class="icon-btn" data-act="delbd" data-v="${b.id}" aria-label="Geburtstag von ${esc(b.name || 'ohne Namen')} entfernen">×</button></div>`).join('') || '<p class="empty-note">Noch keine Geburtstage.</p>'}</div>
+        <button class="btn small" data-act="addbd">Geburtstag hinzufügen</button>
+        <div class="field"><span class="lbl">Im Kalendarium</span>${seg([['dot', 'Punkt'], ['names', 'Mit Namen'], ['off', 'Nicht zeigen']], d.cal.bd || 'dot', 'bdmode')}</div>
+        <label class="check"><input type="checkbox" id="ixbd" data-bind="doc.indexBirthdays" ${d.indexBirthdays !== false ? 'checked' : ''}><span>Im Register aufführen<span class="hint">Mit Alter, wenn ein Geburtsjahr angegeben ist.</span></span></label>
       </section>
       <section class="card"><header><h2>Bindung und Beschnitt</h2><p>Wird nur angezeigt, nicht gedruckt. Die Vorgaben sind allgemeine Richtwerte, nicht aus einem Datenblatt einer Druckerei.</p></header>
         <div class="field"><label for="bt">Bindung oben</label><select id="bt" data-bind="doc.bind.type">
