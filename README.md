@@ -10,8 +10,10 @@ Was der Prototyp kann:
 
 - Fotos importieren (Dateien, Ordner, Drag & Drop); Monat aus Ordnername, EXIF-Aufnahmedatum oder Dateiname
 - Formate 29,7 × 29,7 cm, DIN A3 quer und weitere; Formatwechsel auch später, die Seiten passen sich an
-- 15 Seitenvorlagen, Bildabstand 0–5 mm, Einleger-Bilder
-- Rahmen antippen wählt aus; Doppelklick oder zweites Antippen öffnet den Ausschnitt-Modus, in dem das Foto unter dem Rahmen verschoben und gezoomt wird (Mausrad und zwei Finger nur dort). Eigener Ansichtszoom
+- 15 Seitenvorlagen als Ausgangspunkt, Bildabstand 0–5 mm global oder pro Seite
+- Rahmen frei verschieben, an den Ecken skalieren (mit Einrasten an Rändern, Mitte und Nachbarrahmen), überlagern, nach vorn/hinten, duplizieren, löschen, zusätzliche Rahmen, Rand pro Rahmen; Pfeiltasten verschieben in 0,5-/5-mm-Schritten
+- Doppelklick oder zweites Antippen öffnet den Ausschnitt-Modus: Foto unter dem Rahmen verschieben, zoomen, drehen, „Füllen“ oder „Ganz zeigen“ (Mausrad und zwei Finger nur dort). Eigener Ansichtszoom
+- Fotos tauschen: mit der Maus ein Foto auf einen anderen Rahmen ziehen; beim Ziehen aus der Fotoleiste zeigt der Rahmen vorher, was er ersetzt
 - Jedes Foto gehört zu genau einem Monat: Einsetzen auf einer anderen Monatsseite ordnet es um; steht es dort schon, fragt die App nach (verschieben oder Kopie)
 - Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft, Feiertage nach Bundesland
 - Titelblatt, Bildregister über beliebig viele Seiten, optionale Rückseiten

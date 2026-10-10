@@ -24,7 +24,7 @@ function onBind(el, final) {
   const path = el.dataset.bind;
   let v = el.type === 'checkbox' ? el.checked : el.type === 'range' || el.type === 'number' || /dpi|quality/.test(path) ? parseFloat(el.value) : el.value;
   if (typeof v === 'number' && isNaN(v)) return;
-  if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); }
+  if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); scaleBoxes(path === 'doc.w' ? v / S.doc.w : 1, path === 'doc.h' ? v / S.doc.h : 1); }
   if (path === 'doc.year') { if (!final) return; v = clamp(Math.round(v), 2000, 2100); const cv = S.pages.cover; if (cv && cv.title && cv.title.sub === String(S.doc.year)) cv.title.sub = String(v); }
   setPath(path, v);
   if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
@@ -50,16 +50,26 @@ document.addEventListener('input', (e) => {
   }
   const act = el.dataset.actInput;
   if (act === 'zoom') {
-    const p = curPage(), sl = p.slots[ui.sel], r = slotRects(p).find(r => r.i === ui.sel), ph = S.photos[sl.photo];
+    const p = curPage(), sl = slotOf(p, ui.sel), r = rectOf(p, ui.sel), ph = S.photos[sl.photo];
     const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     zoomAt(r, ph, sl, parseFloat(el.value), c);
     el.parentElement.querySelector('output').textContent = Math.round(sl.zoom * 100) + ' %';
     renderEditor(); clearTimeout(onBind._z); onBind._z = setTimeout(() => { commit(); updateThumb(); renderFrameBarMeta(); }, 400);
   }
-  if (act === 'ovsize') {
-    const p = curPage(), L = layoutById(p.layout), base = L.ov[ui.sel - L.slots.length];
-    const o = p.ov[ui.sel] ||= { x: base[0], y: base[1] }; o.s = parseFloat(el.value);
-    renderEditor(); clearTimeout(onBind._o); onBind._o = setTimeout(() => { commit(); updateThumb(); }, 400);
+  if (act === 'rot') {
+    const sl = slotOf(curPage(), ui.sel); sl.rot = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(sl.rot) + '°';
+    renderEditor(); clearTimeout(onBind._r); onBind._r = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
+  if (act === 'border') {
+    const sl = slotOf(curPage(), ui.sel); sl.border = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(sl.border) + ' mm';
+    renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
+  if (act === 'pagegap') {
+    curPage().gap = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(curPage().gap) + ' mm';
+    renderEditor(); clearTimeout(onBind._g); onBind._g = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
 });
 function renderFrameBarMeta() { const fb = $('#frameBar'); if (fb && document.activeElement && fb.contains(document.activeElement)) return; renderFrameBar(); }
@@ -83,7 +93,7 @@ const ACTIONS = {
       if (!ok) return;
     }
     S.doc.format = f.id;
-    if (f.w) { S.doc.w = f.w; S.doc.h = f.h; }
+    if (f.w) { scaleBoxes(f.w / S.doc.w, f.h / S.doc.h); S.doc.w = f.w; S.doc.h = f.h; }
     ensurePages(); commit(); renderAll();
   },
   bg: (el) => { S.doc.bg = el.dataset.v; commit(); renderAll(); },
@@ -96,13 +106,46 @@ const ACTIONS = {
   tg: (el) => { ui[el.dataset.v] = !ui[el.dataset.v]; renderStage(); },
   tab: (el) => { ui.tab = el.dataset.v; renderPanel(); },
   layout: (el) => {
-    const p = curPage(); p.layout = el.dataset.v;
+    // Neue Vorlage: eigene Lagen der Vorlagenrahmen entfallen, Fotos und Ausschnitte bleiben in ihrer Reihenfolge
+    const p = curPage(), before = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
+    p.layout = el.dataset.v; delete p.ov;
     while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
-    for (const s of p.slots) { s.zoom = 1; s.cx = .5; s.cy = .5; }
+    for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
+    const after = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
     ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
+    if (after < before) toast(`${before - after} ${before - after > 1 ? 'Fotos haben' : 'Foto hat'} im neuen Layout keinen Rahmen. Ein Wechsel zurück holt ${before - after > 1 ? 'sie' : 'es'} wieder.`, 5000);
   },
+  resetframes: () => {
+    const p = curPage(); delete p.ov; p.extra = [];
+    for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
+    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb(); toast('Rahmen stehen wieder wie in der Vorlage.');
+  },
+  addframe: () => {
+    const p = curPage(), W = S.doc.w, H = S.doc.h, w = Math.round(W * .32), h = Math.round(H * .32);
+    const sl = { ...newSlot(), id: 'f' + uid(), box: { x: (W - w) / 2, y: (H - h) / 2, w, h } };
+    (p.extra ||= []).push(sl);
+    ui.sel = sl.id; ui.crop = null; commit(); renderStage(); updateThumb();
+  },
+  dupframe: () => {
+    const p = curPage(), r = rectOf(p, ui.sel), src = slotOf(p, ui.sel);
+    const sl = { ...newSlot(), id: 'f' + uid(), box: { x: r.x + 8, y: r.y + 8, w: r.w, h: r.h }, border: r.border };
+    if (src.fit === 'contain') sl.fit = 'contain';
+    (p.extra ||= []).push(sl);
+    ui.sel = sl.id; commit(); renderStage(); updateThumb(); toast('Leere Kopie des Rahmens angelegt.');
+  },
+  front: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.max(...zs) + 1; commit(); renderEditor(); updateThumb(); },
+  back: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.min(...zs) - 1; commit(); renderEditor(); updateThumb(); },
+  delframe: () => {
+    const p = curPage(), k = ui.sel;
+    if (typeof k === 'number') Object.assign(p.slots[k], newSlot(), { hidden: true });
+    else p.extra = p.extra.filter(s => s.id !== k);
+    ui.sel = null; ui.crop = null; commit(); renderStage(); updateThumb(); renderPanelKeepScroll();
+  },
+  rot90: () => { const sl = slotOf(curPage(), ui.sel); sl.rot = (((sl.rot || 0) + 90 + 180) % 360) - 180; commit(); refresh(); },
+  fitmode: (el) => { const sl = slotOf(curPage(), ui.sel); sl.fit = el.dataset.v; sl.zoom = 1; sl.cx = .5; sl.cy = .5; commit(); refresh(); },
+  pagegapon: () => { const p = curPage(); if (p.gap == null) p.gap = S.doc.gap; else delete p.gap; commit(); refresh(); renderPanelKeepScroll(); },
   autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${n} Fotos eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
-  clearpage: () => { for (const s of curPage().slots) Object.assign(s, newSlot()); ui.sel = null; commit(); renderDesign(); },
+  clearpage: () => { for (const s of visibleSlots(curPage())) Object.assign(s, newSlot()); ui.sel = null; ui.crop = null; commit(); renderDesign(); },
   calstyle: (el) => { (curPage().cal ||= {}).style = el.dataset.v; commit(); refresh(); renderPanel(); },
   calcolor: (el) => { curPage().cal.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   calpanel: (el) => { curPage().cal.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -122,15 +165,15 @@ const ACTIONS = {
   },
   titlecolor: (el) => { curPage().title.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   titlepanel: (el) => { curPage().title.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
-  fit: () => { const sl = curPage().slots[ui.sel]; Object.assign(sl, { zoom: 1, cx: .5, cy: .5 }); commit(); refresh(); },
-  unslot: () => { Object.assign(curPage().slots[ui.sel], newSlot()); commit(); refresh(); renderPanelKeepScroll(); },
+  fit: () => { const sl = slotOf(curPage(), ui.sel); Object.assign(sl, { zoom: 1, cx: .5, cy: .5, rot: 0 }); commit(); refresh(); },
+  unslot: () => { Object.assign(slotOf(curPage(), ui.sel), newSlot()); ui.crop = null; commit(); refresh(); renderPanelKeepScroll(); },
   swap: () => { ui.swapFrom = ui.sel; renderEditor(); renderFrameBar(); },
   swapcancel: () => { ui.swapFrom = null; renderEditor(); renderFrameBar(); },
   addfiles: () => $('#fileIn').click(),
   adddir: () => $('#dirIn').click(),
   cleardemo: async () => {
     for (const id of Object.keys(S.photos)) if (S.photos[id].demo) { delete S.photos[id]; DB.del('blobs', id); }
-    for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
+    for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     S.demo = false; ui.photoSel.clear(); commit(); renderAll(); toast('Beispielbilder entfernt.');
   },
   fav: () => { const ids = [...ui.photoSel], on = !ids.every(id => S.photos[id].fav); ids.forEach(id => S.photos[id].fav = on); commit(); renderPhotos(); },
@@ -139,7 +182,7 @@ const ACTIONS = {
     ui.confirmDel = false;
     for (const id of ui.photoSel) delete S.photos[id];
     for (const id of ui.photoSel) if (!Object.values(S.photos).some(p => blobId(p) === id)) DB.del('blobs', id);
-    for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
+    for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     ui.photoSel.clear(); commit(); renderPhotos();
   },
   clearsel: () => { ui.photoSel.clear(); renderPhotos(); },
@@ -191,14 +234,14 @@ function autoFill(key, used = null) {
   const m = pageMonth(key);
   let cand = Object.values(S.photos).filter(ph => !used.has(ph.id) && (m == null ? true : ph.month === m));
   if (m == null) cand.sort((a, b) => b.fav - a.fav);
-  const rects = slotRects(p).filter(r => { const s = p.slots[r.i]; return !s.photo || !S.photos[s.photo]; }).sort((a, b) => b.w * b.h - a.w * a.h);
+  const rects = slotRects(p).filter(r => { const s = slotOf(p, r.i); return !s.photo || !S.photos[s.photo]; }).sort((a, b) => b.w * b.h - a.w * a.h);
   let n = 0;
   for (const r of rects) {
     if (!cand.length) break;
     const want = r.w / r.h;
     cand.sort((a, b) => (b.fav - a.fav) * .6 + (Math.abs(Math.log(a.w / a.h / want)) - Math.abs(Math.log(b.w / b.h / want))));
     const ph = cand.shift(); used.add(ph.id);
-    Object.assign(p.slots[r.i], { photo: ph.id, zoom: 1, cx: .5, cy: .5 }); n++;
+    Object.assign(slotOf(p, r.i), { photo: ph.id, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }); n++;
   }
   return n;
 }
@@ -275,4 +318,12 @@ async function moveToMonth(ids, m) {
   commit(); if (ui.view === 'photos') renderPhotos();
   toast(`${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} nach ${m < 0 ? '„Ohne Monat“' : MONTHS[m]} verschoben.`);
   return true;
+}
+
+// Beim Formatwechsel wandern frei gesetzte Rahmen anteilig mit
+function scaleBoxes(fx, fy) {
+  if (fx === 1 && fy === 1) return;
+  for (const p of Object.values(S.pages)) for (const sl of [...(p.slots || []), ...(p.extra || [])]) if (sl.box) {
+    const b = sl.box; sl.box = { x: b.x * fx, y: b.y * fy, w: b.w * fx, h: b.h * fy };
+  }
 }

@@ -165,6 +165,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .canvas-wrap.zoomed { overflow: auto; place-items: start; }
 #editor [data-slot] { cursor: pointer; }
 #editor .cropping, #editor .cropghost { cursor: grab; }
+#editor .selframe { cursor: move; }
 #editor .empty { cursor: pointer; }
 #editor [data-block] { cursor: move; }
 #editor.dragging, #editor.dragging * { cursor: grabbing !important; }
@@ -172,6 +173,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .framebar img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
 .framebar .range { min-width: 160px; flex: 1; max-width: 260px; }
 .framebar input[type=text] { flex: 1; min-width: 140px; }
+.fb-sep { width: 1px; align-self: stretch; background: var(--line); }
 .framebar .meta { display: grid; font-size: 12px; line-height: 1.3; min-width: 0; max-width: 200px; }
 .framebar .meta b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel { border-left: 1px solid var(--line); background: var(--surface); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }

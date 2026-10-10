@@ -10,27 +10,25 @@ async function sourceFor(ph) {
   srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
+// Rahmeninhalt in Druckauflösung rendern: Foto mit Zoom, Verschiebung und Drehung wie im Editor.
 // panels: halbtransparente Flächen, die ins Bild eingerechnet werden (keine PDF-Transparenz)
 async function renderCrop(it, dpi, panels = []) {
-  const ph = S.photos[it.photo], { clip, place } = it;
-  const sx = (clip.x - place.x) / place.w * ph.w, sy = (clip.y - place.y) / place.h * ph.h;
-  const sw = clip.w / place.w * ph.w, sh = clip.h / place.h * ph.h;
-  let ow = clip.w / 25.4 * dpi, oh = clip.h / 25.4 * dpi;
-  const k = Math.min(1, sw / ow); ow *= k; oh *= k;              // nie hochrechnen
-  if (ow * oh > MAXPX) { const f = Math.sqrt(MAXPX / (ow * oh)); ow *= f; oh *= f; }
-  ow = Math.max(1, Math.round(ow)); oh = Math.max(1, Math.round(oh));
+  const ph = S.photos[it.photo], { clip, place: pl } = it;
+  // Pixel pro mm: Zielauflösung, aber nie feiner als das Foto selbst (kein Hochrechnen)
+  let k = Math.min(dpi / 25.4, ph.w / pl.w);
+  if (clip.w * clip.h * k * k > MAXPX) k = Math.sqrt(MAXPX / (clip.w * clip.h));
+  const ow = Math.max(1, Math.round(clip.w * k)), oh = Math.max(1, Math.round(clip.h * k));
   const c = document.createElement('canvas'); c.width = ow; c.height = oh;
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.fillStyle = '#fff'; x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
-  if (ph.demo) {
-    x.setTransform(ow / sw, 0, 0, oh / sh, -sx * ow / sw, -sy * oh / sh);
-    drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
-  } else {
+  x.fillStyle = cRGB(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
+  // Seiten-mm → Canvas-Pixel, dann in Fotokoordinaten (Pixel des Originals)
+  x.setTransform(ow / clip.w, 0, 0, oh / clip.h, -clip.x * ow / clip.w, -clip.y * oh / clip.h);
+  x.translate(pl.fx, pl.fy); x.rotate((pl.rot || 0) * Math.PI / 180);
+  x.scale(pl.w / ph.w, pl.h / ph.h); x.translate(-pl.cx * ph.w, -pl.cy * ph.h);
+  if (ph.demo) drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
+  else {
     const bmp = await sourceFor(ph);
-    if (bmp) {
-      const sc = bmp.width / ph.w; // Vorschau als Notlösung, falls das Original fehlt
-      x.drawImage(srcOf(bmp), sx * sc, sy * sc, sw * sc, sh * sc, 0, 0, ow, oh);
-    }
+    if (bmp) x.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
   for (const pn of panels) {

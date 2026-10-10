@@ -169,6 +169,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .canvas-wrap.zoomed { overflow: auto; place-items: start; }
 #editor [data-slot] { cursor: pointer; }
 #editor .cropping, #editor .cropghost { cursor: grab; }
+#editor .selframe { cursor: move; }
 #editor .empty { cursor: pointer; }
 #editor [data-block] { cursor: move; }
 #editor.dragging, #editor.dragging * { cursor: grabbing !important; }
@@ -176,6 +177,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .framebar img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
 .framebar .range { min-width: 160px; flex: 1; max-width: 260px; }
 .framebar input[type=text] { flex: 1; min-width: 140px; }
+.fb-sep { width: 1px; align-self: stretch; background: var(--line); }
 .framebar .meta { display: grid; font-size: 12px; line-height: 1.3; min-width: 0; max-width: 200px; }
 .framebar .meta b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel { border-left: 1px solid var(--line); background: var(--surface); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
@@ -645,7 +647,12 @@ function pageShort(key) {
   if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
 }
-function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5 }; }
+// Ein Rahmen: Foto mit Ausschnitt (zoom, cx/cy = Bildpunkt in der Rahmenmitte, rot = Bilddrehung, fit).
+// Optional: box (eigene Lage in mm, dann gilt die Vorlage nicht mehr), z (Ebene), border (Rand in mm), hidden.
+function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }; }
+// Vorlagenrahmen haben Zahlen als Schlüssel, zusätzliche Rahmen eine feste ID
+const keyOf = (v) => /^\d+$/.test(String(v)) ? +v : String(v);
+function slotOf(p, key) { return typeof key === 'number' ? p.slots[key] : (p.extra || []).find(s => s.id === key); }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
   if (isIndex(key)) p.layout = 'index';
@@ -663,7 +670,7 @@ function ensurePages() {
   if (!pageKeys().includes(ui.page)) ui.page = pageKeys()[0];
 }
 const curPage = () => S.pages[ui.page];
-function visibleSlots(p) { return p.layout === 'index' ? [] : p.slots.slice(0, slotCount(p.layout)); }
+function visibleSlots(p) { return p.layout === 'index' ? [] : p.slots.slice(0, slotCount(p.layout)).filter(s => !s.hidden).concat(p.extra || []); }
 function usage() {
   const u = {};
   for (const k of pageKeys()) visibleSlots(S.pages[k]).forEach(s => { if (s.photo) (u[s.photo] ||= []).push(k); });
@@ -1026,9 +1033,9 @@ async function makeDemoPhotos() {
   bar.close();
 }
 /* ---------- Geometrie (alles in mm, Ursprung = Endformat oben links) ---------- */
-function slotRects(p, doc = S.doc) {
-  if (p.layout === 'index') return [];
-  const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = doc.gap;
+// Rahmen der Vorlage; Abstand der Seite (falls gesetzt) oder der globale
+function templateRects(p, doc) {
+  const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = p.gap ?? doc.gap;
   const cw = W - 2 * m, ch = H - 2 * m, X = (u) => m + u * cw, Y = (v) => m + v * ch, e = 1e-6;
   const out = [];
   L.slots.forEach(([x, y, w, h], i) => {
@@ -1040,15 +1047,36 @@ function slotRects(p, doc = S.doc) {
   });
   (L.ov || []).forEach(([x, y, w, h], j) => {
     const i = L.slots.length + j, o = (p.ov || {})[i] || {}, s = o.s ?? 1;
-    out.push({ i, x: X(o.x ?? x), y: Y(o.y ?? y), w: w * cw * s, h: h * ch * s, overlay: true, border: doc.ovBorder });
+    out.push({ i, x: X(o.x ?? x), y: Y(o.y ?? y), w: w * cw * s, h: h * ch * s, overlay: true });
   });
   return out;
 }
+// Alle sichtbaren Rahmen einer Seite, nach Ebene sortiert (unten zuerst)
+function slotRects(p, doc = S.doc) {
+  if (p.layout === 'index') return [];
+  const out = [];
+  for (const r of templateRects(p, doc)) {
+    const sl = p.slots[r.i] || {};
+    if (sl.hidden) continue;
+    out.push({ ...r, ...(sl.box || {}), custom: !!sl.box, border: sl.border ?? (r.overlay ? doc.ovBorder : 0), z: sl.z ?? (r.overlay ? 50 + r.i : r.i) });
+  }
+  (p.extra || []).forEach((sl, j) => out.push({ i: sl.id, ...sl.box, overlay: true, extra: true, custom: true, border: sl.border ?? doc.ovBorder, z: sl.z ?? 100 + j }));
+  return out.sort((a, b) => a.z - b.z);
+}
+const rectOf = (p, key) => slotRects(p).find(r => r.i === key);
+// Lage des Fotos im Rahmen. Füllen (cover): das gedrehte Foto deckt den Rahmen immer ganz ab.
+// Ganz zeigen (contain): das Foto passt hinein, der Rest zeigt den Hintergrund.
 function placeImage(r, ph, sl) {
-  const s = Math.max(r.w / ph.w, r.h / ph.h) * (sl.zoom || 1);
-  const dw = ph.w * s, dh = ph.h * s;
-  const cx = clamp(sl.cx ?? .5, r.w / 2 / dw, 1 - r.w / 2 / dw), cy = clamp(sl.cy ?? .5, r.h / 2 / dh, 1 - r.h / 2 / dh);
-  return { x: r.x + r.w / 2 - cx * dw, y: r.y + r.h / 2 - cy * dh, w: dw, h: dh, cx, cy };
+  const rot = sl.rot || 0, th = rot * Math.PI / 180, c = Math.abs(Math.cos(th)), s = Math.abs(Math.sin(th));
+  const bw = r.w * c + r.h * s, bh = r.w * s + r.h * c;   // Rahmen, gesehen im Koordinatensystem des Fotos
+  const contain = sl.fit === 'contain';
+  const k = (contain ? Math.min(r.w / ph.w, r.h / ph.h) : Math.max(bw / ph.w, bh / ph.h)) * (sl.zoom || 1);
+  const dw = ph.w * k, dh = ph.h * k;
+  let cx = sl.cx ?? .5, cy = sl.cy ?? .5;
+  if (contain) { cx = clamp(cx, 0, 1); cy = clamp(cy, 0, 1); }
+  else { const ex = Math.min(.5, bw / 2 / dw), ey = Math.min(.5, bh / 2 / dh); cx = clamp(cx, ex, 1 - ex); cy = clamp(cy, ey, 1 - ey); }
+  const fx = r.x + r.w / 2, fy = r.y + r.h / 2;
+  return { x: fx - cx * dw, y: fy - cy * dh, w: dw, h: dh, fx, fy, cx, cy, rot };
 }
 // effektive Auflösung eines Fotos im Rahmen
 const dpiOf = (ph, place) => ph.w / (place.w / 25.4);
@@ -1173,8 +1201,9 @@ function pageItems(p, opt = {}) {
   items.push({ t: 'rect', x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b, fill: doc.bg, role: 'bg' });
   if (p.layout === 'index') return items.concat(indexItems(p, opt));
   for (const r of slotRects(p)) {
-    const sl = p.slots[r.i] || newSlot(), ph = sl.photo && S.photos[sl.photo];
-    if (r.overlay && r.border > 0) items.push({ t: 'rect', x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border, fill: doc.bg, slot: r.i, role: 'ovb' });
+    const sl = slotOf(p, r.i) || newSlot(), ph = sl.photo && S.photos[sl.photo];
+    if (r.border > 0) items.push({ t: 'rect', x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border, fill: doc.bg, slot: r.i, role: 'ovb' });
+    if (ph && sl.fit === 'contain') items.push({ t: 'rect', ...r, fill: doc.bg, slot: r.i, role: 'ovb' });
     if (ph) items.push({ t: 'img', slot: r.i, clip: r, place: placeImage(r, ph, sl), photo: ph.id, overlay: r.overlay });
     else items.push({ t: 'empty', slot: r.i, clip: r, overlay: r.overlay });
   }
@@ -1194,7 +1223,7 @@ function miniPage(p, tx, ty, s) {
   const tr = (r) => ({ x: tx + r.x * s, y: ty + r.y * s, w: r.w * s, h: r.h * s });
   for (const it of pageItems(p, { noBlocks: true })) {
     if (it.t === 'rect') { const c = intersect(it, trim); if (c) out.push({ ...it, ...tr(c), role: 'mini' }); }
-    else if (it.t === 'img') { const c = intersect(it.clip, trim); if (c) out.push({ ...it, clip: tr(c), place: tr(it.place), mini: true }); }
+    else if (it.t === 'img') { const c = intersect(it.clip, trim); if (c) out.push({ ...it, clip: tr(c), place: { ...it.place, ...tr(it.place), fx: tx + it.place.fx * s, fy: ty + it.place.fy * s }, mini: true }); }
     else if (it.t === 'empty') { const c = intersect(it.clip, trim); if (c) out.push({ t: 'rect', ...tr(c), fill: 'sand', opacity: 1 }); }
   }
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
@@ -1210,7 +1239,7 @@ function indexLayout() {
   const entries = indexEntries().map(k => {
     const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
-      const sl = pg.slots[r.i]; if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
+      const sl = slotOf(pg, r.i); if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
       caps.push([++num, S.photos[sl.photo].caption, r]);
     }
     const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
@@ -1257,6 +1286,7 @@ function indexItems(p) {
 
 /* ---------- SVG ---------- */
 const cRGB = (id) => (COLORS[id] || COLORS.black).rgb;
+const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}"${pl.rot ? ` transform="rotate(${pl.rot} ${pl.fx} ${pl.fy})"` : ''}`;
 let svgN = 0;
 function svgPage(p, o = {}) {
   // o.mode: 'editor' | 'thumb' | 'proof'
@@ -1276,13 +1306,13 @@ function svgPage(p, o = {}) {
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
         if (!ed) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
         const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, cx = vis.x + vis.w / 2, cy = vis.y + vis.h / 2, s = Math.min(vis.w, vis.h) * .08;
-        return `<g class="empty" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
+        return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
           `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
           `<path d="M${cx - s} ${cy}h${2 * s}M${cx} ${cy - s}v${2 * s}" stroke="#7d8793" stroke-width="${s * .18}" stroke-linecap="round"/>` +
           (vis.w > 60 ? `<text x="${cx}" y="${cy + s * 2.2}" font-size="${Math.min(5, s * .7)}" fill="#6b7580" text-anchor="middle">Foto hierher ziehen</text>` : '') + `</g>`;
@@ -1322,7 +1352,7 @@ function svgPage(p, o = {}) {
     if (ci) {
       const c = ci.clip, pl = ci.place, gid = `${id}g`;
       defs.push(`<clipPath id="${gid}"><path clip-rule="evenodd" d="M${-pad} ${-pad}h${W + 2 * pad}v${H + 2 * pad}h${-(W + 2 * pad)}zM${c.x} ${c.y}v${c.h}h${c.w}v${-c.h}z"/></clipPath>`);
-      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" opacity=".38" preserveAspectRatio="none"/></g>`;
+      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" ${imgAttrs(pl)} opacity=".38" preserveAspectRatio="none"/></g>`;
     }
     if (ui.selBlock) {
       const bl = items.find(i => i.t === 'block' && i.kind === ui.selBlock);
@@ -1334,10 +1364,11 @@ function svgPage(p, o = {}) {
       if (r) {
         over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1"${ui.crop === r.i ? ' stroke-dasharray="3 2"' : ''} pointer-events="none"/>`;
         if (ui.swapFrom != null) over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="var(--accent)" fill-opacity=".18" pointer-events="none"/>`;
-        if (r.overlay && ui.crop == null) {
-          const hs = Math.max(5, Math.min(W, H) * .022);
-          over += `<g data-handle="ov" data-slot-h="${r.i}" style="cursor:move"><circle cx="${r.x}" cy="${r.y}" r="${hs}" fill="var(--accent)"/><path d="M${r.x - hs * .6} ${r.y}h${hs * 1.2}M${r.x} ${r.y - hs * .6}v${hs * 1.2}M${r.x - hs * .38} ${r.y - hs * .22}l${-hs * .22} ${hs * .22}l${hs * .22} ${hs * .22}M${r.x + hs * .38} ${r.y - hs * .22}l${hs * .22} ${hs * .22}l${-hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y - hs * .38}l${hs * .22} ${-hs * .22}l${hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y + hs * .38}l${hs * .22} ${hs * .22}l${hs * .22} ${-hs * .22}" stroke="#fff" stroke-width="${hs * .13}" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>`;
-          over += `<g data-handle="ovs" data-slot-h="${r.i}" style="cursor:nwse-resize"><rect x="${r.x + r.w - hs * .8}" y="${r.y + r.h - hs * .8}" width="${hs * 1.6}" height="${hs * 1.6}" rx="${hs * .3}" fill="var(--accent)"/></g>`;
+        if (ui.crop == null && ui.swapFrom == null) {
+          // Eckpunkte zum Ändern der Größe; ziehen im Rahmen verschiebt ihn
+          const hs = Math.max(2.4, Math.min(W, H) * .011);
+          for (const [h, x, y] of [['nw', r.x, r.y], ['ne', r.x + r.w, r.y], ['sw', r.x, r.y + r.h], ['se', r.x + r.w, r.y + r.h]])
+            over += `<rect data-handle="${h}" data-slot-h="${r.i}" x="${x - hs}" y="${y - hs}" width="${2 * hs}" height="${2 * hs}" rx="${hs * .3}" fill="#fff" stroke="var(--accent)" stroke-width="${hs * .35}" style="cursor:${h === 'nw' || h === 'se' ? 'nwse' : 'nesw'}-resize"/>`;
         }
       }
     }
@@ -1577,24 +1608,32 @@ function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   if (ui.swapFrom != null) { fb.innerHTML = `<span>Tippe auf den Rahmen, mit dem getauscht werden soll.</span><button class="btn small" data-act="swapcancel">Abbrechen</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Kalendarium mit der Maus verschieben, am Handy erst antippen.'}</span>`;
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Ein Foto mit der Maus auf einen anderen Rahmen ziehen tauscht die beiden.'}</span>`;
     return;
   }
-  const r = slotRects(p).find(r => r.i === ui.sel), sl = p.slots[ui.sel], ph = sl && S.photos[sl.photo];
+  const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
   if (!r) { fb.innerHTML = ''; return; }
+  const crop = ui.crop === ui.sel && ph;
   let h = '';
   if (ph) {
     const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < 150 ? 'bad' : d < 200 ? 'warn' : 'ok';
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b><span class="pill ${cls}">${d} dpi${d < 150 ? ' · zu klein' : d < 200 ? ' · knapp' : ''}</span></div>
-      <button class="btn small ${ui.crop === ui.sel ? 'primary' : ''}" data-act="crop" aria-pressed="${ui.crop === ui.sel}">${ui.crop === ui.sel ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>
-      <div class="range"><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
+      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>`;
+    if (crop) h += `<div class="range"><span class="small muted">Zoom</span><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
+      <div class="range"><span class="small muted">Drehen</span><input type="range" id="rt" aria-label="Foto drehen" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
+      <button class="btn small" data-act="rot90" title="Um 90° drehen">↻ 90°</button>
+      ${seg([['cover', 'Füllen'], ['contain', 'Ganz zeigen']], sl.fit || 'cover', 'fitmode')}
       <button class="btn small" data-act="fit">Einpassen</button>
-      <input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
+      <span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
+    else h += `<input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
       <button class="btn small" data-act="swap">Tauschen</button>
-      <button class="btn small danger" data-act="unslot">Entfernen</button>`;
+      <button class="btn small danger" data-act="unslot">Foto entfernen</button>`;
   } else h += `<span class="hint">Leerer Rahmen: Foto aus der Liste rechts hineinziehen oder antippen.</span>`;
-  if (ui.crop === ui.sel && ph) h += `<span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
-  if (r.overlay) h += `<div class="range"><span class="small muted">Größe</span><input type="range" id="ovs" aria-label="Größe Einleger" min="0.5" max="1.8" step="0.01" value="${(p.ov[ui.sel] || {}).s ?? 1}" data-act-input="ovsize"></div>`;
+  if (!crop) h += `<span class="fb-sep" aria-hidden="true"></span><span class="small muted num">${fmt1(r.w)} × ${fmt1(r.h)} mm${r.custom ? '' : ' · Vorlage'}</span>
+    <button class="btn small" data-act="dupframe">Duplizieren</button>
+    <button class="btn small" data-act="front" title="Nach vorn">Nach vorn</button><button class="btn small" data-act="back" title="Nach hinten">Nach hinten</button>
+    <div class="range" style="max-width:190px"><span class="small muted">Rand</span><input type="range" id="bd" aria-label="Rand um den Rahmen" min="0" max="8" step="0.5" value="${r.border}" data-act-input="border"><output>${fmt1(r.border)} mm</output></div>
+    <button class="btn small danger" data-act="delframe">Rahmen löschen</button>`;
   fb.innerHTML = h;
 }
 function renderPanel() {
@@ -1619,9 +1658,14 @@ function layoutIcon(l) {
   return r + '</svg>';
 }
 function panelLayout(p) {
+  const changed = visibleSlots(p).filter(s => s.box).length + p.slots.slice(0, slotCount(p.layout)).filter(s => s.hidden).length;
   return `<div class="field"><span class="lbl">Seitenlayout</span><div class="layouts">${LAYOUTS.map(l => `<button class="lay" data-act="layout" data-v="${l.id}" aria-pressed="${p.layout === l.id}">${layoutIcon(l)}<span>${l.name}</span></button>`).join('')}</div>
-    <p class="hint">Beim Wechsel bleiben die Fotos in ihrer Reihenfolge erhalten.</p></div>
+    <p class="hint">Die Vorlage ist der Ausgangspunkt. Danach lassen sich Rahmen frei verschieben, skalieren, überlagern, duplizieren und löschen. Beim Wechsel bleiben die Fotos in ihrer Reihenfolge.</p></div>
+    <div class="row"><button class="btn" data-act="addframe">Rahmen hinzufügen</button>${changed || (p.extra || []).length ? `<button class="btn" data-act="resetframes">Rahmen wie Vorlage</button>` : ''}</div>
+    ${changed ? `<p class="hint">${changed} ${changed > 1 ? 'Rahmen sind' : 'Rahmen ist'} von Hand verändert. Abstand und Außenrand ändern ${changed > 1 ? 'sie' : 'ihn'} nicht mehr.</p>` : ''}
     ${range('gp2', 'doc.gap', S.doc.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern (alle Seiten)')}
+    <label class="check"><input type="checkbox" id="pgo" data-act="pagegapon" ${p.gap != null ? 'checked' : ''}><span>Eigener Abstand nur für diese Seite</span></label>
+    ${p.gap != null ? `<div class="field"><label for="pg">Abstand auf dieser Seite</label><div class="range"><input type="range" id="pg" min="0" max="5" step="0.5" value="${p.gap}" data-act-input="pagegap"><output>${fmt1(p.gap)} mm</output></div></div>` : ''}
     ${range('mg2', 'doc.margin', S.doc.margin, 0, 20, 1, ' mm', 'Außenrand (alle Seiten)')}
     <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>`;
 }
@@ -1772,7 +1816,7 @@ function onBind(el, final) {
   const path = el.dataset.bind;
   let v = el.type === 'checkbox' ? el.checked : el.type === 'range' || el.type === 'number' || /dpi|quality/.test(path) ? parseFloat(el.value) : el.value;
   if (typeof v === 'number' && isNaN(v)) return;
-  if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); }
+  if (path === 'doc.w' || path === 'doc.h') { if (!final) return; v = clamp(v, 100, 600); scaleBoxes(path === 'doc.w' ? v / S.doc.w : 1, path === 'doc.h' ? v / S.doc.h : 1); }
   if (path === 'doc.year') { if (!final) return; v = clamp(Math.round(v), 2000, 2100); const cv = S.pages.cover; if (cv && cv.title && cv.title.sub === String(S.doc.year)) cv.title.sub = String(v); }
   setPath(path, v);
   if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
@@ -1798,16 +1842,26 @@ document.addEventListener('input', (e) => {
   }
   const act = el.dataset.actInput;
   if (act === 'zoom') {
-    const p = curPage(), sl = p.slots[ui.sel], r = slotRects(p).find(r => r.i === ui.sel), ph = S.photos[sl.photo];
+    const p = curPage(), sl = slotOf(p, ui.sel), r = rectOf(p, ui.sel), ph = S.photos[sl.photo];
     const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     zoomAt(r, ph, sl, parseFloat(el.value), c);
     el.parentElement.querySelector('output').textContent = Math.round(sl.zoom * 100) + ' %';
     renderEditor(); clearTimeout(onBind._z); onBind._z = setTimeout(() => { commit(); updateThumb(); renderFrameBarMeta(); }, 400);
   }
-  if (act === 'ovsize') {
-    const p = curPage(), L = layoutById(p.layout), base = L.ov[ui.sel - L.slots.length];
-    const o = p.ov[ui.sel] ||= { x: base[0], y: base[1] }; o.s = parseFloat(el.value);
-    renderEditor(); clearTimeout(onBind._o); onBind._o = setTimeout(() => { commit(); updateThumb(); }, 400);
+  if (act === 'rot') {
+    const sl = slotOf(curPage(), ui.sel); sl.rot = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(sl.rot) + '°';
+    renderEditor(); clearTimeout(onBind._r); onBind._r = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
+  if (act === 'border') {
+    const sl = slotOf(curPage(), ui.sel); sl.border = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(sl.border) + ' mm';
+    renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
+  if (act === 'pagegap') {
+    curPage().gap = parseFloat(el.value);
+    el.parentElement.querySelector('output').textContent = fmt1(curPage().gap) + ' mm';
+    renderEditor(); clearTimeout(onBind._g); onBind._g = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
 });
 function renderFrameBarMeta() { const fb = $('#frameBar'); if (fb && document.activeElement && fb.contains(document.activeElement)) return; renderFrameBar(); }
@@ -1831,7 +1885,7 @@ const ACTIONS = {
       if (!ok) return;
     }
     S.doc.format = f.id;
-    if (f.w) { S.doc.w = f.w; S.doc.h = f.h; }
+    if (f.w) { scaleBoxes(f.w / S.doc.w, f.h / S.doc.h); S.doc.w = f.w; S.doc.h = f.h; }
     ensurePages(); commit(); renderAll();
   },
   bg: (el) => { S.doc.bg = el.dataset.v; commit(); renderAll(); },
@@ -1844,13 +1898,46 @@ const ACTIONS = {
   tg: (el) => { ui[el.dataset.v] = !ui[el.dataset.v]; renderStage(); },
   tab: (el) => { ui.tab = el.dataset.v; renderPanel(); },
   layout: (el) => {
-    const p = curPage(); p.layout = el.dataset.v;
+    // Neue Vorlage: eigene Lagen der Vorlagenrahmen entfallen, Fotos und Ausschnitte bleiben in ihrer Reihenfolge
+    const p = curPage(), before = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
+    p.layout = el.dataset.v; delete p.ov;
     while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
-    for (const s of p.slots) { s.zoom = 1; s.cx = .5; s.cy = .5; }
+    for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
+    const after = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
     ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
+    if (after < before) toast(`${before - after} ${before - after > 1 ? 'Fotos haben' : 'Foto hat'} im neuen Layout keinen Rahmen. Ein Wechsel zurück holt ${before - after > 1 ? 'sie' : 'es'} wieder.`, 5000);
   },
+  resetframes: () => {
+    const p = curPage(); delete p.ov; p.extra = [];
+    for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
+    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb(); toast('Rahmen stehen wieder wie in der Vorlage.');
+  },
+  addframe: () => {
+    const p = curPage(), W = S.doc.w, H = S.doc.h, w = Math.round(W * .32), h = Math.round(H * .32);
+    const sl = { ...newSlot(), id: 'f' + uid(), box: { x: (W - w) / 2, y: (H - h) / 2, w, h } };
+    (p.extra ||= []).push(sl);
+    ui.sel = sl.id; ui.crop = null; commit(); renderStage(); updateThumb();
+  },
+  dupframe: () => {
+    const p = curPage(), r = rectOf(p, ui.sel), src = slotOf(p, ui.sel);
+    const sl = { ...newSlot(), id: 'f' + uid(), box: { x: r.x + 8, y: r.y + 8, w: r.w, h: r.h }, border: r.border };
+    if (src.fit === 'contain') sl.fit = 'contain';
+    (p.extra ||= []).push(sl);
+    ui.sel = sl.id; commit(); renderStage(); updateThumb(); toast('Leere Kopie des Rahmens angelegt.');
+  },
+  front: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.max(...zs) + 1; commit(); renderEditor(); updateThumb(); },
+  back: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.min(...zs) - 1; commit(); renderEditor(); updateThumb(); },
+  delframe: () => {
+    const p = curPage(), k = ui.sel;
+    if (typeof k === 'number') Object.assign(p.slots[k], newSlot(), { hidden: true });
+    else p.extra = p.extra.filter(s => s.id !== k);
+    ui.sel = null; ui.crop = null; commit(); renderStage(); updateThumb(); renderPanelKeepScroll();
+  },
+  rot90: () => { const sl = slotOf(curPage(), ui.sel); sl.rot = (((sl.rot || 0) + 90 + 180) % 360) - 180; commit(); refresh(); },
+  fitmode: (el) => { const sl = slotOf(curPage(), ui.sel); sl.fit = el.dataset.v; sl.zoom = 1; sl.cx = .5; sl.cy = .5; commit(); refresh(); },
+  pagegapon: () => { const p = curPage(); if (p.gap == null) p.gap = S.doc.gap; else delete p.gap; commit(); refresh(); renderPanelKeepScroll(); },
   autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${n} Fotos eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
-  clearpage: () => { for (const s of curPage().slots) Object.assign(s, newSlot()); ui.sel = null; commit(); renderDesign(); },
+  clearpage: () => { for (const s of visibleSlots(curPage())) Object.assign(s, newSlot()); ui.sel = null; ui.crop = null; commit(); renderDesign(); },
   calstyle: (el) => { (curPage().cal ||= {}).style = el.dataset.v; commit(); refresh(); renderPanel(); },
   calcolor: (el) => { curPage().cal.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   calpanel: (el) => { curPage().cal.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -1870,15 +1957,15 @@ const ACTIONS = {
   },
   titlecolor: (el) => { curPage().title.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   titlepanel: (el) => { curPage().title.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
-  fit: () => { const sl = curPage().slots[ui.sel]; Object.assign(sl, { zoom: 1, cx: .5, cy: .5 }); commit(); refresh(); },
-  unslot: () => { Object.assign(curPage().slots[ui.sel], newSlot()); commit(); refresh(); renderPanelKeepScroll(); },
+  fit: () => { const sl = slotOf(curPage(), ui.sel); Object.assign(sl, { zoom: 1, cx: .5, cy: .5, rot: 0 }); commit(); refresh(); },
+  unslot: () => { Object.assign(slotOf(curPage(), ui.sel), newSlot()); ui.crop = null; commit(); refresh(); renderPanelKeepScroll(); },
   swap: () => { ui.swapFrom = ui.sel; renderEditor(); renderFrameBar(); },
   swapcancel: () => { ui.swapFrom = null; renderEditor(); renderFrameBar(); },
   addfiles: () => $('#fileIn').click(),
   adddir: () => $('#dirIn').click(),
   cleardemo: async () => {
     for (const id of Object.keys(S.photos)) if (S.photos[id].demo) { delete S.photos[id]; DB.del('blobs', id); }
-    for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
+    for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     S.demo = false; ui.photoSel.clear(); commit(); renderAll(); toast('Beispielbilder entfernt.');
   },
   fav: () => { const ids = [...ui.photoSel], on = !ids.every(id => S.photos[id].fav); ids.forEach(id => S.photos[id].fav = on); commit(); renderPhotos(); },
@@ -1887,7 +1974,7 @@ const ACTIONS = {
     ui.confirmDel = false;
     for (const id of ui.photoSel) delete S.photos[id];
     for (const id of ui.photoSel) if (!Object.values(S.photos).some(p => blobId(p) === id)) DB.del('blobs', id);
-    for (const p of Object.values(S.pages)) for (const s of p.slots || []) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
+    for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     ui.photoSel.clear(); commit(); renderPhotos();
   },
   clearsel: () => { ui.photoSel.clear(); renderPhotos(); },
@@ -1939,14 +2026,14 @@ function autoFill(key, used = null) {
   const m = pageMonth(key);
   let cand = Object.values(S.photos).filter(ph => !used.has(ph.id) && (m == null ? true : ph.month === m));
   if (m == null) cand.sort((a, b) => b.fav - a.fav);
-  const rects = slotRects(p).filter(r => { const s = p.slots[r.i]; return !s.photo || !S.photos[s.photo]; }).sort((a, b) => b.w * b.h - a.w * a.h);
+  const rects = slotRects(p).filter(r => { const s = slotOf(p, r.i); return !s.photo || !S.photos[s.photo]; }).sort((a, b) => b.w * b.h - a.w * a.h);
   let n = 0;
   for (const r of rects) {
     if (!cand.length) break;
     const want = r.w / r.h;
     cand.sort((a, b) => (b.fav - a.fav) * .6 + (Math.abs(Math.log(a.w / a.h / want)) - Math.abs(Math.log(b.w / b.h / want))));
     const ph = cand.shift(); used.add(ph.id);
-    Object.assign(p.slots[r.i], { photo: ph.id, zoom: 1, cx: .5, cy: .5 }); n++;
+    Object.assign(slotOf(p, r.i), { photo: ph.id, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }); n++;
   }
   return n;
 }
@@ -2024,25 +2111,39 @@ async function moveToMonth(ids, m) {
   toast(`${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} nach ${m < 0 ? '„Ohne Monat“' : MONTHS[m]} verschoben.`);
   return true;
 }
+
+// Beim Formatwechsel wandern frei gesetzte Rahmen anteilig mit
+function scaleBoxes(fx, fy) {
+  if (fx === 1 && fy === 1) return;
+  for (const p of Object.values(S.pages)) for (const sl of [...(p.slots || []), ...(p.extra || [])]) if (sl.box) {
+    const b = sl.box; sl.box = { x: b.x * fx, y: b.y * fy, w: b.w * fx, h: b.h * fy };
+  }
+}
 /* ---------- Bedienung im Seiteneditor ---------- */
 function svgPoint(svg, e) {
   const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
   const m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 };
 }
+// Vektor von Seiten- in Fotokoordinaten drehen (Foto ist um rot gedreht)
+function unrotate(dx, dy, rot) {
+  const t = -(rot || 0) * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+  return { x: dx * c - dy * s, y: dx * s + dy * c };
+}
+// Zoomen um einen Punkt: der Bildpunkt unter dem Finger/Mauszeiger bleibt stehen
 function zoomAt(r, ph, sl, z, at) {
-  const old = placeImage(r, ph, sl);
-  const u = (at.x - old.x) / old.w, v = (at.y - old.y) / old.h;
+  const old = placeImage(r, ph, sl), d = unrotate(at.x - old.fx, at.y - old.fy, old.rot);
+  const u = old.cx + d.x / old.w, v = old.cy + d.y / old.h;
   sl.zoom = clamp(z, 1, 6);
-  const s = Math.max(r.w / ph.w, r.h / ph.h) * sl.zoom, dw = ph.w * s, dh = ph.h * s;
-  const nx = at.x - u * dw, ny = at.y - v * dh;
-  sl.cx = (r.x + r.w / 2 - nx) / dw; sl.cy = (r.y + r.h / 2 - ny) / dh;
+  const nw = placeImage(r, ph, { ...sl, cx: .5, cy: .5 });
+  sl.cx = u - d.x / nw.w; sl.cy = v - d.y / nw.h;
   const pl = placeImage(r, ph, sl); sl.cx = pl.cx; sl.cy = pl.cy;
 }
-function liveImage(svg, slot) {
-  const p = curPage(), r = slotRects(p).find(r => r.i === slot), sl = p.slots[slot], ph = S.photos[sl.photo];
+function liveImage(svg, key) {
+  const p = curPage(), r = rectOf(p, key), sl = slotOf(p, key), ph = S.photos[sl.photo];
   const pl = placeImage(r, ph, sl);
-  for (const img of svg.querySelectorAll(`g[data-slot="${slot}"] image`)) {
+  for (const img of svg.querySelectorAll(`g[data-slot="${key}"] image`)) {
     img.setAttribute('x', pl.x); img.setAttribute('y', pl.y); img.setAttribute('width', pl.w); img.setAttribute('height', pl.h);
+    if (pl.rot) img.setAttribute('transform', `rotate(${pl.rot} ${pl.fx} ${pl.fy})`); else img.removeAttribute('transform');
   }
 }
 function selectSlot(i) {
@@ -2050,25 +2151,64 @@ function selectSlot(i) {
   renderEditor(); renderFrameBar();
 }
 function setCrop(i) {
-  const sl = i != null && curPage().slots[i];
+  const sl = i != null && slotOf(curPage(), i);
   ui.crop = sl && sl.photo && S.photos[sl.photo] ? i : null;
   if (ui.crop != null) { ui.sel = i; ui.selBlock = null; }
   renderEditor(); renderFrameBar();
 }
+const fitReset = { zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' };
 function assignPhoto(slot, id) {
   const p = curPage();
-  Object.assign(p.slots[slot], { photo: id, zoom: 1, cx: .5, cy: .5 });
+  Object.assign(slotOf(p, slot), { photo: id, ...fitReset });
   ui.sel = slot; ui.armed = null;
   $('#toast').classList.remove('on');
   commit(); renderEditor(); renderFrameBar(); updateThumb(); renderPanelKeepScroll();
 }
-// Bedienung: Antippen wählt aus. Im Ausschnitt-Modus (Doppelklick, zweites Antippen oder Schaltfläche)
-// wird das Foto unter dem Rahmen verschoben und gezoomt. Mausrad und zwei Finger zoomen nur dort.
+// Fotos zweier Rahmen tauschen; der Ausschnitt wird neu eingepasst (Rückgängig stellt ihn wieder her)
+function swapSlots(a, b) {
+  const p = curPage(), A = slotOf(p, a), B = slotOf(p, b);
+  [A.photo, B.photo] = [B.photo, A.photo];
+  Object.assign(A, fitReset); Object.assign(B, fitReset);
+  ui.sel = b; ui.swapFrom = null; ui.crop = null;
+  commit(); renderEditor(); renderFrameBar(); updateThumb();
+}
+// Rahmen bekommt eine eigene Lage; ab jetzt gilt für ihn die Vorlage nicht mehr
+function setBox(p, key, box) { slotOf(p, key).box = { x: box.x, y: box.y, w: box.w, h: box.h }; }
+
+/* Einrasten an Seitenrändern, Beschnitt, Außenrand, Mitte und an anderen Rahmen (auch mit Bildabstand) */
+function snapTargets(p, key) {
+  const d = S.doc, W = d.w, H = d.h, b = d.bleed, m = d.margin, gap = p.gap ?? d.gap;
+  const xs = [-b, 0, W / 2, W, W + b], ys = [-b, 0, H / 2, H, H + b];
+  if (m > 0) { xs.push(m, W - m); ys.push(m, H - m); }
+  for (const r of slotRects(p)) if (r.i !== key) {
+    xs.push(r.x, r.x + r.w, r.x - gap, r.x + r.w + gap, r.x + r.w / 2);
+    ys.push(r.y, r.y + r.h, r.y - gap, r.y + r.h + gap, r.y + r.h / 2);
+  }
+  return { xs, ys };
+}
+function nearest(vals, list, tol) {
+  let best = null;
+  vals.forEach((v, k) => { for (const t of list) { const d = t - v; if (Math.abs(d) < tol && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, t, k }; } });
+  return best;
+}
+function showGuides(svg, xs, ys) {
+  let g = svg.querySelector('#snapguide');
+  if (!g) { g = document.createElementNS('http://www.w3.org/2000/svg', 'path'); g.id = 'snapguide'; g.setAttribute('stroke', '#00a0e3'); g.setAttribute('stroke-width', '.4'); g.setAttribute('pointer-events', 'none'); svg.appendChild(g); }
+  const W = S.doc.w, H = S.doc.h, b = S.doc.bleed + 6;
+  g.setAttribute('d', xs.map(x => `M${x} ${-b}V${H + b}`).join('') + ys.map(y => `M${-b} ${y}H${W + b}`).join(''));
+}
+const MIN_FRAME = 8;
+
+// Bedienung:
+// - Rahmen antippen wählt ihn aus (Eckpunkte erscheinen). Ausgewählten Rahmen ziehen verschiebt ihn.
+// - Zweites Antippen oder Doppelklick: Ausschnitt-Modus. Dort Foto ziehen, Mausrad und zwei Finger zoomen.
+// - Mit der Maus einen nicht ausgewählten Rahmen mit Foto auf einen anderen ziehen: Fotos tauschen.
 function bindEditor(svg) {
   if (!svg) return;
-  svg.classList.toggle('locked', ui.crop != null || ui.selBlock != null);
+  svg.classList.toggle('locked', ui.crop != null || ui.selBlock != null || ui.sel != null);
   const pointers = new Map();
   let g = null; // laufende Geste
+  const tol = () => 7 / (svg.getScreenCTM() ? svg.getScreenCTM().a : 2);
 
   svg.addEventListener('pointerdown', (e) => {
     if (e.button > 0) return;
@@ -2077,78 +2217,109 @@ function bindEditor(svg) {
     const p = curPage();
     if (pointers.size === 2 && g && g.type === 'pan') {
       const [a, b] = [...pointers.values()];
-      g.type = 'pinch'; g.d0 = Math.hypot(a.x - b.x, a.y - b.y); g.z0 = p.slots[g.slot].zoom || 1;
+      g.type = 'pinch'; g.d0 = Math.hypot(a.x - b.x, a.y - b.y); g.z0 = slotOf(p, g.slot).zoom || 1;
       return;
     }
     const handle = e.target.closest('[data-handle]');
     const block = e.target.closest('[data-block]');
     const slotEl = e.target.closest('[data-slot]');
+    const key = slotEl ? keyOf(slotEl.dataset.slot) : null;
     svg.setPointerCapture(e.pointerId);
     if (handle) {
-      const i = +handle.dataset.slotH, r = slotRects(p).find(r => r.i === i), L = layoutById(p.layout), base = L.ov[i - L.slots.length];
-      const o = p.ov[i] ||= { x: base[0], y: base[1], s: 1 };
-      g = { type: handle.dataset.handle, slot: i, start: pt, o0: { ...o }, r0: r };
-    } else if (slotEl && ui.crop != null && +slotEl.dataset.slot === ui.crop) {
-      const sl = p.slots[ui.crop];
-      g = { type: 'pan', slot: ui.crop, start: pt, cx: sl.cx, cy: sl.cy, moved: false, ghost: !!e.target.closest('.cropghost') };
+      const k = keyOf(handle.dataset.slotH);
+      g = { type: 'resize', corner: handle.dataset.handle, slot: k, start: pt, r0: { ...rectOf(p, k) } };
+    } else if (slotEl && ui.crop != null && key === ui.crop) {
+      const sl = slotOf(p, key);
+      g = { type: 'pan', slot: key, start: pt, cx: sl.cx, cy: sl.cy, moved: false, ghost: !!e.target.closest('.cropghost') };
     } else if (block) {
       // Mit der Maus direkt ziehen; mit dem Finger erst antippen, dann ziehen
       const kind = block.dataset.block;
       const it = pageItems(p).find(x => x.t === 'block' && x.kind === kind);
       g = e.pointerType === 'mouse' || ui.selBlock === kind ? { type: 'block', kind, start: pt, it, el: block, moved: false } : { type: 'selblock', kind, start: pt };
+    } else if (slotEl && key === ui.sel && ui.swapFrom == null) {
+      g = { type: 'move', slot: key, start: pt, r0: { ...rectOf(p, key) }, moved: false };
     } else if (slotEl) {
-      g = { type: 'tap', slot: +slotEl.dataset.slot, start: pt, moved: false };
+      const sl = slotOf(p, key), filled = sl && sl.photo && S.photos[sl.photo];
+      g = { type: e.pointerType === 'mouse' && filled && ui.swapFrom == null && !ui.armed ? 'swapdrag' : 'tap', slot: key, start: pt, client: { x: e.clientX, y: e.clientY }, moved: false };
     } else { g = { type: 'none', start: pt }; }
   });
+
   svg.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId) || !g) return;
     const pt = svgPoint(svg, e); pointers.set(e.pointerId, pt);
     const p = curPage(), dx = pt.x - g.start.x, dy = pt.y - g.start.y;
-    if (!g.moved && Math.hypot(dx, dy) > 1.2) { g.moved = true; if (g.type !== 'tap' && g.type !== 'none' && g.type !== 'selblock') svg.classList.add('dragging'); }
-    if (!g.moved) return;
+    if (!g.moved && Math.hypot(dx, dy) > tol() * .5) { g.moved = true; if (!['tap', 'none', 'selblock'].includes(g.type)) svg.classList.add('dragging'); }
+    if (!g.moved && g.type !== 'resize') return;
     if (g.type === 'pan') {
-      const r = slotRects(p).find(r => r.i === g.slot), sl = p.slots[g.slot], ph = S.photos[sl.photo];
-      const pl = placeImage(r, ph, sl);
-      sl.cx = g.cx - dx / pl.w; sl.cy = g.cy - dy / pl.h;
+      const r = rectOf(p, g.slot), sl = slotOf(p, g.slot), ph = S.photos[sl.photo], pl = placeImage(r, ph, sl);
+      const d = unrotate(dx, dy, pl.rot);
+      sl.cx = g.cx - d.x / pl.w; sl.cy = g.cy - d.y / pl.h;
       const c = placeImage(r, ph, sl); sl.cx = c.cx; sl.cy = c.cy;
       liveImage(svg, g.slot);
     } else if (g.type === 'pinch' && pointers.size >= 2) {
       const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
-      const r = slotRects(p).find(r => r.i === g.slot), sl = p.slots[g.slot], ph = S.photos[sl.photo];
+      const r = rectOf(p, g.slot), sl = slotOf(p, g.slot), ph = S.photos[sl.photo];
       zoomAt(r, ph, sl, g.z0 * d / g.d0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
       liveImage(svg, g.slot);
+    } else if (g.type === 'move') {
+      const r0 = g.r0, T = snapTargets(p, g.slot), t = tol();
+      let x = r0.x + dx, y = r0.y + dy;
+      const sx = nearest([x, x + r0.w / 2, x + r0.w], T.xs, t), sy = nearest([y, y + r0.h / 2, y + r0.h], T.ys, t);
+      if (sx) x += sx.d; if (sy) y += sy.d;
+      setBox(p, g.slot, { x, y, w: r0.w, h: r0.h });
+      renderEditorKeepGesture(svg);
+      showGuides(svg, sx ? [sx.t] : [], sy ? [sy.t] : []);
+    } else if (g.type === 'resize') {
+      if (!g.moved) return;
+      const r0 = g.r0, T = snapTargets(p, g.slot), t = tol(), c = g.corner;
+      let x0 = r0.x, y0 = r0.y, x1 = r0.x + r0.w, y1 = r0.y + r0.h; const gx = [], gy = [];
+      if (c.includes('w')) { x0 = Math.min(x1 - MIN_FRAME, x0 + dx); const s = nearest([x0], T.xs, t); if (s && x1 - s.t >= MIN_FRAME) { x0 = s.t; gx.push(s.t); } }
+      if (c.includes('e')) { x1 = Math.max(x0 + MIN_FRAME, x1 + dx); const s = nearest([x1], T.xs, t); if (s && s.t - x0 >= MIN_FRAME) { x1 = s.t; gx.push(s.t); } }
+      if (c.includes('n')) { y0 = Math.min(y1 - MIN_FRAME, y0 + dy); const s = nearest([y0], T.ys, t); if (s && y1 - s.t >= MIN_FRAME) { y0 = s.t; gy.push(s.t); } }
+      if (c.includes('s')) { y1 = Math.max(y0 + MIN_FRAME, y1 + dy); const s = nearest([y1], T.ys, t); if (s && s.t - y0 >= MIN_FRAME) { y1 = s.t; gy.push(s.t); } }
+      setBox(p, g.slot, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      renderEditorKeepGesture(svg);
+      showGuides(svg, gx, gy);
+    } else if (g.type === 'swapdrag') {
+      if (!drag.ghost) {
+        const sl = slotOf(p, g.slot), gh = document.createElement('div'); gh.className = 'ghost';
+        gh.innerHTML = `<img src="${RT.thumb[sl.photo]}" alt="">`; document.body.appendChild(gh); drag.ghost = gh;
+      }
+      drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+      const el = document.elementFromPoint(e.clientX, e.clientY), tgt = el && el.closest('#editor [data-slot]');
+      const tk = tgt ? keyOf(tgt.dataset.slot) : null;
+      g.target = tk != null && tk !== g.slot ? tk : null;
+      highlightSlot(g.target, slotOf(p, g.slot).photo, 'swap');
     } else if (g.type === 'block') {
       const W = S.doc.w, H = S.doc.h, it = g.it;
       let x = clamp(it.x + dx, 0, W - it.w), y = clamp(it.y + dy, 0, H - it.h);
-      const snaps = [];
-      if (Math.abs(x + it.w / 2 - W / 2) < 2.5) { x = W / 2 - it.w / 2; snaps.push(`M${W / 2} 0V${H}`); }
+      const gx = [], gy = [];
+      if (Math.abs(x + it.w / 2 - W / 2) < 2.5) { x = W / 2 - it.w / 2; gx.push(W / 2); }
       for (const m of [10, 15]) {
-        if (Math.abs(x - m) < 1.5) { x = m; snaps.push(`M${m} 0V${H}`); }
-        if (Math.abs(x + it.w - (W - m)) < 1.5) { x = W - m - it.w; snaps.push(`M${W - m} 0V${H}`); }
-        if (Math.abs(y + it.h - (H - m)) < 1.5) { y = H - m - it.h; snaps.push(`M0 ${H - m}H${W}`); }
+        if (Math.abs(x - m) < 1.5) { x = m; gx.push(m); }
+        if (Math.abs(x + it.w - (W - m)) < 1.5) { x = W - m - it.w; gx.push(W - m); }
+        if (Math.abs(y + it.h - (H - m)) < 1.5) { y = H - m - it.h; gy.push(H - m); }
       }
       g.x = x; g.y = y;
       g.el.setAttribute('transform', `translate(${x - it.x} ${y - it.y})`);
-      let guide = svg.querySelector('#snapguide');
-      if (!guide) { guide = document.createElementNS('http://www.w3.org/2000/svg', 'path'); guide.id = 'snapguide'; guide.setAttribute('stroke', '#00a0e3'); guide.setAttribute('stroke-width', '.4'); guide.setAttribute('pointer-events', 'none'); svg.appendChild(guide); }
-      guide.setAttribute('d', snaps.join(''));
-    } else if (g.type === 'ov') {
-      const W = S.doc.w, H = S.doc.h, m = S.doc.margin, cw = W - 2 * m, ch = H - 2 * m, o = p.ov[g.slot];
-      o.x = clamp(g.o0.x + dx / cw, -.2, 1); o.y = clamp(g.o0.y + dy / ch, -.2, 1);
-      renderEditorKeepGesture(svg);
-    } else if (g.type === 'ovs') {
-      const o = p.ov[g.slot], r0 = g.r0, s0 = g.o0.s ?? 1;
-      o.s = clamp(s0 * Math.max((r0.w + dx) / r0.w, (r0.h + dy) / r0.h), .4, 2);
-      renderEditorKeepGesture(svg);
+      showGuides(svg, gx, gy);
     }
   });
+
   const end = (e) => {
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
-    if (pointers.size > 0) { if (g && g.type === 'pinch') { const [rest] = [...pointers.values()]; const sl = curPage().slots[g.slot]; g = { type: 'pan', slot: g.slot, start: rest, cx: sl.cx, cy: sl.cy, moved: true }; } return; }
+    if (pointers.size > 0) { if (g && g.type === 'pinch') { const [rest] = [...pointers.values()]; const sl = slotOf(curPage(), g.slot); g = { type: 'pan', slot: g.slot, start: rest, cx: sl.cx, cy: sl.cy, moved: true }; } return; }
     svg.classList.remove('dragging');
     const p = curPage(), gg = g; g = null;
     if (!gg) return;
+    const cancelled = e.type === 'pointercancel';
+    if (gg.type === 'swapdrag' && gg.moved) {
+      if (drag.ghost) { drag.ghost.remove(); drag.ghost = null; }
+      highlightSlot(null);
+      if (gg.target != null && !cancelled) swapSlots(gg.slot, gg.target);
+      return;
+    }
     if (gg.type === 'block' && gg.moved) {
       const it = gg.it, W = S.doc.w, H = S.doc.h;
       const a = { ax: W - it.w > 0 ? gg.x / (W - it.w) : 0, ay: H - it.h > 0 ? gg.y / (H - it.h) : 0 };
@@ -2163,41 +2334,37 @@ function bindEditor(svg) {
       return;
     }
     if ((gg.type === 'pan' || gg.type === 'pinch') && gg.moved) { commit(); updateThumb(); renderFrameBarMeta(); return; }
-    if (gg.type === 'ov' || gg.type === 'ovs') { commit(); renderEditor(); updateThumb(); renderFrameBar(); return; }
-    if (!gg.moved && (gg.type === 'tap' || gg.type === 'pan')) {
-      if (ui.swapFrom != null && ui.swapFrom !== gg.slot) {
-        const a = p.slots[ui.swapFrom], b = p.slots[gg.slot];
-        [a.photo, b.photo] = [b.photo, a.photo]; Object.assign(a, { zoom: 1, cx: .5, cy: .5 }); Object.assign(b, { zoom: 1, cx: .5, cy: .5 });
-        ui.swapFrom = null; ui.sel = gg.slot; commit(); renderEditor(); renderFrameBar(); updateThumb(); return;
-      }
+    if ((gg.type === 'move' || gg.type === 'resize') && gg.moved) { commit(); renderEditor(); updateThumb(); renderFrameBar(); renderPanelKeepScroll(); return; }
+    if (gg.moved) return;
+    if (gg.type === 'move') { setCrop(gg.slot); return; }              // zweites Antippen: Ausschnitt bearbeiten
+    if (gg.type === 'tap' || gg.type === 'pan' || gg.type === 'swapdrag') {
+      if (ui.swapFrom != null && ui.swapFrom !== gg.slot) { swapSlots(ui.swapFrom, gg.slot); return; }
       if (ui.armed) { placePhoto(gg.slot, ui.armed); return; }
-      if (gg.type === 'pan') { if (gg.ghost) setCrop(null); return; } // Antippen außerhalb des Rahmens beendet den Ausschnitt-Modus
-      if (ui.sel === gg.slot) { setCrop(gg.slot); return; }   // zweites Antippen: Ausschnitt bearbeiten
+      if (gg.type === 'pan') { if (gg.ghost) setCrop(null); return; } // Antippen außerhalb beendet den Ausschnitt-Modus
       selectSlot(gg.slot);
-      const sl = p.slots[gg.slot];
+      const sl = slotOf(p, gg.slot);
       if (!(sl && sl.photo && S.photos[sl.photo]) && ui.tab !== 'photos' && window.innerWidth > 980) { ui.tab = 'photos'; renderPanel(); }
       return;
     }
-    if (gg.type === 'none' && !gg.moved && (ui.sel != null || ui.selBlock != null || ui.crop != null)) { ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
+    if (gg.type === 'none' && (ui.sel != null || ui.selBlock != null || ui.crop != null)) { ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null; renderEditor(); renderFrameBar(); }
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
   svg.addEventListener('dblclick', (e) => {
     const slotEl = e.target.closest('[data-slot]'); if (!slotEl) return;
-    setCrop(+slotEl.dataset.slot);
+    setCrop(keyOf(slotEl.dataset.slot));
   });
   svg.addEventListener('wheel', (e) => {
     if (ui.crop == null) return;                             // ohne Ausschnitt-Modus scrollt die Seite normal
-    const slotEl = e.target.closest('[data-slot]'); if (!slotEl || +slotEl.dataset.slot !== ui.crop) return;
-    const p = curPage(), i = ui.crop, sl = p.slots[i], ph = sl && S.photos[sl.photo]; if (!ph) return;
+    const slotEl = e.target.closest('[data-slot]'); if (!slotEl || keyOf(slotEl.dataset.slot) !== ui.crop) return;
+    const p = curPage(), k = ui.crop, sl = slotOf(p, k), ph = sl && S.photos[sl.photo]; if (!ph) return;
     e.preventDefault();
-    const r = slotRects(p).find(r => r.i === i);
-    zoomAt(r, ph, sl, (sl.zoom || 1) * Math.exp(-e.deltaY * .0015), svgPoint(svg, e));
-    liveImage(svg, i);
+    zoomAt(rectOf(p, k), ph, sl, (sl.zoom || 1) * Math.exp(-e.deltaY * .0015), svgPoint(svg, e));
+    liveImage(svg, k);
     clearTimeout(bindEditor._w); bindEditor._w = setTimeout(() => { commit(); renderEditor(); renderFrameBar(); updateThumb(); }, 350);
   }, { passive: false });
 }
-// Einleger verschieben: neu zeichnen, ohne die Geste zu verlieren
+// Während einer Geste neu zeichnen, ohne die Zeigerbindung am SVG zu verlieren
 function renderEditorKeepGesture(svg) {
   const fresh = new DOMParser().parseFromString(svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides }), 'image/svg+xml').documentElement;
   svg.innerHTML = fresh.innerHTML;
@@ -2240,16 +2407,25 @@ function moveDrag(x, y) {
   if (drag.over && drag.over !== tgt) drag.over.classList && drag.over.classList.remove('over');
   drag.over = tgt;
   if (tgt && tgt.dataset.bucket != null) tgt.classList.add('over');
-  if (tgt && tgt.dataset.slot != null) { if (drag.hl !== tgt.dataset.slot) { drag.hl = tgt.dataset.slot; highlightSlot(+tgt.dataset.slot); } }
+  if (tgt && tgt.dataset.slot != null) { if (drag.hl !== tgt.dataset.slot) { drag.hl = tgt.dataset.slot; highlightSlot(keyOf(tgt.dataset.slot), drag.ids[0]); } }
   else if (drag.hl != null) { drag.hl = null; highlightSlot(null); }
 }
-function highlightSlot(i) {
+// Ziel beim Ziehen zeigen: das neue Foto erscheint als Vorschau im Rahmen
+function highlightSlot(key, photoId, mode = 'place') {
   const svg = $('#editor'); if (!svg) return;
-  let h = svg.querySelector('#drophl');
-  if (i == null) { if (h) h.remove(); return; }
-  const r = slotRects(curPage()).find(r => r.i === i); if (!r) return;
-  if (!h) { h = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); h.id = 'drophl'; h.setAttribute('fill', '#c2185b'); h.setAttribute('fill-opacity', '.25'); h.setAttribute('stroke', '#c2185b'); h.setAttribute('stroke-width', '1.2'); h.setAttribute('pointer-events', 'none'); svg.appendChild(h); }
-  h.setAttribute('x', r.x); h.setAttribute('y', r.y); h.setAttribute('width', r.w); h.setAttribute('height', r.h);
+  const old = svg.querySelector('#drophl'); if (old) old.remove();
+  if (key == null) return;
+  const p = curPage(), r = rectOf(p, key); if (!r) return;
+  const ph = photoId && S.photos[photoId], sl = slotOf(p, key), replaces = sl && sl.photo && S.photos[sl.photo] && sl.photo !== photoId;
+  const NS = 'http://www.w3.org/2000/svg', gEl = document.createElementNS(NS, 'g');
+  gEl.id = 'drophl'; gEl.setAttribute('pointer-events', 'none');
+  let h = `<clipPath id="drophlc"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`;
+  if (ph) h += `<g clip-path="url(#drophlc)"><image href="${RT.prev[ph.id] || RT.thumb[ph.id]}" ${imgAttrs(placeImage(r, ph, newSlot()))} preserveAspectRatio="none" opacity=".9"/></g>`;
+  h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="#c2185b" stroke-width="1.4"/>`;
+  const vis = intersect(r, { x: 0, y: 0, w: S.doc.w, h: S.doc.h }) || r, fs = Math.max(3.5, Math.min(7, vis.w / 14));
+  const label = mode === 'swap' ? 'Fotos tauschen' : replaces ? 'Ersetzt das Foto' : 'Hier einsetzen';
+  h += `<rect x="${vis.x + vis.w / 2 - fs * 4.6}" y="${vis.y + vis.h / 2 - fs * .95}" width="${fs * 9.2}" height="${fs * 1.6}" rx="${fs * .3}" fill="#c2185b"/><text x="${vis.x + vis.w / 2}" y="${vis.y + vis.h / 2 + fs * .2}" font-size="${fs}" fill="#fff" text-anchor="middle" font-weight="600">${label}</text>`;
+  gEl.innerHTML = h; svg.appendChild(gEl);
 }
 document.addEventListener('pointerup', (e) => {
   clearTimeout(drag.lp);
@@ -2257,7 +2433,7 @@ document.addEventListener('pointerup', (e) => {
     const tgt = drag.over;
     drag.ghost.remove(); drag.ghost = null; drag.active = false; drag.hl = null;
     if (tgt && tgt.classList) tgt.classList.remove('over');
-    if (tgt && tgt.dataset.slot != null) placePhoto(+tgt.dataset.slot, drag.ids[0]);
+    if (tgt && tgt.dataset.slot != null) { highlightSlot(null); placePhoto(keyOf(tgt.dataset.slot), drag.ids[0]); }
     else if (tgt && tgt.dataset.bucket != null) moveToMonth(drag.ids, +tgt.dataset.bucket);
     else highlightSlot(null);
     drag.pend = null; drag.over = null;
@@ -2274,7 +2450,7 @@ function photoTap(id, e) {
     else { ui.photoSel.add(id); ui.photoFocus = id; }
     renderPhotos();
   } else if (ui.view === 'design') {
-    if (ui.sel != null && curPage().slots[ui.sel] && !ui.armed) { placePhoto(ui.sel, id); return; }
+    if (ui.sel != null && slotOf(curPage(), ui.sel) && !ui.armed) { placePhoto(ui.sel, id); return; }
     ui.armed = ui.armed === id ? null : id;
     renderPanelKeepScroll(); renderFrameBar();
     if (ui.armed) toast('Jetzt auf einen Rahmen tippen.');
@@ -2292,6 +2468,14 @@ document.addEventListener('keydown', (e) => {
     renderEditor(); renderFrameBar();
   }
   if ((e.key === 'Delete' || e.key === 'Backspace') && ui.sel != null) { ACTIONS.unslot(); }
+  // Pfeiltasten verschieben den ausgewählten Rahmen (mit Umschalt in 5-mm-Schritten)
+  if (ui.sel != null && ui.crop == null && e.key.startsWith('Arrow') && !e.altKey) {
+    e.preventDefault();
+    const p = curPage(), r = rectOf(p, ui.sel), st = e.shiftKey ? 5 : .5;
+    const dx = e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0, dy = e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0;
+    setBox(p, ui.sel, { x: r.x + dx, y: r.y + dy, w: r.w, h: r.h });
+    renderEditor(); clearTimeout(bindEditor._k); bindEditor._k = setTimeout(() => { commit(); updateThumb(); renderFrameBar(); }, 400);
+  }
   if (e.key === 'PageDown' || (e.key === 'ArrowRight' && e.altKey)) ACTIONS.nextpage();
   if (e.key === 'PageUp' || (e.key === 'ArrowLeft' && e.altKey)) ACTIONS.prevpage();
 });
@@ -2307,27 +2491,25 @@ async function sourceFor(ph) {
   srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
+// Rahmeninhalt in Druckauflösung rendern: Foto mit Zoom, Verschiebung und Drehung wie im Editor.
 // panels: halbtransparente Flächen, die ins Bild eingerechnet werden (keine PDF-Transparenz)
 async function renderCrop(it, dpi, panels = []) {
-  const ph = S.photos[it.photo], { clip, place } = it;
-  const sx = (clip.x - place.x) / place.w * ph.w, sy = (clip.y - place.y) / place.h * ph.h;
-  const sw = clip.w / place.w * ph.w, sh = clip.h / place.h * ph.h;
-  let ow = clip.w / 25.4 * dpi, oh = clip.h / 25.4 * dpi;
-  const k = Math.min(1, sw / ow); ow *= k; oh *= k;              // nie hochrechnen
-  if (ow * oh > MAXPX) { const f = Math.sqrt(MAXPX / (ow * oh)); ow *= f; oh *= f; }
-  ow = Math.max(1, Math.round(ow)); oh = Math.max(1, Math.round(oh));
+  const ph = S.photos[it.photo], { clip, place: pl } = it;
+  // Pixel pro mm: Zielauflösung, aber nie feiner als das Foto selbst (kein Hochrechnen)
+  let k = Math.min(dpi / 25.4, ph.w / pl.w);
+  if (clip.w * clip.h * k * k > MAXPX) k = Math.sqrt(MAXPX / (clip.w * clip.h));
+  const ow = Math.max(1, Math.round(clip.w * k)), oh = Math.max(1, Math.round(clip.h * k));
   const c = document.createElement('canvas'); c.width = ow; c.height = oh;
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.fillStyle = '#fff'; x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
-  if (ph.demo) {
-    x.setTransform(ow / sw, 0, 0, oh / sh, -sx * ow / sw, -sy * oh / sh);
-    drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
-  } else {
+  x.fillStyle = cRGB(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
+  // Seiten-mm → Canvas-Pixel, dann in Fotokoordinaten (Pixel des Originals)
+  x.setTransform(ow / clip.w, 0, 0, oh / clip.h, -clip.x * ow / clip.w, -clip.y * oh / clip.h);
+  x.translate(pl.fx, pl.fy); x.rotate((pl.rot || 0) * Math.PI / 180);
+  x.scale(pl.w / ph.w, pl.h / ph.h); x.translate(-pl.cx * ph.w, -pl.cy * ph.h);
+  if (ph.demo) drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
+  else {
     const bmp = await sourceFor(ph);
-    if (bmp) {
-      const sc = bmp.width / ph.w; // Vorschau als Notlösung, falls das Original fehlt
-      x.drawImage(srcOf(bmp), sx * sc, sy * sc, sw * sc, sh * sc, 0, 0, ow, oh);
-    }
+    if (bmp) x.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
   for (const pn of panels) {

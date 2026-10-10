@@ -185,24 +185,32 @@ function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   if (ui.swapFrom != null) { fb.innerHTML = `<span>Tippe auf den Rahmen, mit dem getauscht werden soll.</span><button class="btn small" data-act="swapcancel">Abbrechen</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Kalendarium mit der Maus verschieben, am Handy erst antippen.'}</span>`;
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Ein Foto mit der Maus auf einen anderen Rahmen ziehen tauscht die beiden.'}</span>`;
     return;
   }
-  const r = slotRects(p).find(r => r.i === ui.sel), sl = p.slots[ui.sel], ph = sl && S.photos[sl.photo];
+  const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
   if (!r) { fb.innerHTML = ''; return; }
+  const crop = ui.crop === ui.sel && ph;
   let h = '';
   if (ph) {
     const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < 150 ? 'bad' : d < 200 ? 'warn' : 'ok';
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b><span class="pill ${cls}">${d} dpi${d < 150 ? ' · zu klein' : d < 200 ? ' · knapp' : ''}</span></div>
-      <button class="btn small ${ui.crop === ui.sel ? 'primary' : ''}" data-act="crop" aria-pressed="${ui.crop === ui.sel}">${ui.crop === ui.sel ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>
-      <div class="range"><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
+      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>`;
+    if (crop) h += `<div class="range"><span class="small muted">Zoom</span><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
+      <div class="range"><span class="small muted">Drehen</span><input type="range" id="rt" aria-label="Foto drehen" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
+      <button class="btn small" data-act="rot90" title="Um 90° drehen">↻ 90°</button>
+      ${seg([['cover', 'Füllen'], ['contain', 'Ganz zeigen']], sl.fit || 'cover', 'fitmode')}
       <button class="btn small" data-act="fit">Einpassen</button>
-      <input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
+      <span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
+    else h += `<input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
       <button class="btn small" data-act="swap">Tauschen</button>
-      <button class="btn small danger" data-act="unslot">Entfernen</button>`;
+      <button class="btn small danger" data-act="unslot">Foto entfernen</button>`;
   } else h += `<span class="hint">Leerer Rahmen: Foto aus der Liste rechts hineinziehen oder antippen.</span>`;
-  if (ui.crop === ui.sel && ph) h += `<span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
-  if (r.overlay) h += `<div class="range"><span class="small muted">Größe</span><input type="range" id="ovs" aria-label="Größe Einleger" min="0.5" max="1.8" step="0.01" value="${(p.ov[ui.sel] || {}).s ?? 1}" data-act-input="ovsize"></div>`;
+  if (!crop) h += `<span class="fb-sep" aria-hidden="true"></span><span class="small muted num">${fmt1(r.w)} × ${fmt1(r.h)} mm${r.custom ? '' : ' · Vorlage'}</span>
+    <button class="btn small" data-act="dupframe">Duplizieren</button>
+    <button class="btn small" data-act="front" title="Nach vorn">Nach vorn</button><button class="btn small" data-act="back" title="Nach hinten">Nach hinten</button>
+    <div class="range" style="max-width:190px"><span class="small muted">Rand</span><input type="range" id="bd" aria-label="Rand um den Rahmen" min="0" max="8" step="0.5" value="${r.border}" data-act-input="border"><output>${fmt1(r.border)} mm</output></div>
+    <button class="btn small danger" data-act="delframe">Rahmen löschen</button>`;
   fb.innerHTML = h;
 }
 function renderPanel() {
@@ -227,9 +235,14 @@ function layoutIcon(l) {
   return r + '</svg>';
 }
 function panelLayout(p) {
+  const changed = visibleSlots(p).filter(s => s.box).length + p.slots.slice(0, slotCount(p.layout)).filter(s => s.hidden).length;
   return `<div class="field"><span class="lbl">Seitenlayout</span><div class="layouts">${LAYOUTS.map(l => `<button class="lay" data-act="layout" data-v="${l.id}" aria-pressed="${p.layout === l.id}">${layoutIcon(l)}<span>${l.name}</span></button>`).join('')}</div>
-    <p class="hint">Beim Wechsel bleiben die Fotos in ihrer Reihenfolge erhalten.</p></div>
+    <p class="hint">Die Vorlage ist der Ausgangspunkt. Danach lassen sich Rahmen frei verschieben, skalieren, überlagern, duplizieren und löschen. Beim Wechsel bleiben die Fotos in ihrer Reihenfolge.</p></div>
+    <div class="row"><button class="btn" data-act="addframe">Rahmen hinzufügen</button>${changed || (p.extra || []).length ? `<button class="btn" data-act="resetframes">Rahmen wie Vorlage</button>` : ''}</div>
+    ${changed ? `<p class="hint">${changed} ${changed > 1 ? 'Rahmen sind' : 'Rahmen ist'} von Hand verändert. Abstand und Außenrand ändern ${changed > 1 ? 'sie' : 'ihn'} nicht mehr.</p>` : ''}
     ${range('gp2', 'doc.gap', S.doc.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern (alle Seiten)')}
+    <label class="check"><input type="checkbox" id="pgo" data-act="pagegapon" ${p.gap != null ? 'checked' : ''}><span>Eigener Abstand nur für diese Seite</span></label>
+    ${p.gap != null ? `<div class="field"><label for="pg">Abstand auf dieser Seite</label><div class="range"><input type="range" id="pg" min="0" max="5" step="0.5" value="${p.gap}" data-act-input="pagegap"><output>${fmt1(p.gap)} mm</output></div></div>` : ''}
     ${range('mg2', 'doc.margin', S.doc.margin, 0, 20, 1, ' mm', 'Außenrand (alle Seiten)')}
     <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>`;
 }
