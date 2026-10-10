@@ -105,17 +105,19 @@ def test_save_export_upload_duplicate_and_draft(tmp_path):
 
 
 def test_serve_with_path_registers_project(tmp_path, monkeypatch, capsys):
-    import uvicorn
-
     from lichtjahr import cli
 
     root = tmp_path / "Kalender"
     base = ["--data-dir", str(tmp_path / "d"), "--cache-dir", str(tmp_path / "c")]
     with pytest.raises(SystemExit):
         cli.main([*base, "init", str(root), "--year", "2027"])
-    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_run_server", lambda app, sock, browser_url: None)
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
     with pytest.raises(SystemExit) as ex:
-        cli.main([*base, "serve", str(root)])
+        cli.main([*base, "serve", "--no-browser", "--port", str(port), str(root)])
     assert ex.value.code == 0
     ids = [e["id"] for e in json.loads((tmp_path / "d" / "projects.json").read_text())]
     assert len(ids) == 1 and f"?projekt={ids[0]}" in capsys.readouterr().out

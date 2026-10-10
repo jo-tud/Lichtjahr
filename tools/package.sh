@@ -13,7 +13,9 @@ mkdir -p "$OUT" backend/lichtjahr/static
 prototyp/build.sh
 cp prototyp/dist/index.html backend/lichtjahr/static/index.html
 # Die Kopie nur fürs Paket; danach wieder weg, sonst verdeckt sie in einer Entwicklungs-Installation prototyp/dist
-trap 'rm -rf "$ROOT/backend/lichtjahr/static" "$ROOT/backend/build"' EXIT
+cleanup() { rm -rf "$ROOT/backend/lichtjahr/static" "$ROOT/backend/build"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM                       # dash führt den EXIT-Trap bei Strg+C nicht aus
 (cd backend && python3 -m pip wheel . --no-deps -q -w "$OUT")
 WHEEL="$OUT/lichtjahr-$VERSION-py3-none-any.whl"
 [ -f "$WHEEL" ] || { echo "Paket fehlt: $WHEEL" >&2; exit 1; }

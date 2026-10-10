@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 def _xdg(var: str, fallback: str) -> str:
@@ -42,6 +43,7 @@ class Settings:
     data_dir: str
     cache_dir: str
     token: str | None = None
+    instance: str = field(default_factory=lambda: secrets.token_hex(8))   # erkennt die eigene laufende Instanz
 
     @classmethod
     def default(cls, data_dir: str | None = None, cache_dir: str | None = None, token: str | None = None) -> "Settings":

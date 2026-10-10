@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lichtjahr"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Local service for Lichtjahr, the family photo wall calendar: project folders, photos by month, print PDF with color management"
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,6 +27,9 @@ heic = ["pillow-heif>=0.16"]       # HEIC/HEIF vom iPhone (bringt libheif mit, L
 
 [project.scripts]
 lichtjahr = "lichtjahr.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "lichtjahr.__version__" }   # einzige Stelle für die Versionsnummer
 
 [tool.setuptools.packages.find]
 include = ["lichtjahr*"]

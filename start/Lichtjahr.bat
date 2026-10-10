@@ -31,15 +31,18 @@ if errorlevel 1 goto failed
 :have_uv
 set "FROM="
 set "STATIC="
+set "REFRESH="
 for %%f in ("%HERE%lichtjahr-*.whl") do set "FROM=%%~ff"
 if defined FROM goto start
 if not exist "%HERE%..\backend\pyproject.toml" goto missing
 set "FROM=%HERE%..\backend"
 set "STATIC=--static "%HERE%..\prototyp\dist""
+rem im Repository: geaenderten Code jedes Mal neu bauen
+set "REFRESH=--reinstall-package lichtjahr"
 
 :start
 if defined DE (echo Lichtjahr startet. Beim ersten Mal werden etwa 150 MB geladen, das dauert ein paar Minuten.) else (echo Starting Lichtjahr. The first start downloads about 150 MB and takes a few minutes.)
-uvx --python 3.12 --from "%FROM%" --with pillow-heif lichtjahr serve %STATIC% %*
+uvx --python 3.12 %REFRESH% --from "%FROM%" --with pillow-heif lichtjahr serve %STATIC% %*
 goto done
 
 :cancelled

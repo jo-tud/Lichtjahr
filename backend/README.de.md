@@ -33,8 +33,10 @@ lichtjahr serve
 # → Lichtjahr 1.0.0 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
 ```
 
-Ein zweiter Start öffnet nur den Browser erneut. Ist Port 8470 von einem anderen Programm belegt, nimmt der
-Dienst den nächsten freien und sagt das.
+Ein zweiter Start öffnet nur den Browser erneut, mit Zugriffsschlüssel und gegebenenfalls dem genannten
+Projekt; läuft noch eine ältere Version, bittet er, diese zuerst zu beenden. Ist Port 8470 von einem anderen
+Programm belegt, nimmt der Dienst den nächsten freien und sagt das. Der laufende Dienst hinterlegt seine
+Adresse in `running.json` im Datenordner (nur für dich lesbar, wird beim Beenden entfernt).
 
 Beim ersten Öffnen fragt die App nach dem Projektordner: neu anlegen (die Monatsordner entstehen dabei)
 oder einen vorhandenen öffnen. Alternativ auf der Befehlszeile:

@@ -33,8 +33,10 @@ lichtjahr serve
 # → Lichtjahr 1.0.0 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
 ```
 
-Starting it a second time only opens the browser again. If port 8470 is taken by another program, the
-service picks the next free port and says so.
+Starting it a second time only opens the browser again, with the access key and the named project if
+there is one; if an older version is still running, it asks you to quit that one first. If port 8470 is taken
+by another program, the service picks the next free port and says so. The running service notes its address
+in `running.json` in the data folder (readable only by you, removed on exit).
 
 The first time you open it, the app asks for the project folder: create a new one (the month folders are
 created along with it) or open an existing one. Alternatively, on the command line:
