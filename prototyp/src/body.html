@@ -1,0 +1,28 @@
+<header class="bar">
+  <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Kalenderwerkstatt</span></div>
+  <nav class="steps" role="tablist" aria-label="Arbeitsschritte">
+    <button role="tab" data-act="go" data-view="project" data-v="project"><b>1</b><span class="t">Projekt</span></button>
+    <button role="tab" data-act="go" data-view="photos" data-v="photos"><b>2</b><span class="t">Fotos</span></button>
+    <button role="tab" data-act="go" data-view="design" data-v="design"><b>3</b><span class="t">Gestalten</span></button>
+    <button role="tab" data-act="go" data-view="print" data-v="print"><b>4</b><span class="t">Druck-PDF</span></button>
+  </nav>
+  <div class="bar-right">
+    <span id="saveState"></span>
+    <button class="icon-btn" id="undo" data-act="undo" aria-label="Rückgängig" title="Rückgängig (Strg+Z)" disabled></button>
+    <button class="icon-btn" id="redo" data-act="redo" aria-label="Wiederholen" title="Wiederholen" disabled></button>
+  </div>
+</header>
+<div class="banner" id="banner" hidden>
+  <p><b>Beispielprojekt.</b> Die Bilder sind gezeichnete Platzhalter. Probiere Layouts, schiebe Bilder und Kalendarium herum oder lade gleich eigene Fotos.</p>
+  <button class="btn small primary" data-act="bannerphotos">Eigene Fotos laden</button>
+  <button class="btn small" data-act="hidebanner">Ausblenden</button>
+</div>
+<main>
+  <section class="view" id="v-project"></section>
+  <section class="view" id="v-photos"></section>
+  <section class="view" id="v-design"></section>
+  <section class="view" id="v-print"></section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileIn" accept="image/*,.heic,.heif" multiple hidden>
+<input type="file" id="dirIn" webkitdirectory multiple hidden>
