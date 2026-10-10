@@ -1,13 +1,20 @@
-# Release: Tag „v1.2.3“ pushen → Paket (Wheel mit Oberfläche) und ZIP mit Startskripten als GitHub-Release.
-# Die Version im Tag muss zu backend/lichtjahr/__init__.py passen; die Notizen kommen aus CHANGELOG.md.
+# Release: Paket (Wheel mit Oberfläche) und ZIP mit Startskripten als GitHub-Release, Notizen aus CHANGELOG.md.
+# Auslösen auf zwei Wegen:
+#   - Tag „v1.2.3“ pushen (muss zur Version in backend/lichtjahr/__init__.py passen), oder
+#   - Actions → Release → „Run workflow“: setzt den Tag „v<Version>“ selbst auf den gewählten Stand.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -18,9 +25,16 @@ jobs:
         with:
           python-version: "3.12"
       - name: Version prüfen
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           v=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' backend/lichtjahr/__init__.py)
-          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $v"; exit 1; }
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $v"; exit 1
+          fi
+          if gh release view "v$v" >/dev/null 2>&1; then
+            echo "::error::Release v$v gibt es schon. Version in backend/lichtjahr/__init__.py erhöhen."; exit 1
+          fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
       - name: Bauen und prüfen
         run: tools/package.sh --check
@@ -32,5 +46,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/Lichtjahr-$VERSION.zip release/lichtjahr-$VERSION-py3-none-any.whl \
-            --title "Lichtjahr $VERSION" --notes-file notes.md
+          gh release create "v$VERSION" release/Lichtjahr-$VERSION.zip release/lichtjahr-$VERSION-py3-none-any.whl \
+            --target "$GITHUB_SHA" --title "Lichtjahr $VERSION" --notes-file notes.md
