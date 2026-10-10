@@ -103,6 +103,8 @@ CMYK) and a print profile (`lichtjahr/printing.py`):
 3. Preflight on the finished file: PDF/X required entries (for X-4 including XMP), PDF and ICC version, CMYK only, total ink coverage, bleed, fonts, transparency, image resolution
 4. Saved to `Export/`, response with path and check report
 
+**Photo recipes and print adaptation:** The app compiles each photo's adjustments into a 3×3 color matrix and a tone curve; the preview applies them as an SVG filter, the app applies them to the pixels it sends, and the service (numpy) applies the same numbers to photos rendered from the original and in the soft proof. With the form field `tune=true`, the print adaptation curve is folded in and the service sharpens on luminance (`UnsharpMask`, strength from the profile).
+
 **Wide color:** For each photo the app writes a `/LJSource` entry into the image dictionary (asset ID, matrix from
 target pixel to photo pixel, background and semi-transparent panels). If the original carries an RGB profile other than
 sRGB (Display P3, Adobe RGB …), the service renders the crop from the original with Pillow, blends the panels in the
@@ -184,7 +186,8 @@ The running service shows the complete description at `http://localhost:8470/api
 | GET | `/api/projects/{id}/assets/{aid}/original` | Original file |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Change month / copy explicitly |
 | POST | `/api/projects/{id}/export/print` | Print PDF (`standard=x1a` or `x4`) with color profile and check report |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching) |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching); `adj` is the photo's compiled recipe (`m0,…,m8;l0,…,l64`), `tune` adds the print adaptation |
+| GET | `/api/printers/{id}/tune` | Print adaptation for the profile: tone curve (65 points), strength, sharpening; derived from the profile's black point |
 | POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
 | GET / POST / DELETE | `/api/printers` | List print profiles / add your own ICC profile / remove one |

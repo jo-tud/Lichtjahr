@@ -26,7 +26,7 @@ function liveImage(svg, key) {
   }
 }
 function selectSlot(i) {
-  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null;
+  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null; if (ui.tune !== i) ui.tune = null;
   renderEditor(); renderFrameBar();
 }
 function setCrop(i) {

@@ -376,4 +376,13 @@ Object.assign(EN, {
   'Passend': 'Fitted',
   'Ganze Seitenbreite': 'Full page width',
   'Gilt für alle Monate. Abstände, Mindestgrößen und gleich breite Ziffern regelt die App, damit es immer ordentlich aussieht.': 'Applies to all months. The app takes care of spacing, minimum sizes and equal-width figures, so it always looks tidy.',
+  'Helligkeit': 'Brightness',
+  'Kontrast': 'Contrast',
+  'Wärme': 'Warmth',
+  'Farbe': 'Color',
+  'Gedrückt halten zeigt das Original': 'Press and hold to see the original',
+  'Original': 'Original',
+  'Zurücksetzen': 'Reset',
+  'Bild verbessert ✓': 'Photo enhanced ✓',
+  'Bild verbessern': 'Enhance photo',
 });

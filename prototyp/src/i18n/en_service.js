@@ -206,4 +206,8 @@ Object.assign(EN, {
   'Gesichter werden gesucht …': 'Looking for faces …',
   '{page}: Kalendarium neu platziert.': '{page}: Calendar grid placed again.',
   'Nextcloud sperrt gerade kurz, nächster Versuch gleich …': 'Nextcloud is briefly locked, trying again shortly …',
+  'Für den Druck': 'For print',
+  'Fotos an Papier und Druck anpassen': 'Adapt photos to paper and print',
+  'Papier leuchtet nicht wie ein Bildschirm. Darum werden Mitteltöne etwas heller, Tiefen geöffnet und die Fotos für den Druck geschärft, passend zum Profil. Die Druckansicht zeigt das Ergebnis; eine automatische Bildkorrektur der Druckerei dann besser ausschalten.': 'Paper doesn’t glow like a screen. So midtones get a little lighter, shadows are opened up and the photos are sharpened for print, matched to the profile. The print preview shows the result; better switch off any automatic image correction at the print shop then.',
+  'Für dieses Profil: Mitteltöne {mid} % heller.': 'For this profile: midtones {mid}% lighter.',
 });

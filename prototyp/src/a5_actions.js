@@ -72,6 +72,11 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = fmt1(sl.border) + ' mm';
     renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
+  if (act === 'adj') {
+    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
+    renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+  }
   if (act === 'pagegap') {
     curPage().gap = parseFloat(el.value);
     el.parentElement.querySelector('output').textContent = fmt1(curPage().gap) + ' mm';
@@ -235,7 +240,9 @@ const ACTIONS = {
     }
     exportPDF();
   },
-  crop: () => setCrop(ui.crop == null ? ui.sel : null),
+  crop: () => { ui.tune = null; setCrop(ui.crop == null ? ui.sel : null); },
+  tune: () => { ui.crop = null; ui.tune = ui.tune == null ? ui.sel : null; renderEditor(); renderFrameBar(); },
+  adjreset: (el) => { setAdjust(el.dataset.v, Object.fromEntries(ADJ_KEYS.map(k => [k, 0]))); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
@@ -473,3 +480,11 @@ async function autoDesign() {
       : _t('{n} Fotos auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.', { n: photos }));
   toast(msg, 6000, { label: _t('Rückgängig'), fn: undo });
 }
+
+// Vergleichen: solange gedrückt, das Bild ohne Anpassung zeigen
+const compareOff = () => { if (ui.adjCompare) { ui.adjCompare = false; renderEditor(); } };
+document.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-hold="compare"]')) { ui.adjCompare = true; renderEditor(); } });
+document.addEventListener('pointerup', compareOff);
+document.addEventListener('pointercancel', compareOff);
+document.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('[data-hold="compare"]') && !ui.adjCompare) { ui.adjCompare = true; renderEditor(); } });
+document.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') compareOff(); });
