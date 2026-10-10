@@ -297,7 +297,9 @@ function panelCal(p) {
   const where = opened ? `<div class="field"><span class="lbl">Kalendarium der Ansicht ${MONTHS[v.month]}</span>${seg([['upper', 'Oben'], ['lower', 'Unten']], (S.doc.viewCal || {})[(sheetOf(v.part === 'upper' ? v.lower : p.key) || {}).id] === 'upper' ? 'upper' : 'lower', 'viewcal')}
     <p class="hint">Oben und unten bilden zusammen eine Monatsansicht und bekommen ein gemeinsames Kalendarium.</p></div>` : '';
   if (opened && c.style === 'off' && !(p.cal && p.cal.style)) return where + `<p class="hint">Auf dieser Seite steht kein Kalendarium, weil es auf der ${v.part === 'upper' ? 'unteren' : 'oberen'} Seite steht.</p>`;
-  return where + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
+  const auto = pageMonth(p.key) != null ? `<div class="autoplace"><b>Platz automatisch finden</b><p class="hint">Sucht im Foto eine ruhige Fläche, etwa Himmel, Wiese oder Wasser, und wählt die passende Schriftfarbe. Danach lässt sich alles von Hand ändern.</p>
+    <div class="row"><button class="btn primary small" data-act="placehere">Für diese Seite</button><button class="btn small" data-act="placeall">Für alle Monate</button></div></div>` : '';
+  return where + auto + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
