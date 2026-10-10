@@ -76,7 +76,7 @@ class PDFWriter {
     const esc = (s) => s.replace(/[\\()]/g, '\\$&');
     const d = new Date(), pad = (n) => String(n).padStart(2, '0');
     const date = `D:${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    this.obj(info, `<< /Title (${esc(title)}) /Creator (Kalenderwerkstatt) /Producer (Kalenderwerkstatt) /CreationDate (${date}) /Trapped /False >>`);
+    this.obj(info, `<< /Title (${esc(title)}) /Creator (Lichtjahr) /Producer (Lichtjahr) /CreationDate (${date}) /Trapped /False >>`);
     this.obj(this.catalogId, `<< /Type /Catalog /Pages ${this.pagesId} 0 R >>`);
     const xref = this.size;
     let s = `xref\n0 ${this.n + 1}\n0000000000 65535 f \n`;

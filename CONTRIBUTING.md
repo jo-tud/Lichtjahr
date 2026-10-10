@@ -60,8 +60,10 @@ pytest
 - Im Browser ausprobiert, am Desktop **und** in Handy-Größe (Entwicklertools → Geräteansicht).
 - Bei Änderungen am Export: PDF erzeugen und in mindestens zwei Programmen ansehen
   (z. B. Browser und einem PDF-Betrachter).
+- Bei Änderungen an Dienst oder Anbindung (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
+  startet den Dienst mit Testfotos und spielt die wichtigsten Abläufe im Browser durch.
 - Wenn sich das Aussehen geändert hat: `node tools/screenshots.cjs` erzeugt die README-Bilder neu
-  (braucht Playwright mit Chromium und Python mit Pillow).
+  (beide Skripte brauchen Playwright mit Chromium und Python mit Pillow).
 
 Die CI auf GitHub prüft Tests und Build automatisch für jeden Pull Request.
 

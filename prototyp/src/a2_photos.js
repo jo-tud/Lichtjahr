@@ -93,15 +93,16 @@ const IMG_RE = /\.(jpe?g|png|webp|gif|avif|heic|heif|tiff?)$/i;
 async function importFiles(list) {
   const files = list.filter(f => (f.type && f.type.startsWith('image/')) || IMG_RE.test(f.name));
   if (!files.length) { toast('Keine Bilddateien gefunden.'); return; }
+  if (SVC.pid && SVC.readOnly) { toast('Nur ansehen: Fotos hinzufügen geht erst, wenn das Projekt frei ist.', 6000); return; }
   const known = new Set(Object.values(S.photos).map(p => p.name + '|' + p.size));
   const todo = files.filter(f => !known.has(f.name + '|' + f.size));
-  const skipped = files.length - todo.length, failed = [];
-  let done = 0;
+  let skipped = files.length - todo.length, done = 0;
+  const failed = [];
   const bar = busy('Fotos werden eingelesen', `0 von ${todo.length}`);
   const worker = async () => {
     while (todo.length) {
       const f = todo.shift();
-      try { await importOne(f); } catch (e) { failed.push(f.name); }
+      try { if (await importOne(f) === 'dup') { skipped++; done--; } } catch (e) { failed.push(f.name); }
       done++; bar.update(done / (done + todo.length), `${done} von ${done + todo.length}`);
     }
   };
@@ -128,6 +129,7 @@ async function importOne(file) {
   if (fm != null) { month = fm; src = 'Ordnername'; }
   else if (ex) { month = ex.getMonth(); src = 'Aufnahmedatum (EXIF)'; }
   else if (nm) { month = nm.getMonth(); src = 'Dateiname'; }
+  if (SVC.pid) return serviceImportOne(file, month);   // Datei landet im Monatsordner des Projekts
   const bmp = await decodeImage(file);
   const w = bmp.width, h = bmp.height;
   const prev = await scaleToBlob(bmp, 1600, .85), thumb = await scaleToBlob(bmp, 360, .8);

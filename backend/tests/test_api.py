@@ -1,3 +1,6 @@
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 
 from conftest import photo_bytes, put
@@ -7,7 +10,7 @@ from lichtjahr.config import Settings
 
 def client(tmp_path, token=None):
     s = Settings(data_dir=str(tmp_path / "data"), cache_dir=str(tmp_path / "cache"), token=token)
-    return TestClient(create_app(s))
+    return TestClient(create_app(s), base_url="http://localhost")
 
 
 def test_full_flow(tmp_path):
@@ -62,3 +65,60 @@ def test_open_existing_folder_and_token(tmp_path):
     r = c2.post("/api/projects/open", json={"path": str(root)}, headers={"Authorization": "Bearer geheim"})
     assert r.status_code == 200 and r.json()["id"] == pid and r.json()["sourceYear"] == 2027
     assert c2.get("/api/health").status_code == 200
+
+
+def test_foreign_host_is_rejected_without_token(tmp_path):
+    c = client(tmp_path)
+    assert c.get("/api/projects").status_code == 200
+    assert c.get("/api/projects", headers={"Host": "127.0.0.1:8470"}).status_code == 200
+    assert c.get("/api/projects", headers={"Host": "[::1]:8470"}).status_code == 200
+    assert c.get("/api/projects", headers={"Host": "boese.example:8470"}).status_code == 403
+    t = client(tmp_path / "netz", token="geheim")                 # mit Schlüssel: jeder Hostname, aber nur mit Schlüssel
+    assert t.get("/api/projects", headers={"Host": "192.168.1.20:8470", "Authorization": "Bearer geheim"}).status_code == 200
+
+
+def test_save_export_upload_duplicate_and_draft(tmp_path):
+    c = client(tmp_path)
+    root = tmp_path / "K"
+    pid = c.post("/api/projects", json={"path": str(root), "calendarYear": 2027}).json()["id"]
+    H = {"X-Lichtjahr-Session": c.post(f"/api/projects/{pid}/lock", json={}).json()["session"]}
+    f = {"file": ("see.jpg", photo_bytes(), "image/jpeg")}
+    a = c.post(f"/api/projects/{pid}/assets", headers=H, data={"month": "6"}, files=f).json()
+    again = c.post(f"/api/projects/{pid}/assets", headers=H, data={"month": "1"}, files={"file": ("see.jpg", photo_bytes(), "image/jpeg")}).json()
+    assert a["duplicate"] is False and again["duplicate"] is True and again["id"] == a["id"]
+
+    r = c.post(f"/api/projects/{pid}/save", headers=H, json={"editor": {"v": 1, "doc": {"year": 2027}}, "calendarYear": 2027,
+                                                               "assets": {a["id"]: {"caption": "Am See", "excluded": True}}})
+    assert r.status_code == 200, r.text
+    man = c.get(f"/api/projects/{pid}/manifest").json()
+    assert man["editor"]["v"] == 1 and man["assets"][0]["caption"] == "Am See" and man["assets"][0]["excluded"] is True
+    assert c.post(f"/api/projects/{pid}/save", json={"editor": {}}).status_code == 423          # ohne Sperre
+
+    e = c.post(f"/api/projects/{pid}/export", headers=H, files={"file": ("Kalender-2027.pdf", b"%PDF-1.6", "application/pdf")})
+    assert e.json()["path"] == "Export/Kalender-2027.pdf" and (root / "Export" / "Kalender-2027.pdf").read_bytes() == b"%PDF-1.6"
+
+    assert c.get(f"/api/projects/{pid}/draft").status_code == 204
+    c.put(f"/api/projects/{pid}/draft", json={"savedAt": "2027-01-01T10:00:00Z", "editor": {}})
+    assert c.get(f"/api/projects/{pid}/draft").json()["savedAt"].startswith("2027")
+    c.delete(f"/api/projects/{pid}/draft")
+    assert c.get(f"/api/projects/{pid}/draft").status_code == 204
+
+
+def test_serve_with_path_registers_project(tmp_path, monkeypatch, capsys):
+    import uvicorn
+
+    from lichtjahr import cli
+
+    root = tmp_path / "Kalender"
+    base = ["--data-dir", str(tmp_path / "d"), "--cache-dir", str(tmp_path / "c")]
+    with pytest.raises(SystemExit):
+        cli.main([*base, "init", str(root), "--year", "2027"])
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    with pytest.raises(SystemExit) as ex:
+        cli.main([*base, "serve", str(root)])
+    assert ex.value.code == 0
+    ids = [e["id"] for e in json.loads((tmp_path / "d" / "projects.json").read_text())]
+    assert len(ids) == 1 and f"?projekt={ids[0]}" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as ex:
+        cli.main([*base, "serve", str(tmp_path / "leer")])
+    assert ex.value.code == 1

@@ -25,6 +25,9 @@ from .schema import Manifest
 from .storage import LocalStorage, NotFound, StorageError
 
 
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
 class CreateProject(BaseModel):
     path: str
     title: str = "Familienkalender"
@@ -45,6 +48,13 @@ class MoveRequest(BaseModel):
     month: int | None
 
 
+class SaveRequest(BaseModel):
+    editor: dict[str, Any]
+    calendarYear: int | None = None
+    format: dict[str, Any] | None = None
+    assets: dict[str, dict[str, Any]] | None = None   # Asset-ID → caption, favorite, rating, excluded
+
+
 def create_app(settings: Settings | None = None, static_dir: str | None = None) -> FastAPI:
     settings = settings or Settings.default()
     registry = Registry(settings)
@@ -54,6 +64,12 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Zugriffsschutz -------------------------------------------------------------------
     @app.middleware("http")
     async def require_token(request: Request, call_next):
+        # Ohne Schlüssel läuft der Dienst nur lokal. Fremde Hostnamen abweisen, damit keine Webseite
+        # per DNS-Rebinding als „localhost“ auf die Fotos zugreifen kann.
+        if not settings.token:
+            host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]").lower()
+            if host not in LOCAL_HOSTS:
+                return JSONResponse({"detail": "Unbekannter Hostname. Bitte über http://localhost aufrufen."}, status_code=403)
         if settings.token and request.url.path.startswith("/api/") and request.url.path != "/api/health":
             given = request.headers.get("authorization", "").removeprefix("Bearer ").strip() or request.query_params.get("token", "")
             if not secrets.compare_digest(given, settings.token):
@@ -199,6 +215,19 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         saved = p.save(man, session=session, expected_revision=man.revision, etag=etag)
         return {"revision": saved.revision, "updated": saved.updated}
 
+    @app.post("/api/projects/{project_id}/save")
+    def save_state(project_id: str, req: SaveRequest, session: str | None = Depends(session_header)):
+        """Automatisches Speichern des Editors: Gestaltungsstand plus Bildtexte, Favoriten und
+        aussortierte Fotos in einer Revision. Schutz vor zwei Schreibern bietet die Sperre."""
+        saved = get_project(project_id).save_state(session, req.editor, calendar_year=req.calendarYear,
+                                                   format=req.format, assets=req.assets)
+        return {"revision": saved.revision, "updated": saved.updated}
+
+    @app.post("/api/projects/{project_id}/export")
+    async def save_export(project_id: str, file: UploadFile = File(...), session: str | None = Depends(session_header)):
+        path = get_project(project_id).save_export(session, file.filename or "Kalender.pdf", await file.read())
+        return {"path": path}
+
     # -- Fotos ----------------------------------------------------------------------------
     @app.post("/api/projects/{project_id}/scan")
     def scan(project_id: str, session: str | None = Depends(session_header)):
@@ -247,8 +276,8 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         m = int(month) if month not in (None, "", "none") else None
         if m is not None and not 0 <= m <= 11:
             raise HTTPException(400, "Monat muss zwischen 0 (Januar) und 11 (Dezember) liegen.")
-        a = p.add_file(session, file.filename or "foto.jpg", await file.read(), m)
-        return a.model_dump()
+        a, duplicate = p.add_file(session, file.filename or "foto.jpg", await file.read(), m)
+        return {**a.model_dump(), "duplicate": duplicate}
 
     @app.post("/api/projects/{project_id}/assets/{asset_id}/move")
     def move(project_id: str, asset_id: str, req: MoveRequest, session: str | None = Depends(session_header)):
@@ -271,11 +300,18 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         os.replace(path + ".tmp", path)
         return {"ok": True}
 
+    @app.delete("/api/projects/{project_id}/draft")
+    def delete_draft(project_id: str):
+        path = os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
+        if os.path.exists(path):
+            os.unlink(path)
+        return {"ok": True}
+
     @app.get("/api/projects/{project_id}/draft")
     def get_draft(project_id: str):
         path = os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
         if not os.path.exists(path):
-            raise HTTPException(404, "Kein Entwurf vorhanden.")
+            return Response(status_code=204)          # kein Entwurf – der Normalfall
         return FileResponse(path, media_type="application/json")
 
     # -- Oberfläche -----------------------------------------------------------------------

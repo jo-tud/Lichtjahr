@@ -56,6 +56,7 @@ class Asset(BaseModel):
     favorite: bool = False
     copyOf: str | None = None
     status: Literal["ok", "missing", "changed"] = "ok"
+    excluded: bool = False                      # in der App aussortiert; die Datei bleibt, wo sie ist
     added: str = Field(default_factory=now_iso)
 
 
