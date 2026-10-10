@@ -220,6 +220,6 @@ Among other things, the tests cover:
 
 ## Outlook
 
-- Recognizing who is in the photos ("who appears how often"), still entirely local.
+- Exposure fusion (Mertens) for strongly backlit photos and color noise reduction tied to lifted shadows.
 
 HEIC and TIFF: with the `heic` extra the service reads iPhone photos directly (thumbnails, faces, print from the original including Display P3). Browsers can't decode HEIC or TIFF, so `/original` serves such files as a full-size JPEG with the photo's color profile (cached).
