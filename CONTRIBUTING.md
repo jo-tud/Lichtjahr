@@ -72,6 +72,11 @@ pytest
 - New features come with tests. The lock tests start several processes – please don't weaken them.
 - Print PDF (`lichtjahr/printing.py`, tests in `tests/test_printing.py`): only check in ICC profiles that may
   be freely redistributed (see `lichtjahr/icc/README.md`); ECI and Adobe profiles do not belong in the repository.
+- The parity test in `tests/test_adjust.py` runs the app's photo enhancement JavaScript in **Node.js** and compares
+  it with numpy; without `node` on the PATH it is skipped.
+- The face tests need OpenCV (installed with the package). The recognition tests download the SFace model (10 MB)
+  on the first run and keep it in `.pytest_cache`; offline, point `LICHTJAHR_SFACE` to the file
+  `face_recognition_sface_2021dec_int8.onnx`. Without the model, or if the path is wrong, they are skipped.
 
 ## Checks before a pull request
 
@@ -83,6 +88,8 @@ pytest
   (e.g. a browser and a PDF viewer).
 - For changes to the service or its connection (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
   starts the service with test photos and runs through the most important workflows in the browser.
+- For changes to photo enhancement (`prototyp/src/b4_adjust.js` or `apply_adjust` in the service): run the parity test in
+  `backend/tests/test_adjust.py` (see above) so preview and print stay identical.
 - If the look has changed: `node tools/screenshots.cjs` (browser-only views) and `node tools/screenshots-dienst.cjs`
   (views that need the local service) regenerate the README images in English and German
   (these scripts need Playwright with Chromium and Python with Pillow; `i18n-check.cjs` needs Playwright).

@@ -214,7 +214,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .print { padding: 20px 16px 60px; max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 18px; align-items: start; }
 .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; font-size: 13px; align-items: start; }
-.checks li button { all: unset; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.checks li button:not(.btn) { all: unset; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--ok); }
 .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
 .progress { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
