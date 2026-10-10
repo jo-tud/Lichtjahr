@@ -77,6 +77,11 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
     renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
+  if (act === 'adjstrength') {
+    setAdjust(el.dataset.photo, { strength: parseFloat(el.value) });
+    el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
+    renderEditor(); clearTimeout(onBind._s); onBind._s = setTimeout(() => { commit(); updateThumb(); }, 400);
+  }
   if (act === 'pagegap') {
     curPage().gap = parseFloat(el.value);
     el.parentElement.querySelector('output').textContent = fmt1(curPage().gap) + ' mm';
@@ -242,7 +247,23 @@ const ACTIONS = {
   },
   crop: () => { ui.tune = null; setCrop(ui.crop == null ? ui.sel : null); },
   tune: () => { ui.crop = null; ui.tune = ui.tune == null ? ui.sel : null; renderEditor(); renderFrameBar(); },
-  adjreset: (el) => { setAdjust(el.dataset.v, Object.fromEntries(ADJ_KEYS.map(k => [k, 0]))); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  adjauto: async (el) => {
+    const id = el.dataset.v, on = !(S.doc.adjust && S.doc.adjust[id] && S.doc.adjust[id].auto);
+    if (on && facesReady()) await loadFaces([id]);
+    if (!(await setAuto(id, on))) { toast(_t('Das Foto lässt sich gerade nicht analysieren.')); return; }
+    commit(); renderEditor(); renderFrameBar(); updateThumb();
+  },
+  adjall: async () => {
+    const ids = Object.keys(usage()).filter(id => S.photos[id]);
+    if (!ids.length) return;
+    const bar = busy(_t('Fotos werden verbessert'), _t('Gesichter werden gesucht …'));
+    if (facesReady()) await loadFaces(ids, bar);
+    let n = 0;
+    for (const id of ids) { bar.update(n / ids.length, _t('{n} von {total}', { n: n + 1, total: ids.length })); if (await setAuto(id, true)) n++; await sleep0(); }
+    bar.close(); commit(); renderDesign();
+    toast(n === 1 ? _t('1 Foto automatisch verbessert. Jedes lässt sich einzeln nachregeln.') : _t('{n} Fotos automatisch verbessert. Jedes lässt sich einzeln nachregeln.', { n }), 6000, { label: _t('Rückgängig'), fn: undo });
+  },
+  adjreset: (el) => { setAdjust(el.dataset.v, { ...Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), auto: false }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },

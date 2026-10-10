@@ -135,7 +135,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
-- **Bild verbessern:** Helligkeit, Kontrast, Wärme und Farbe je Foto, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
+- **Bild verbessern:** *Auto* korrigiert Belichtung, Tonwertumfang, Weißabgleich, Kontrast und Farbe mit einem Klick, mit einstellbarer Stärke; *Alle Fotos automatisch* macht das für den ganzen Kalender. Gesichter zählen mit, ein Hautton wird aber nie angesteuert: Ein sichtbar belichtetes Gesicht heißt nur „das Motiv stimmt, wenig aufhellen“. Sonnenuntergänge behalten ihre Wärme. Dazu Helligkeit, Kontrast, Wärme und Farbe je Foto, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
 - **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
 

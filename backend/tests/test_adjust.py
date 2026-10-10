@@ -15,6 +15,7 @@ from lichtjahr.printing import PrinterRegistry, apply_adjust, compose_lut, make_
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RECIPES = [{"exposure": .4, "contrast": .3, "warmth": .5, "saturation": .4},
+           {"exposure": .2, "lvlB": .05, "lvlW": .9, "wbR": 1.06, "wbB": .92},
            {"exposure": -.6, "contrast": -.5, "warmth": -.7, "tint": .4, "saturation": -.8, "shadows": .6, "highlights": -.5}]
 PIXELS = [[0, 0, 0], [255, 255, 255], [128, 128, 128], [200, 120, 60], [30, 80, 200], [250, 10, 10], [12, 240, 90]]
 
@@ -124,3 +125,23 @@ def test_proof_applies_recipe_and_tune(tmp_path):
     brighter = L(c.get(q + "&adj=" + ident + ";" + ",".join(str(min(1, (i / 64) ** .6)) for i in range(65))))
     assert tuned > plain + 1 and brighter > plain + 5
     assert c.get(f"/api/printers/fogra47/tune").json()["strength"] > c.get("/api/printers/fogra39/tune").json()["strength"]
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="Node.js fehlt")
+def test_auto_rules():
+    """Automatik: dunkel/blaustichig wird heller und neutraler, Sonnenuntergang bleibt warm, ein gut belichtetes Foto
+    mit dunklem Hintergrund und dunklem Gesicht wird kaum aufgehellt (kein Hautton als Ziel)."""
+    js = open(os.path.join(ROOT, "prototyp", "src", "b4_adjust.js"), encoding="utf-8").read()
+    script = js + """
+const S = { doc: {} };
+function img(w, h, fn) { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = fn(x / w, y / h), i = (y * w + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255; } return { w, h, data: d }; }
+const dark = img(100, 80, (x, y) => [40 + 50 * x, 50 + 50 * x, 90 + 60 * x]);
+const sunset = img(100, 80, (x, y) => y < .75 ? [250 - 40 * y, 140 - 60 * y, 60] : [40, 22, 30]);
+// dunkler Hintergrund, dunkles Gesicht in der Mitte, helle Lichter (weißer Anzug unten)
+const portrait = img(100, 100, (x, y) => (x > .35 && x < .65 && y > .2 && y < .5) ? [95, 65, 50] : y > .75 ? [245, 245, 240] : [30, 40, 60]);
+const face = [{ x: .35, y: .2, w: .3, h: .3, score: .95 }];
+process.stdout.write(JSON.stringify({ dark: autoRecipe(photoStats(dark)), sunset: autoRecipe(photoStats(sunset)), portrait: autoRecipe(photoStats(portrait, face)) }));"""
+    r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+    assert r["dark"]["exposure"] > .2 and r["dark"]["wbB"] < 1
+    assert "wbR" not in r["sunset"] and "wbB" not in r["sunset"]
+    assert r["portrait"].get("exposure", 0) <= .2
