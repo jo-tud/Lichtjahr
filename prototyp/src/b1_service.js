@@ -242,7 +242,7 @@ async function serviceSave() {
     const touched = await syncPhotoFiles();
     const meta = photoMeta();
     await api(PP('/save'), { method: 'POST', body: { editor: editorState(), calendarYear: S.doc.year,
-      format: { id: S.doc.format, widthMm: S.doc.w, heightMm: S.doc.h, bleedMm: S.doc.bleed }, assets: meta } });
+      format: { id: S.doc.format, widthMm: S.doc.w, heightMm: S.doc.h, bleedMm: S.doc.bleed }, assets: meta, printerProfileId: S.doc.printer || '' } });
     for (const [id, m] of Object.entries(meta)) Object.assign(SVC.assets[id], m);
     if (SVC.offline) SVC.offline = false;
     setSaveState(SVC.pending ? 'Ungespeichert …' : 'Im Projektordner gespeichert');

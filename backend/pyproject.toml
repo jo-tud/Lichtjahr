@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lichtjahr"
 version = "0.1.0"
-description = "Lokaler Dienst für Lichtjahr: Projektordner, Fotos nach Monaten, Vorschaubilder, Sperre"
+description = "Lokaler Dienst für Lichtjahr: Projektordner, Fotos nach Monaten, Sperre, Druck-PDF mit Farbmanagement"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ dependencies = [
   "pydantic>=2.6",
   "pillow>=10.2",
   "python-multipart>=0.0.9",
+  "pikepdf>=8.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,9 @@ lichtjahr = "lichtjahr.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["lichtjahr*"]
+
+[tool.setuptools.package-data]
+lichtjahr = ["icc/*.icc", "icc/*.md", "icc/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

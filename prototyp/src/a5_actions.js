@@ -84,9 +84,11 @@ document.addEventListener('change', (e) => {
   if (el.dataset.bind) { onBind(el, true); return; }
   const act = el.dataset.actChange;
   if (act === 'pool') { ui.pool = el.value; renderPanel(); }
+  if (CHANGE_ACTIONS[act]) CHANGE_ACTIONS[act](el);
   if (act === 'moveto' && el.value !== '') moveToMonth([...ui.photoSel], +el.value).then(ok => { if (ok) ui.photoSel.clear(); renderPhotos(); });
 });
 
+const CHANGE_ACTIONS = {};   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
   format: async (el) => {

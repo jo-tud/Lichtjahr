@@ -29,10 +29,11 @@ und ein CMYK-PDF für die Druckerei erzeugen. Im Browser, am Desktop wie auf dem
 
 ## Warum Lichtjahr?
 
-Viele Familien gestalten einmal im Jahr einen Wandkalender mit eigenen Fotos. Mit DTP-Programmen wie
-Scribus oder Inkscape ist das mühsam: Kalendarien von Hand setzen, Feiertage nachschlagen, Bilder
-zuschneiden, Beschnitt und Bindung beachten, Farben für die Druckerei umrechnen. Die Online-Editoren
-der Fotodienste sind bequemer, binden aber an einen Anbieter und geben die Arbeit selten wieder heraus.
+Viele Familien gestalten einmal im Jahr einen Wandkalender mit eigenen Fotos. Wer das schon gemacht hat,
+kennt die Arbeit dahinter: Fotos von mehreren Leuten zusammentragen und den Monaten zuordnen, Kalendarien
+setzen, Feiertage und Geburtstage nachschlagen, Bildausschnitte wählen, an Beschnitt und Bindung denken und
+am Ende eine Datei liefern, die die Druckerei annimmt. Und weil das nur einmal im Jahr ansteht, fängt man
+jedes Mal fast von vorn an.
 
 Lichtjahr ist für genau diesen einen Ablauf gebaut:
 
@@ -127,6 +128,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
 - **Kalendarium:** Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
 - **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten.
+- **Druck-PDF:** PDF/X-1a mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
@@ -182,20 +184,43 @@ Der Ordner ist das Projekt: Er lässt sich kopieren, sichern und mit Nextcloud, 
 Netzlaufwerk teilen. Fotos werden über ihren SHA-256-Hash wiedererkannt, auch wenn sie umbenannt oder
 verschoben wurden.
 
-## Stand des PDF-Exports
+## Druck-PDF und Farbmanagement
 
-Ehrlich gesagt: Das PDF ist ein **guter Entwurf, aber noch nicht als druckfertig geprüft.**
+Mit dem lokalen Dienst erzeugt Lichtjahr ein **Druck-PDF nach PDF/X-1a:2001**:
 
-| Bereits umgesetzt | Noch offen |
+1. Die Oberfläche setzt die Seiten; Text, Kalendarium und Flächen sind CMYK-Vektoren, die Fotos gehen als sRGB an den Dienst.
+2. Der Dienst rechnet die Fotos mit **LittleCMS** über das ICC-Profil der Druckerei nach CMYK um (wahrnehmungsorientiert oder relativ farbmetrisch mit Tiefenkompensierung).
+3. Er schreibt PDF/X-1a mit Ausgabebedingung (OutputIntent samt eingebettetem Profil), Beschnitt- und Endformatrahmen.
+4. Ein **Preflight** prüft die fertige Datei und zeigt den Bericht in der App; das PDF landet in `Export/`.
+
+<img src="docs/images/druckpdf.webp" alt="Druck-PDF-Karte mit Druckprofil und bestandenem Prüfbericht" width="420" align="right">
+
+| Der Preflight prüft | |
 |---|---|
-| Beschnitt, TrimBox und BleedBox | ICC-Farbmanagement (z. B. FOGRA39/51) |
-| Bilder als CMYK-JPEG (DeviceCMYK) | PDF/X-Ausgabe |
-| Schrift eingebettet (Jost) | Druckereiprofile mit deren Vorgaben |
-| Keine Transparenz – Flächen werden eingerechnet | Preflight gegen diese Profile |
-| Auflösungsprüfung je Rahmen | |
+| PDF/X-Kennung, PDF 1.3, Ausgabebedingung, Dokument-ID, Titel, Überfüllung | Pflichtangaben von PDF/X-1a |
+| Nur CMYK, keine RGB-Bilder oder -Farben | Fotos mit dem Profil umgerechnet |
+| Gesamtfarbauftrag | gegen die Grenze des Druckprofils, z. B. 300 % |
+| Beschnitt an allen Seiten | gegen die Vorgabe des Druckprofils |
+| Schriften eingebettet, keine Transparenz | |
+| Auflösung jedes Fotos | Hinweis, wenn es sichtbar unscharf wird |
 
-Die CMYK-Umrechnung ist eine einfache Formel ohne ICC-Profil. Für den Druck lohnt ein Proof oder die
-Farbumrechnung durch die Druckerei. Echtes Farbmanagement kommt mit dem Export im lokalen Dienst.
+**Druckprofile:** Mitgeliefert sind *Gestrichenes Papier · FOGRA39* (ISO Coated v2 300 %) und *Ungestrichenes Papier · FOGRA47*,
+beide von basICColor unter zlib-Lizenz. Das Profil deiner Druckerei, etwa **PSO Coated v3 (FOGRA51)** von der
+[European Color Initiative](https://eci.org/doku.php_id=en_downloads.html), fügst du als `.icc`-Datei hinzu; Lichtjahr
+erkennt die Druckbedingung und übernimmt Farbauftrag, Beschnitt und Umrechnung aus deinen Angaben. Frei mitliefern
+dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
+
+**Ehrliche Grenzen:**
+- Geprüft wird mit dem eigenen Preflight, nicht mit einem zertifizierten Prüfwerkzeug wie Acrobat Preflight.
+- Format, Seitenzahl, Bindung und Papier legt die Druckerei fest; das gleicht Lichtjahr nicht ab.
+- Fotos gelten als sRGB. Was der Browser an größerem Farbraum (Display P3 vom iPhone) mitbringt, wird auf sRGB begrenzt.
+- PDF/X-4 und eine Softproof-Ansicht am Bildschirm fehlen noch.
+
+<br clear="right">
+
+**Ohne Dienst** (Online-Version, Datei im Browser) gibt es den **PDF-Entwurf**: CMYK mit einer einfachen
+Umrechnung ohne ICC-Profil, mit Beschnitt, eingebetteter Schrift und ohne Transparenz. Er eignet sich zum
+Ansehen und Probedrucken, für die Druckerei ist das Druck-PDF gedacht.
 
 ## Aufbau
 
@@ -260,7 +285,8 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] UX-Prüfung durch unabhängige Agenten ([Ergebnis](docs/UX-PRUEFUNG.md))
 - [x] Oberfläche an den lokalen Dienst angebunden (Projektwahl, Abgleich, Monatsordner als Quelle, Export in den Ordner)
 - [ ] Nextcloud/WebDAV als zweiter Speicher-Adapter
-- [ ] Export im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X, Druckereiprofile, Preflight
+- [x] Druck-PDF im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X-1a, Druckprofile, Preflight
+- [ ] Softproof am Bildschirm, PDF/X-4
 - [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
@@ -275,6 +301,8 @@ gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Code:** [MIT-Lizenz](LICENSE)
 - **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
 - **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
+- **ICC-Druckprofile:** `ISOcoated_v2_300_bas.icc` und `PSO_Uncoated_ISO12647_bas.icc` von basICColor GmbH, zlib/libpng-Lizenz ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
+- **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf (jeweils eigene freie Lizenzen)
 - **Beispielbilder:** werden beim Start im Browser gezeichnet; es sind keine echten Fotos enthalten.
 
 ---
@@ -288,4 +316,4 @@ on a virtual wall and export a CMYK PDF with bleed for the print shop.
 - **Try it:** [jo-tud.github.io/Lichtjahr](https://jo-tud.github.io/Lichtjahr/) – runs entirely in the browser, your photos never leave it. Or open `prototyp/dist/index.html` locally.
 - **Local service (recommended):** `backend/` is a small FastAPI service that serves the app and works directly in a project folder with one subfolder per month: drop photos into the folders, the app picks them up; edits are saved to `lichtjahr.json`, PDFs go to `Export/` (`pip install -e backend && lichtjahr serve`).
 - **Status:** working prototype, German UI. The PDF is a solid draft (CMYK images, bleed, embedded font, no transparency) but not yet colour-managed (no ICC profile, no PDF/X).
-- **Licence:** MIT for the code; Jost font under OFL 1.1; school holiday data from OpenHolidays API under ODbL 1.0.
+- **Licence:** MIT for the code; Jost font under OFL 1.1; school holiday data from OpenHolidays API under ODbL 1.0; bundled basICColor ICC profiles under zlib.
