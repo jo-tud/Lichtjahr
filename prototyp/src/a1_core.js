@@ -235,7 +235,8 @@ function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
   if (isIndex(key)) p.layout = 'index';
   if (isBack(key) && isIndex(key.slice(0, -2))) p.layout = 'blank';   // Rückseite des Registers bleibt zunächst leer
-  if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'white', size: 1, panel: 'none', ax: .08, ay: .9 };
+  // Titel mit heller Fläche: lesbar auf Foto und auf leerem Papier
+  if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'navy', size: 1, panel: 'light', opacity: .85, ax: .08, ay: .9 };
   return p;
 }
 function ensurePages() {
@@ -273,15 +274,37 @@ function commit() {
   hist.future = []; hist.last = now;
   scheduleSave(); updateUndo();
 }
+// Unter dieser Auflösung warnt die App (Wandkalender werden aus etwas Abstand betrachtet)
+const DPI_WARN = 150, DPI_BAD = 100;
 function restore(json) {
   const o = JSON.parse(json);
   S.doc = o.doc; S.pages = o.pages; S.demo = o.demo;
   for (const id in o.photos) if (RT.thumb[id] || o.photos[id].demo != null) S.photos[id] = o.photos[id];
   for (const id in S.photos) if (!o.photos[id]) delete S.photos[id];
-  ensurePages(); ui.sel = null; renderAll(); scheduleSave(); updateUndo();
+  ensurePages(); ui.sel = null; ui.crop = null; ui.selBlock = null;
 }
-function undo() { if (!hist.past.length) return; hist.future.push(hist.last); hist.last = hist.past.pop(); restore(hist.last); }
-function redo() { if (!hist.future.length) return; hist.past.push(hist.last); hist.last = hist.future.pop(); restore(hist.last); }
+// Rückgängig sichtbar machen: zur betroffenen Seite springen und sagen, was passiert ist
+function changedWhere(aJson, bJson) {
+  const a = JSON.parse(aJson), b = JSON.parse(bJson);
+  for (const k of pageKeys()) if (JSON.stringify(a.pages[k]) !== JSON.stringify(b.pages[k])) return { page: k };
+  if (JSON.stringify(a.photos) !== JSON.stringify(b.photos)) return { photos: true };
+  return { doc: true };
+}
+function travel(dir) {
+  const from = dir < 0 ? hist.past : hist.future, to = dir < 0 ? hist.future : hist.past;
+  if (!from.length) return;
+  const before = hist.last; to.push(before); hist.last = from.pop();
+  restore(hist.last);
+  const w = changedWhere(before, hist.last), word = dir < 0 ? 'Rückgängig gemacht' : 'Wiederholt';
+  if (w.page && pageKeys().includes(w.page)) {
+    if (ui.view !== 'design' && ui.view !== 'photos') ui.view = 'design';
+    if (ui.view === 'design') ui.page = w.page;
+    toast(`${word}: ${pageLabel(w.page)}`);
+  } else toast(`${word}${w.photos ? ': Fotos' : ': Einstellungen'}`);
+  renderAll(); scheduleSave(); updateUndo();
+}
+function undo() { travel(-1); }
+function redo() { travel(1); }
 function updateUndo() {
   const u = $('#undo'), r = $('#redo');
   if (u) u.disabled = !hist.past.length;
@@ -321,6 +344,9 @@ function scheduleSave() {
   const s = $('#saveState'); if (s) s.textContent = 'Ungespeichert …';
   saveTimer = setTimeout(async () => {
     const ok = await DB.put('kv', 'state', snap());
+    // Die letzten Schritte überdauern das Neuladen, damit Rückgängig auch danach noch geht
+    await DB.put('kv', 'hist', JSON.stringify(hist.past.slice(-15)));
+    try { localStorage.setItem('kw-page', ui.page); } catch (e) { /* egal */ }
     if (s) s.textContent = DB.db ? 'Im Browser gespeichert' : 'Speichern nicht möglich';
     return ok;
   }, 700);

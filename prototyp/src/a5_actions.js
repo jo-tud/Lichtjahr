@@ -59,6 +59,7 @@ document.addEventListener('input', (e) => {
     const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     zoomAt(r, ph, sl, parseFloat(el.value), c);
     el.parentElement.querySelector('output').textContent = Math.round(sl.zoom * 100) + ' %';
+    const pill = $('#dpiPill'); if (pill) pill.outerHTML = dpiPill(ph, r, sl);
     renderEditor(); clearTimeout(onBind._z); onBind._z = setTimeout(() => { commit(); updateThumb(); renderFrameBarMeta(); }, 400);
   }
   if (act === 'rot') {
@@ -111,13 +112,16 @@ const ACTIONS = {
   tg: (el) => { ui[el.dataset.v] = !ui[el.dataset.v]; renderStage(); },
   tab: (el) => { ui.tab = el.dataset.v; renderPanel(); },
   layout: (el) => {
+    // neue leere Rahmen gleich mit freien Fotos des Monats füllen (siehe autoFill unten)
     // Neue Vorlage: eigene Lagen der Vorlagenrahmen entfallen, Fotos und Ausschnitte bleiben in ihrer Reihenfolge
     const p = curPage(), before = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
     p.layout = el.dataset.v; delete p.ov;
     while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
     for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
     const after = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
+    const filled = autoFill(p.key);
     ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
+    if (filled) toast(`${filled} ${filled > 1 ? 'freie Fotos' : 'freies Foto'} des Monats eingesetzt.`);
     if (after < before) toast(`${before - after} ${before - after > 1 ? 'Fotos haben' : 'Foto hat'} im neuen Layout keinen Rahmen. Ein Wechsel zurück holt ${before - after > 1 ? 'sie' : 'es'} wieder.`, 5000);
   },
   resetframes: () => {
@@ -149,7 +153,7 @@ const ACTIONS = {
   rot90: () => { const sl = slotOf(curPage(), ui.sel); sl.rot = (((sl.rot || 0) + 90 + 180) % 360) - 180; commit(); refresh(); },
   fitmode: (el) => { const sl = slotOf(curPage(), ui.sel); sl.fit = el.dataset.v; sl.zoom = 1; sl.cx = .5; sl.cy = .5; commit(); refresh(); },
   pagegapon: () => { const p = curPage(); if (p.gap == null) p.gap = S.doc.gap; else delete p.gap; commit(); refresh(); renderPanelKeepScroll(); },
-  autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${n} Fotos eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
+  autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${plural(n, 'Foto', 'Fotos')} eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
   clearpage: () => { for (const s of visibleSlots(curPage())) Object.assign(s, newSlot()); ui.sel = null; ui.crop = null; commit(); renderDesign(); },
   calstyle: (el) => { (curPage().cal ||= {}).style = el.dataset.v; commit(); refresh(); renderPanel(); },
   calcolor: (el) => { curPage().cal.color = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -177,31 +181,40 @@ const ACTIONS = {
   addfiles: () => $('#fileIn').click(),
   adddir: () => $('#dirIn').click(),
   cleardemo: async () => {
-    for (const id of Object.keys(S.photos)) if (S.photos[id].demo) { delete S.photos[id]; DB.del('blobs', id); }
-    for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
-    S.demo = false; ui.photoSel.clear(); commit(); renderAll(); toast('Beispielbilder entfernt.');
+    // Bilddaten bleiben bis zum nächsten Laden erhalten, damit Rückgängig funktioniert.
+    // Die Seiten des Beispiels werden zurückgesetzt, sonst blieben dessen Layouts mit leeren Rahmen stehen.
+    for (const id of Object.keys(S.photos)) if (S.photos[id].demo) delete S.photos[id];
+    S.pages = {}; S.doc.extraSheets = []; ensurePages();
+    S.demo = false; ui.photoSel.clear(); ui.banner = false; commit(); renderAll();
+    toast(Object.keys(S.photos).length ? 'Beispiel entfernt. Mit „Kalender automatisch gestalten“ kommen deine Fotos auf die Seiten.' : 'Beispiel entfernt. Jetzt eigene Fotos hinzufügen.', 6000);
   },
   fav: () => { const ids = [...ui.photoSel], on = !ids.every(id => S.photos[id].fav); ids.forEach(id => S.photos[id].fav = on); commit(); renderPhotos(); },
-  delphotos: () => {
-    if (!ui.confirmDel) { ui.confirmDel = true; renderPhotos(); setTimeout(() => { ui.confirmDel = false; if (ui.view === 'photos') renderPhotos(); }, 4000); return; }
-    ui.confirmDel = false;
-    for (const id of ui.photoSel) delete S.photos[id];
-    for (const id of ui.photoSel) if (!Object.values(S.photos).some(p => blobId(p) === id)) DB.del('blobs', id);
+  delphotos: async () => {
+    const ids = [...ui.photoSel], u = usage(), used = ids.filter(id => u[id]);
+    const ok = await ask({ title: `${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} aus dem Projekt entfernen?`,
+      text: (used.length ? `${used.length} davon ${used.length > 1 ? 'stehen' : 'steht'} auf Kalenderseiten (${[...new Set(used.flatMap(id => u[id]))].map(pageLabel).join(', ')}) und ${used.length > 1 ? 'werden' : 'wird'} dort herausgenommen. ` : '') + 'Die Dateien auf deinem Rechner bleiben unberührt. Rückgängig ist möglich.',
+      buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+    if (!ok) return;
+    for (const id of ids) delete S.photos[id];
     for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
     ui.photoSel.clear(); commit(); renderPhotos();
   },
   clearsel: () => { ui.photoSel.clear(); renderPhotos(); },
   newdemo: async () => { await resetProject(true); },
-  reset: async (el) => {
-    if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = 'Wirklich alles löschen?'; setTimeout(() => { el.dataset.sure = ''; el.textContent = 'Leeres Projekt beginnen'; }, 4000); return; }
-    await resetProject(false);
+  reset: async () => {
+    const ok = await ask({ title: 'Leeres Projekt beginnen?', text: 'Alle Seiten, Fotos und Einstellungen dieses Projekts werden aus dem Browser gelöscht. Das lässt sich nicht rückgängig machen. Deine Fotodateien auf dem Rechner bleiben unberührt.',
+      buttons: [{ label: 'Alles löschen und neu beginnen', value: true }, { label: 'Abbrechen', value: false, primary: true }] });
+    if (ok) await resetProject(false);
   },
   export: async () => {
-    const bad = checks().filter(c => c[0] === 'bad').length;
-    if (bad) {
-      const ok = await ask({ title: `${bad} Fehler gefunden`, text: 'Zum Beispiel leere Rahmen oder zu kleine Fotos. Für die Druckerei sollten sie behoben sein. Ein Entwurf zum Ansehen geht trotzdem.',
-        buttons: [{ label: 'Trotzdem Entwurf erstellen', value: true }, { label: 'Abbrechen', value: false, primary: true }] });
-      if (!ok) return;
+    const bad = checks().filter(c => c[0] === 'bad');
+    if (bad.length) {
+      const pages = [...new Set(bad.map(c => c[2]).filter(Boolean))];
+      const r = await ask({ title: `${bad.length} ${bad.length > 1 ? 'Probleme' : 'Problem'} vor dem Export`,
+        text: `Betroffen: ${pages.map(pageLabel).join(', ')}. Leere Rahmen bleiben im PDF weiß, zu kleine Fotos werden unscharf.`,
+        buttons: [...(pages.length ? [{ label: `Zu ${pageLabel(pages[0])}`, value: 'go', primary: true }] : []), { label: 'Trotzdem als Entwurf exportieren', value: 'export' }, { label: 'Abbrechen', value: null }] });
+      if (r === 'go') { ui.page = pages[0]; setView('design'); return; }
+      if (r !== 'export') return;
     }
     exportPDF();
   },
@@ -242,7 +255,17 @@ const ACTIONS = {
   placeall: () => placeAll(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
-  bannerphotos: () => { ui.banner = false; setView('photos'); },
+  bannerphotos: () => { $('#fileIn').click(); },                 // öffnet direkt die Dateiauswahl
+  autodesign: () => autoDesign(),
+  clearerr: () => { ui.importErrors = []; renderPhotos(); },
+  bdquick: (el) => {
+    const n = $('#bdqn').value.trim(), d = +$('#bdqd').value;
+    if (!n || !(d >= 1 && d <= 31)) { toast('Bitte Name und Tag eintragen.'); return; }
+    (S.doc.birthdays ||= []).push({ id: uid(), name: n, d, m: +el.dataset.v, y: '' });
+    commit(); refresh(); renderPanelKeepScroll(); toast(`Geburtstag von ${n} eingetragen.`);
+  },
+  fixpage: (el) => { const n = autoFill(el.dataset.v); commit(); renderAll(); toast(n ? `${n} Fotos auf ${pageLabel(el.dataset.v)} eingesetzt.` : `Für ${pageLabel(el.dataset.v)} gibt es keine freien Fotos mehr.`); },
+  vcf: () => $('#vcfIn').click(),
 };
 function renderPanelKeepScroll() { const b = $('#tabBody'), s = b ? b.scrollTop : 0; renderPanel(); if (b) $('#tabBody').scrollTop = s; }
 document.addEventListener('click', (e) => {
@@ -273,10 +296,14 @@ function autoFill(key, used = null) {
   if (m == null) cand.sort((a, b) => b.fav - a.fav);
   const rects = slotRects(p).filter(r => { const s = slotOf(p, r.i); return !s.photo || !S.photos[s.photo]; }).sort((a, b) => b.w * b.h - a.w * a.h);
   let n = 0;
+  // Bewertung: Favorit, passendes Seitenverhältnis und vor allem genug Auflösung für den Rahmen
+  const score = (ph, r) => {
+    const d = dpiOf(ph, placeImage(r, ph, newSlot())), want = r.w / r.h;
+    return (ph.fav ? .6 : 0) - Math.abs(Math.log(ph.w / ph.h / want)) - (d < DPI_BAD ? 3 : d < DPI_WARN ? 1 : 0);
+  };
   for (const r of rects) {
     if (!cand.length) break;
-    const want = r.w / r.h;
-    cand.sort((a, b) => (b.fav - a.fav) * .6 + (Math.abs(Math.log(a.w / a.h / want)) - Math.abs(Math.log(b.w / b.h / want))));
+    cand.sort((a, b) => score(b, r) - score(a, r));
     const ph = cand.shift(); used.add(ph.id);
     Object.assign(slotOf(p, r.i), { photo: ph.id, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }); n++;
   }
@@ -369,4 +396,39 @@ function birthdayInput(el) {
   const b = (S.doc.birthdays || []).find(x => x.id === el.dataset.bd); if (!b) return;
   b[el.dataset.f] = el.value;
   clearTimeout(birthdayInput._t); birthdayInput._t = setTimeout(() => { commit(); refresh(); }, 500);
+}
+
+/* ---------- Kalender automatisch gestalten ----------
+   Für jede Monatsseite ohne Fotos ein Layout passend zu den freien Fotos des Monats wählen, Rahmen füllen,
+   leere Rahmen anderer Seiten füllen und die Kalendarien an ruhige Stellen setzen. Seiten mit Fotos bleiben. */
+function layoutFor(photos, m) {
+  const n = photos.length, land = photos.filter(p => p.w >= p.h).length;
+  if (n >= 4) return ['bigL', 'top3', 'bigR', 'top2'][m % 4];
+  if (n === 3) return ['bigL', 'top2', 'bigR'][m % 3];
+  if (n === 2) return land === 2 ? 'rows2' : land === 0 ? 'cols2' : 'asym2';
+  return 'full';
+}
+async function autoDesign() {
+  const keys = pageKeys().filter(k => S.pages[k] && S.pages[k].layout !== 'index' && S.pages[k].layout !== 'blank');
+  if (!Object.keys(S.photos).length) { toast('Zuerst Fotos hinzufügen, dann gestaltet die App den Kalender.'); setView('photos'); return; }
+  const used = new Set(Object.keys(usage()));
+  let pages = 0, photos = 0;
+  for (const k of keys) {
+    const p = S.pages[k], m = pageMonth(k), has = visibleSlots(p).some(s => s.photo && S.photos[s.photo]);
+    if (!has && m != null) {
+      const free = Object.values(S.photos).filter(ph => ph.month === m && !used.has(ph.id) && ph.w * ph.h > 1.5e6);
+      if (!free.length) continue;
+      p.layout = layoutFor(free.slice(0, 4), m); delete p.ov; p.extra = [];
+      p.slots = []; fillSlots(p); pages++;
+    }
+    photos += autoFill(k, used);
+  }
+  if (!photos && !pages) { toast('Alle Rahmen sind schon gefüllt oder es gibt keine freien Fotos mehr.'); return; }
+  const bar = busy('Kalender wird gestaltet', 'Kalendarien suchen ruhige Stellen …');
+  const calKeys = keys.filter(k => pageMonth(k) != null && calSettings(S.pages[k]).style !== 'off');
+  let i = 0;
+  for (const k of calKeys) { const s = await suggestPlacement(k, { tryStyles: false }); if (s) applyPlacement(S.pages[k], s); bar.update(++i / calKeys.length); }
+  bar.close();
+  commit(); setView('design');
+  toast(`${photos} ${photos === 1 ? 'Foto' : 'Fotos'} auf ${pages ? pages + ' neu gestaltete und weitere ' : ''}Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.`, 6000, { label: 'Rückgängig', fn: undo });
 }

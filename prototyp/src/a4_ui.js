@@ -1,8 +1,17 @@
 /* ---------- Oberfläche ---------- */
-function toast(msg, ms = 3200) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+// Meldung, optional mit einer Aktion (z. B. „Rückgängig“)
+function toast(msg, ms = 3200, action = null) {
+  const t = $('#toast'); t.innerHTML = '';
+  const span = document.createElement('span'); span.textContent = msg; t.appendChild(span);
+  if (action) {
+    const b = document.createElement('button'); b.className = 'toast-act'; b.textContent = action.label;
+    b.onclick = () => { t.classList.remove('on'); action.fn(); }; t.appendChild(b); ms = Math.max(ms, 6000);
+  }
+  t.classList.toggle('has-act', !!action); t.classList.add('on');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);
 }
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const coarse = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
 function busy(title, sub) {
   const el = document.createElement('div'); el.className = 'busy';
   el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><div class="progress"><i></i></div><p class="hint" data-sub>${esc(sub || '')}</p></div>`;
@@ -12,14 +21,18 @@ function busy(title, sub) {
     close() { el.remove(); },
   };
 }
-function setView(v) {
+// Die Zurück-Taste des Browsers wechselt zwischen den Schritten, statt die App zu verlassen
+const VIEW_HASH = { project: 'projekt', photos: 'fotos', design: 'gestalten', print: 'pdf' };
+function setView(v, fromHistory = false) {
   ui.view = v; ui.sel = null; ui.crop = null; ui.selBlock = null; ui.swapFrom = null;
   try { localStorage.setItem('kw-view', v); } catch (e) { /* egal */ }
+  try { if (!fromHistory && location.hash !== '#' + VIEW_HASH[v]) history.pushState({ view: v }, '', '#' + VIEW_HASH[v]); } catch (e) { /* egal */ }
   renderAll();
   window.scrollTo(0, 0);
 }
 function renderAll() {
   ensurePages();
+  document.body.dataset.view = ui.view;
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
   $('#banner').hidden = !(S.demo && ui.banner);
@@ -81,7 +94,7 @@ function renderProject() {
           <select aria-label="Monat" data-bd="${b.id}" data-f="m">${MONTHS.map((mn, i) => `<option value="${i + 1}" ${+b.m === i + 1 ? 'selected' : ''}>${mn}</option>`).join('')}</select>
           <input type="number" aria-label="Geburtsjahr (optional)" placeholder="Jahr" min="1900" max="2100" value="${esc(b.y || '')}" data-bd="${b.id}" data-f="y">
           <button class="icon-btn" data-act="delbd" data-v="${b.id}" aria-label="Geburtstag von ${esc(b.name || 'ohne Namen')} entfernen">×</button></div>`).join('') || '<p class="empty-note">Noch keine Geburtstage.</p>'}</div>
-        <button class="btn small" data-act="addbd">Geburtstag hinzufügen</button>
+        <div class="row"><button class="btn small" data-act="addbd">Geburtstag hinzufügen</button><button class="btn small" data-act="vcf">Aus Kontakten importieren (.vcf)</button></div>
         <div class="field"><span class="lbl">Im Kalendarium</span>${seg([['dot', 'Punkt'], ['names', 'Mit Namen'], ['off', 'Nicht zeigen']], d.cal.bd || 'dot', 'bdmode')}</div>
         <label class="check"><input type="checkbox" id="ixbd" data-bind="doc.indexBirthdays" ${d.indexBirthdays !== false ? 'checked' : ''}><span>Im Register aufführen<span class="hint">Mit Alter, wenn ein Geburtsjahr angegeben ist.</span></span></label>
       </section>
@@ -132,6 +145,11 @@ function renderPhotos() {
       <span class="grow"></span>
       <span class="muted small">${all.length} Fotos · ${byM[12].length} ohne Monat</span>
     </div>
+    ${(ui.importErrors || []).length ? `<section class="card notice"><header><h2>${plural(ui.importErrors.length, 'Datei', 'Dateien')} nicht geöffnet</h2>
+      <p>${ui.importErrors.slice(0, 6).map(esc).join(', ')}${ui.importErrors.length > 6 ? ' …' : ''}</p></header>
+      <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? 'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt. ' : ''}Andere Dateien sind vermutlich beschädigt oder keine Fotos.</p>
+      <div class="row"><button class="btn small" data-act="clearerr">Verstanden</button></div></section>` : ''}
+    ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>Fotos auf die Seiten bringen</h2><p class="hint">Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.</p></div><button class="btn primary" data-act="autodesign">Kalender automatisch gestalten</button></section>` : ''}
     <div class="dropzone" id="dropzone"><span>Fotos oder ganze Ordner hierher ziehen. Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
@@ -160,7 +178,7 @@ function renderDesign() {
 }
 function pageWarn(k) {
   const p = S.pages[k];
-  return visibleSlots(p).some(s => !s.photo || !S.photos[s.photo]);
+  return visibleSlots(p).some(s => !s.photo || !S.photos[s.photo]) || pageItems(p, { noBlocks: true }).some(it => it.t === 'img' && dpiOf(S.photos[it.photo], it.place) < DPI_BAD);
 }
 function renderStrip() {
   $('#strip').innerHTML = pageKeys().map(k => `<button class="pg" data-act="page" data-v="${k}" aria-current="${k === ui.page}">
@@ -176,7 +194,9 @@ function renderStage() {
   $('#stageTools').innerHTML = `<h2>${esc(pageLabel(ui.page))} <span class="muted">${i + 1} / ${keys.length}</span></h2>
     <button class="icon-btn" data-act="prevpage" aria-label="Vorige Seite" ${i <= 0 ? 'disabled' : ''}>${ICON.left}</button>
     <button class="icon-btn" data-act="nextpage" aria-label="Nächste Seite" ${i >= keys.length - 1 ? 'disabled' : ''}>${ICON.right}</button>
-    <span class="row" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
+    <span class="row vz" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
+    <button class="btn small primary" data-act="autodesign" title="Leere Seiten mit Layouts und Fotos ihres Monats füllen, Kalendarien an ruhige Stellen setzen">Automatisch gestalten</button>
+    <button class="btn small mobile-only" data-act="wall">An der Wand</button>
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">Beschnitt</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">Bindung</button>
     <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>
@@ -197,13 +217,18 @@ function renderEditor() {
     svg.style.width = vb.width * k + 'px'; svg.style.height = vb.height * k + 'px'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none';
     wrap.scrollLeft = sx; wrap.scrollTop = sy;
   }
+  const m = svg.getScreenCTM(); if (m && m.a) ui.pxmm = m.a;     // Bildschirmpixel pro mm, z. B. für Trefferflächen
   bindEditor(svg);
 }
+const dpiPill = (ph, r, sl) => {
+  const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < DPI_BAD ? 'bad' : d < DPI_WARN ? 'warn' : 'ok';
+  return `<span class="pill ${cls}" id="dpiPill">${d} dpi${d < DPI_BAD ? ' · zu klein' : d < DPI_WARN ? ' · knapp' : ''}</span>`;
+};
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   if (ui.swapFrom != null) { fb.innerHTML = `<span>Tippe auf den Rahmen, mit dem getauscht werden soll.</span><button class="btn small" data-act="swapcancel">Abbrechen</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : 'Foto in einen Rahmen ziehen. Rahmen antippen wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick oder zweites Antippen bearbeitet den Bildausschnitt. Ein Foto mit der Maus auf einen anderen Rahmen ziehen tauscht die beiden.'}</span>`;
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? 'Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.' : ui.armed ? 'Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.' : (coarse() ? 'Rahmen antippen wählt ihn aus. Doppelt tippen bearbeitet den Bildausschnitt. Lange drücken und ziehen verschiebt einen ausgewählten Rahmen oder tauscht Fotos.' : 'Foto in einen Rahmen ziehen. Rahmen anklicken wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick bearbeitet den Bildausschnitt. Ein Foto auf einen anderen Rahmen ziehen tauscht die beiden.')}</span>`;
     return;
   }
   const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
@@ -211,19 +236,18 @@ function renderFrameBar() {
   const crop = ui.crop === ui.sel && ph;
   let h = '';
   if (ph) {
-    const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < 150 ? 'bad' : d < 200 ? 'warn' : 'ok';
-    h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b><span class="pill ${cls}">${d} dpi${d < 150 ? ' · zu klein' : d < 200 ? ' · knapp' : ''}</span></div>
+    h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b>${dpiPill(ph, r, sl)}</div>
       <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? 'Ausschnitt fertig' : 'Ausschnitt bearbeiten'}</button>`;
     if (crop) h += `<div class="range"><span class="small muted">Zoom</span><input type="range" id="zm" aria-label="Zoom" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <div class="range"><span class="small muted">Drehen</span><input type="range" id="rt" aria-label="Foto drehen" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
       <button class="btn small" data-act="rot90" title="Um 90° drehen">↻ 90°</button>
       ${seg([['cover', 'Füllen'], ['contain', 'Ganz zeigen']], sl.fit || 'cover', 'fitmode')}
       <button class="btn small" data-act="fit">Einpassen</button>
-      <span class="hint">Foto ziehen, Mausrad oder zwei Finger zoomen. Esc beendet.</span>`;
+      <span class="hint">${coarse() ? 'Foto ziehen, mit zwei Fingern zoomen.' : 'Foto ziehen, mit dem Mausrad zoomen. Esc beendet.'}</span>`;
     else h += `<input type="text" id="capi" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="Bildtext fürs Register">
       <button class="btn small" data-act="swap">Tauschen</button>
       <button class="btn small danger" data-act="unslot">Foto entfernen</button>`;
-  } else h += `<span class="hint">Leerer Rahmen: Foto aus der Liste rechts hineinziehen oder antippen.</span>`;
+  } else h += `<span class="hint">Leerer Rahmen: ${coarse() ? 'Foto unten in der Liste antippen, dann landet es hier.' : 'Foto aus der Liste rechts hineinziehen oder anklicken.'}</span>`;
   if (!crop) h += `<span class="fb-sep" aria-hidden="true"></span><span class="small muted num">${fmt1(r.w)} × ${fmt1(r.h)} mm${r.custom ? '' : ' · Vorlage'}</span>
     <button class="btn small" data-act="dupframe">Duplizieren</button>
     <button class="btn small" data-act="front" title="Nach vorn">Nach vorn</button><button class="btn small" data-act="back" title="Nach hinten">Nach hinten</button>
@@ -277,7 +301,7 @@ function sheetTools(p) {
 }
 function poolPhotos(p) {
   const m = pageMonth(p.key);
-  const f = ui.pool ?? (m != null ? String(m) : 'fav');
+  const f = ui.pool ?? (m != null ? String(m) : Object.values(S.photos).some(x => x.fav) ? 'fav' : 'all');
   const all = Object.values(S.photos);
   const list = f === 'all' ? all : f === 'fav' ? all.filter(x => x.fav) : f === 'free' ? all.filter(x => !usage()[x.id]) : all.filter(x => x.month === +f);
   return { f, list: list.sort((a, b) => (b.fav - a.fav) || (a.date || '').localeCompare(b.date || '')) };
@@ -288,7 +312,7 @@ function panelPhotos(p) {
       ${MONTHS.map((n, i) => `<option value="${i}" ${f === String(i) ? 'selected' : ''}>${n} (${Object.values(S.photos).filter(x => x.month === i).length})</option>`).join('')}
       <option value="fav" ${f === 'fav' ? 'selected' : ''}>Favoriten</option><option value="free" ${f === 'free' ? 'selected' : ''}>Noch nicht verwendet</option><option value="all" ${f === 'all' ? 'selected' : ''}>Alle Fotos</option></select></div>
     <div class="pool">${list.map(ph => photoThumb(ph, u)).join('') || '<p class="empty-note">Keine Fotos in dieser Auswahl. Unter „Fotos“ hinzufügen.</p>'}</div>
-    <p class="hint">Ziehen mit der Maus, auf dem Handy lange drücken und ziehen. Oder Foto antippen und dann den Rahmen antippen.${pageMonth(p.key) != null ? ` Ein Foto aus einem anderen Monat wird dabei ${MONTHS[pageMonth(p.key)]} zugeordnet.` : ''}</p>`;
+    <p class="hint">${coarse() ? 'Foto antippen, dann den Rahmen antippen. Oder lange drücken und auf den Rahmen ziehen.' : 'Foto in einen Rahmen ziehen oder anklicken und dann den Rahmen anklicken.'}${pageMonth(p.key) != null ? ` Ein Foto aus einem anderen Monat wird dabei ${MONTHS[pageMonth(p.key)]} zugeordnet.` : ''}</p>`;
 }
 function panelCal(p) {
   const c = calSettings(p);
@@ -297,9 +321,14 @@ function panelCal(p) {
   const where = opened ? `<div class="field"><span class="lbl">Kalendarium der Ansicht ${MONTHS[v.month]}</span>${seg([['upper', 'Oben'], ['lower', 'Unten']], (S.doc.viewCal || {})[(sheetOf(v.part === 'upper' ? v.lower : p.key) || {}).id] === 'upper' ? 'upper' : 'lower', 'viewcal')}
     <p class="hint">Oben und unten bilden zusammen eine Monatsansicht und bekommen ein gemeinsames Kalendarium.</p></div>` : '';
   if (opened && c.style === 'off' && !(p.cal && p.cal.style)) return where + `<p class="hint">Auf dieser Seite steht kein Kalendarium, weil es auf der ${v.part === 'upper' ? 'unteren' : 'oberen'} Seite steht.</p>`;
+  const m = pageMonth(p.key), bds = m != null ? (S.doc.birthdays || []).filter(b => +b.m === m + 1 && b.name) : [];
+  const bdBox = m != null ? `<div class="field"><span class="lbl">Geburtstage im ${MONTHS[m]}</span>
+    ${bds.length ? `<p class="hint">${bds.sort((a, b) => a.d - b.d).map(b => `${+b.d}. ${esc(b.name)}`).join(' · ')}</p>` : ''}
+    <div class="row bdquick"><input type="text" id="bdqn" placeholder="Name" aria-label="Name"><input type="number" id="bdqd" min="1" max="31" placeholder="Tag" aria-label="Tag"><button class="btn small" data-act="bdquick" data-v="${m + 1}">Hinzufügen</button></div>
+    <button class="linkbtn" data-act="go" data-v="project">Alle Geburtstage und Anzeige …</button></div>` : '';
   const auto = pageMonth(p.key) != null ? `<div class="autoplace"><b>Platz automatisch finden</b><p class="hint">Sucht im Foto eine ruhige Fläche, etwa Himmel, Wiese oder Wasser, und wählt die passende Schriftfarbe. Danach lässt sich alles von Hand ändern.</p>
     <div class="row"><button class="btn primary small" data-act="placehere">Für diese Seite</button><button class="btn small" data-act="placeall">Für alle Monate</button></div></div>` : '';
-  return where + auto + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
+  return where + auto + bdBox + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
@@ -355,13 +384,14 @@ function checks() {
     if (p.layout === 'index') continue;
     const items = pageItems(p);
     const e = items.filter(i => i.t === 'empty').length;
-    if (e) { empty += e; out.push(['bad', `${pageLabel(k)}: ${e} leere${e > 1 ? ' Rahmen' : 'r Rahmen'}`, k]); }
+    if (e) { empty += e; out.push(['bad', `${pageLabel(k)}: ${e === 1 ? 'ein leerer Rahmen' : e + ' leere Rahmen'} (druckt weiß)`, k, { act: 'fixpage', label: 'Füllen' }]); }
     for (const it of items) if (it.t === 'img') {
       const dpi = dpiOf(S.photos[it.photo], it.place);
-      if (dpi < 150) { tiny++; out.push(['bad', `${pageLabel(k)}: Foto mit nur ${Math.round(dpi)} dpi wird unscharf`, k]); }
-      else if (dpi < 200) { low++; out.push(['warn', `${pageLabel(k)}: Foto mit ${Math.round(dpi)} dpi ist knapp`, k]); }
+      if (dpi < DPI_BAD) { tiny++; out.push(['bad', `${pageLabel(k)}: Foto mit nur ${Math.round(dpi)} dpi wird unscharf`, k]); }
+      else if (dpi < DPI_WARN) { low++; out.push(['warn', `${pageLabel(k)}: Foto mit ${Math.round(dpi)} dpi ist knapp`, k]); }
     }
     for (const it of items) if (it.t === 'block') {
+      if (unreadable(p, it, items)) out.push(['bad', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ist auf dem Papier kaum lesbar (Schrift wie Hintergrund)`, k]);
       if (viewOf(k).part === 'upper' ? it.y + it.h > d.h - zone : it.y < zone) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ragt in die Bindung`, k]);
       else if (it.x < 4 || it.y < 4 || it.x + it.w > d.w - 4 || it.y + it.h > d.h - 4) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} liegt sehr nah am Schnitt`, k]);
     }
@@ -387,30 +417,42 @@ function checks() {
   if (d.bleed < 3) out.push(['warn', `Beschnitt nur ${fmt1(d.bleed)} mm, üblich sind 3 mm`, null]);
   return out;
 }
+// Schrift steht überwiegend auf Papier bzw. leerem Rahmen und hat fast dessen Farbe (z. B. weiß auf weiß)
+function unreadable(p, blk, items) {
+  const c = blk.kind === 'cal' ? calSettings(p) : p.title; if (!c || (c.panel && c.panel !== 'none')) return false;
+  let photo = 0;
+  for (const it of items) if (it.t === 'img') { const r = intersect(it.clip, blk); if (r) photo += r.w * r.h; }
+  if (photo > blk.w * blk.h * .5) return false;
+  const lum = (id) => { const h = cRGB(id).slice(1); return (parseInt(h.slice(0, 2), 16) * .299 + parseInt(h.slice(2, 4), 16) * .587 + parseInt(h.slice(4, 6), 16) * .114) / 255; };
+  return Math.abs(lum(c.color) - lum(S.doc.bg)) < .35;
+}
 function renderPrint() {
   const d = S.doc, list = checks(), bad = list.filter(c => c[0] === 'bad').length, warn = list.length - bad;
   const keys = pageKeys();
   $('#v-print').innerHTML = `<div class="print">
     <div style="display:grid;gap:16px;min-width:0">
-      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${bad} Fehler, ${warn} Hinweise` : warn ? `Keine Fehler, ${warn} Hinweise` : 'Keine Probleme gefunden.'} Die Prüfung ersetzt nicht die Vorgaben der Druckerei.</p></header>
-        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
+      <section class="card"><header><h2>Prüfung</h2><p>${bad ? `${plural(bad, 'Fehler', 'Fehler')}, ${plural(warn, 'Hinweis', 'Hinweise')}.` : warn ? `Keine Fehler, ${plural(warn, 'Hinweis', 'Hinweise')}.` : 'Keine Probleme gefunden.'} Die Prüfung ersetzt nicht die Vorgaben der Druckerei.</p></header>
+        ${list.some(c => c[3]) ? `<div class="row"><button class="btn small primary" data-act="autodesign">Leere Rahmen überall füllen</button></div>` : ''}
+        <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k, fix]) => `<li><span class="dot ${lvl}"></span><span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}${fix ? ` <button class="btn small fixbtn" data-act="${fix.act}" data-v="${k}">${fix.label}</button>` : ''}</span></li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
       <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
-        <dl class="specs"><dt>Blätter</dt><dd>${allSheets().length}, ${d.duplex ? 'beidseitig' : 'einseitig'} bedruckt</dd><dt>Seiten</dt><dd>${keys.length}${d.duplex ? ' (Vorder- und Rückseite im Wechsel)' : ''}</dd>
-          <dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm</dd>
-          <dt>Farbraum</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
+        <p>${allSheets().length} Blätter, ${keys.length} Seiten, ${fmt1(d.w / 10)} × ${fmt1(d.h / 10)} cm${d.duplex ? ', beidseitig' : ''}.</p>
+        <div class="field"><label for="dpi">Qualität</label><select id="dpi" data-bind="doc.dpi">
+          ${[[300, 'Für den Druck (300 dpi)'], [200, 'Kleinere Datei (200 dpi)'], [100, 'Schnelle Vorschau (100 dpi)']].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <details class="specs-box"><summary>Technische Angaben für die Druckerei</summary>
+        <dl class="specs"><dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm (${fmt1(d.bleed)} mm Rand, der beim Schneiden wegfällt)</dd>
+          <dt>Farben</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
           <dt>Transparenz</dt><dd>keine (Flächen werden eingerechnet)</dd><dt>Fehlt noch</dt><dd>ICC-Ausgabeprofil, PDF/X, Druckerei-Profil</dd></dl>
-        <div class="field"><label for="dpi">Bildauflösung</label><select id="dpi" data-bind="doc.dpi">
-          ${[[300, '300 dpi – Druck'], [200, '200 dpi – kleinere Datei'], [100, '100 dpi – schneller Probeausdruck']].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="field"><label for="jq">JPEG-Qualität</label><select id="jq" data-bind="doc.quality">
           ${[[95, 'Sehr hoch'], [90, 'Hoch'], [80, 'Mittel']].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <label class="check"><input type="checkbox" id="crm" data-bind="doc.cropMarks" ${d.cropMarks ? 'checked' : ''}><span>Schnittmarken<span class="hint">Nur wenn die Druckerei sie verlangt.</span></span></label>
+        </details>
         <button class="btn primary" data-act="export">PDF-Entwurf erstellen</button>
         <div id="exportOut"></div>
         <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
       </section>
     </div>
-    <section class="card"><header><h2>Leuchttisch</h2><p>${ui.ltMode === 'sheets' ? 'Die Druckbogen in Druckreihenfolge, Vorder- und Rückseite nebeneinander.' : 'So sieht der Kalender aufgehängt aus, mit Lochung und Aufhänger.'}</p></header>
+    <section class="card"><header class="lt-head"><div><h2>Leuchttisch</h2><p>${ui.ltMode === 'sheets' ? 'Die Druckbogen in Druckreihenfolge, Vorder- und Rückseite nebeneinander.' : 'So sieht der Kalender aufgehängt aus, mit Lochung und Aufhänger.'}</p></div><button class="btn small" data-act="wall">An der Wand ansehen</button></header>
       ${seg([['views', 'Monatsansichten'], ['sheets', 'Druckbogen']], ui.ltMode || 'views', 'ltmode')}
       <div class="lighttable">${ui.ltMode === 'sheets' ? sheetCards() : viewCards()}</div></section>
   </div>`;

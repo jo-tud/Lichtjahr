@@ -9,6 +9,7 @@ Im Ordner `prototyp/` liegt der erste klickbare Prototyp („Kalenderwerkstatt�
 Was der Prototyp kann:
 
 - Fotos importieren (Dateien, Ordner, Drag & Drop); Monat aus Ordnername, EXIF-Aufnahmedatum oder Dateiname
+- „Kalender automatisch gestalten“: Layout je Monat nach Fotozahl und Format, Rahmen mit scharfen Fotos des Monats füllen, Kalendarien an ruhige Stellen setzen; danach alles frei änderbar
 - Formate 29,7 × 29,7 cm, DIN A3 quer und weitere; Formatwechsel auch später, die Seiten passen sich an
 - 15 Seitenvorlagen als Ausgangspunkt, Bildabstand 0–5 mm global oder pro Seite
 - Rahmen frei verschieben, an den Ecken skalieren (mit Einrasten an Rändern, Mitte und Nachbarrahmen), überlagern, nach vorn/hinten, duplizieren, löschen, zusätzliche Rahmen, Rand pro Rahmen; Pfeiltasten verschieben in 0,5-/5-mm-Schritten
@@ -24,6 +25,8 @@ Was der Prototyp kann:
 - Lochung und Aufhänger-Ausschnitt als Richtwerte oder mit eigenen Maßen aus dem Datenblatt
 - „An der Wand“: der fertige Kalender hängt an einer Wand und lässt sich mit Wischen, Klick oder Pfeiltasten durchblättern; das Blatt schlägt über die Ringbindung um, in der aufgeklappten Ansicht wird seine Rückseite zum oberen Teil des nächsten Monats
 - PDF-Entwurf mit Beschnitt, TrimBox, eingebetteter Schrift, CMYK-Bildern und ohne Transparenz (Flächen werden eingerechnet)
+
+Eine UX-Prüfung durch zwei unabhängige Agenten ist in `docs/UX-PRUEFUNG.md` beschrieben; der Prüfauftrag liegt als Skill in `.claude/skills/ux-pruefung/`.
 
 Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, kein Druckerei-Profil. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
 

@@ -92,7 +92,7 @@ const spotWords = (s) => {
 };
 async function placeHere() {
   const p = curPage(), before = pageItems(p).find(i => i.t === 'block' && i.kind === 'cal');
-  const s = await suggestPlacement(p.key);
+  const s = await suggestPlacement(p.key, { tryStyles: false });   // die gewählte Form bleibt
   if (!s) { toast('Für diese Seite gibt es keinen passenden Platz (Kalendarium aus oder zu groß).'); return; }
   applyPlacement(p, s); commit();
   ui.tab = 'cal'; renderEditor(); renderPanelKeepScroll(); updateThumb();
@@ -104,7 +104,7 @@ async function placeAll() {
   const bar = busy('Kalendarien werden platziert', '');
   let n = 0;
   for (const k of keys) {
-    const s = await suggestPlacement(k); if (s) { applyPlacement(S.pages[k], s); n++; }
+    const s = await suggestPlacement(k, { tryStyles: false }); if (s) { applyPlacement(S.pages[k], s); n++; }
     bar.update(n / keys.length, pageLabel(k)); await sleep0();
   }
   bar.close(); commit(); renderDesign();

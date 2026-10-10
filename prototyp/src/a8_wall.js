@@ -117,7 +117,8 @@ function toggleAlt() {
 // Aufgeklappt: Die Rückseite der bisherigen Monatsseite wird zum oberen Teil der nächsten Ansicht.
 async function flip(dir) {
   const views = wallViews(), j = wall.i + dir;
-  if (wall.busy || j < 0 || j >= views.length) return;
+  if (wall.busy) { wall.queued = dir; return; }                  // schnelle Klicks nicht verschlucken
+  if (j < 0 || j >= views.length) return;
   const cur = views[wall.i], nxt = views[j], opened = viewModeOf() === 'opened';
   wall.showAlt = false;
   if (reduceMotion()) { wall.i = j; renderWall(); return; }
@@ -139,6 +140,7 @@ async function flip(dir) {
   if (!opened) anim.push(leaf.animate(dir > 0 ? [{ opacity: 1 }, { opacity: 1, offset: .7 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1 }], opts));
   await Promise.all(anim.map(x => x.finished)).catch(() => {});
   wall.i = j; wall.busy = false; renderWall();
+  if (wall.queued) { const q = wall.queued; wall.queued = 0; flip(q); }
 }
 
 init();

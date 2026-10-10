@@ -471,7 +471,12 @@ function svgPage(p, o = {}) {
           // Eckpunkte zum Ändern der Größe; ziehen im Rahmen verschiebt ihn
           const hs = Math.max(2.4, Math.min(W, H) * .011);
           for (const [h, x, y] of [['nw', r.x, r.y], ['ne', r.x + r.w, r.y], ['sw', r.x, r.y + r.h], ['se', r.x + r.w, r.y + r.h]])
-            over += `<rect data-handle="${h}" data-slot-h="${r.i}" x="${x - hs}" y="${y - hs}" width="${2 * hs}" height="${2 * hs}" rx="${hs * .3}" fill="#fff" stroke="var(--accent)" stroke-width="${hs * .35}" style="cursor:${h === 'nw' || h === 'se' ? 'nwse' : 'nesw'}-resize"/>`;
+          {
+            // Unsichtbare Trefferfläche von etwa 40 Bildschirmpixeln, damit die Ecke auch mit dem Daumen greifbar ist
+            const hit = Math.min(Math.max(2 * hs, 40 / (ui.pxmm || 2)), Math.min(r.w, r.h) / 2.2), cur = `cursor:${h === 'nw' || h === 'se' ? 'nwse' : 'nesw'}-resize`;
+            over += `<rect data-handle="${h}" data-slot-h="${r.i}" x="${x - hit / 2}" y="${y - hit / 2}" width="${hit}" height="${hit}" fill="transparent" style="${cur}"/>`;
+            over += `<rect data-handle="${h}" data-slot-h="${r.i}" x="${x - hs}" y="${y - hs}" width="${2 * hs}" height="${2 * hs}" rx="${hs * .3}" fill="#fff" stroke="var(--accent)" stroke-width="${hs * .35}" style="${cur}"/>`;
+          }
         }
       }
     }

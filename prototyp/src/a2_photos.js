@@ -108,10 +108,14 @@ async function importFiles(list) {
   await Promise.all([worker(), worker(), worker()]);
   bar.close();
   commit(); renderAll();
-  let msg = `${done - failed.length} Fotos eingelesen.`;
-  if (skipped) msg += ` ${skipped} schon vorhanden.`;
-  if (failed.length) msg += ` ${failed.length} ließen sich nicht öffnen (z. B. HEIC außerhalb von Safari).`;
-  toast(msg, 6000);
+  let msg = `${plural(done - failed.length, 'Foto', 'Fotos')} eingelesen.`;
+  if (skipped) msg += ` ${skipped} ${skipped === 1 ? 'war' : 'waren'} schon da.`;
+  // Fehlgeschlagene Dateien mit Namen und Abhilfe im Fotobereich zeigen
+  ui.importErrors = failed;
+  if (failed.length) msg += ` ${plural(failed.length, 'Datei', 'Dateien')} ${failed.length === 1 ? 'ließ' : 'ließen'} sich nicht öffnen, Details oben.`;
+  const empty = pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo]));
+  renderAll();
+  toast(msg, 7000, done - failed.length > 0 && empty ? { label: 'Kalender automatisch gestalten', fn: autoDesign } : null);
 }
 async function importOne(file) {
   const id = uid();
