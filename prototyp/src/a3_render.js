@@ -195,21 +195,37 @@ function miniPage(p, tx, ty, s) {
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
   return out;
 }
-// Register: Einträge fließen über so viele Seiten wie nötig, Text wird nicht abgeschnitten
-function indexEntries() { return baseKeys().filter(k => S.pages[k] && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo])); }
-function indexLayout() {
-  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
-  const cols = W / H > 1.15 ? 4 : 3, gx = 7 * f, gy = 6 * f;
-  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = cellW * .45, mh = mw * H / W, tw = cellW - mw - 4 * f;
-  const ls = 2.35 * f, lh = 3.25 * f, labelH = 3.1 * f * .74 + f;
+// Register in drei Arten (doc.indexMode):
+//   'photos' – je Seite die Fotos mit Bildtext (Nummern und Miniaturen optional)
+//   'pages'  – je Seite ein freier Text (Miniatur optional)
+//   'text'   – frei geschriebene Textseite(n)
+// Alles fließt über so viele Seiten wie nötig, Text wird nicht abgeschnitten.
+const indexMode = () => S.doc.indexMode || 'photos';
+function indexEntries() {
+  const mode = indexMode();
+  return baseKeys().filter(k => {
+    const p = S.pages[k]; if (!p) return false;
+    const hasPhoto = visibleSlots(p).some(s => s.photo && S.photos[s.photo]);
+    return mode === 'pages' ? hasPhoto || !!(p.caption || '').trim() : hasPhoto;
+  });
+}
+function indexLayout() { return indexMode() === 'text' ? textLayout() : entryLayout(); }
+function entryLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f, mode = indexMode();
+  const thumbs = doc.indexThumbs !== false, nums = mode === 'photos' && doc.indexNums !== false;
+  const cols = W / H > 1.15 ? (thumbs ? 4 : 3) : (thumbs ? 3 : 2), gx = 7 * f, gy = 6 * f;
+  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = thumbs ? cellW * .45 : 0, mh = mw * H / W, tw = cellW - (thumbs ? mw + 4 * f : 0);
+  const ls = (thumbs ? 2.35 : 2.8) * f, lh = ls * 1.4, labelH = 3.1 * f * .74 + f, ind = nums ? 4 * f : 0;
   const entries = indexEntries().map(k => {
     const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
       const sl = slotOf(pg, r.i); if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
       caps.push([++num, S.photos[sl.photo].caption, r]);
     }
-    const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
-    return { k, caps, lines, h: Math.max(mh, labelH + lines.length * lh + f) };
+    let lines;
+    if (mode === 'pages') lines = String(pg.caption || '').split(/\n/).flatMap(par => par.trim() ? wrap(par, 'regular', ls, tw) : []).map(l => [null, l]);
+    else lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - ind).map((l, j) => [j === 0 && nums ? i : null, l]) : []);
+    return { k, caps: nums ? caps : [], lines, h: Math.max(mh, labelH + lines.length * lh + f) };
   });
   const pages = []; let cur = [], y = mg + 20 * f;
   for (let i = 0; i < entries.length; i += cols) {
@@ -219,32 +235,68 @@ function indexLayout() {
     y += rh + gy;
   }
   pages.push(cur);
-  pages.geom = { f, mg, mw, mh, ls, lh };
+  pages.geom = { f, mg, mw, mh, ls, lh, ind, thumbs };
+  return pages;
+}
+// Freier Text: Absätze durch Leerzeilen, „## “ am Zeilenanfang macht eine Zwischenüberschrift.
+// Spalten mit gut lesbarer Zeilenlänge, dann weiter auf der nächsten Seite.
+function textLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
+  const cols = W / H > 1.15 ? 3 : 2, gx = 9 * f, colW = (W - 2 * mg - (cols - 1) * gx) / cols;
+  const bs = 3.2 * f, hs = 4.2 * f, blh = bs * 1.45;
+  const blocks = [];
+  for (const raw of String(doc.indexText || '').split(/\n\s*\n/)) {
+    const t = raw.trim(); if (!t) continue;
+    for (const line of t.split('\n')) {
+      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'bold', hs, colW) });
+      else if (line.trim()) blocks.push({ head: false, lines: wrap(line.trim(), 'regular', bs, colW) });
+    }
+    blocks.push({ gap: true });
+  }
+  const pages = []; let cur = [], col = 0, top = mg + 20 * f, y = top;
+  const nextCol = () => { col++; if (col >= cols) { pages.push(cur); cur = []; col = 0; top = mg + 12 * f; } y = top; };
+  for (const b of blocks) {
+    if (b.gap) { y += blh * .55; continue; }
+    const lh = b.head ? hs * 1.35 : blh;
+    if (b.head && y + lh * (b.lines.length + 1) > H - mg && y > top) nextCol();   // Überschrift nicht allein am Spaltenende
+    if (b.head && y > top) y += blh * .3;
+    for (const l of b.lines) {
+      if (y + lh > H - mg) nextCol();
+      y += lh;
+      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'bold' : 'regular', b.head ? hs : bs, null));
+    }
+  }
+  pages.push(cur);
+  pages.geom = { f, mg, text: true };
   return pages;
 }
 function indexItems(p) {
-  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), { f, mg, mw, ls, lh } = L.geom;
+  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), g = L.geom, { f, mg } = g;
   const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
     items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
     items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
-    if (!list.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
+    if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? 'Noch kein Text. Rechts unter „Register“ schreiben.' : 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
   } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
+  if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
+  const { mw, ls, lh, ind, thumbs } = g;
   for (const e of list) {
     const s = mw / W;
-    items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
-    for (const [num, , r] of e.caps) {
-      const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
-      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
-      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+    if (thumbs) {
+      items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
+      for (const [num, , r] of e.caps) {
+        const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
+        items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
+        items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+      }
     }
-    const tx = e.x + mw + 4 * f; let y = e.y + 3.1 * f * .74;
+    const tx = e.x + (thumbs ? mw + 4 * f : 0); let y = e.y + 3.1 * f * .74;
     items.push(T(tx, y, pageLabel(e.k), 'bold', 3.1 * f, col)); y += f;
     for (const [num, l] of e.lines) {
       y += lh;
       if (num != null) items.push(T(tx, y, String(num), 'bold', ls, col));
-      items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
+      items.push(T(tx + ind, y, l, 'regular', ls, col));
     }
   }
   return items;

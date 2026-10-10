@@ -82,7 +82,8 @@ h3 { font-size: .95rem; }
 .range { display: flex; align-items: center; gap: 10px; }
 .range input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
 .range output { font-family: var(--font-mono); font-size: 12.5px; min-width: 56px; text-align: right; }
-select, input[type=text], input[type=number] { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+select, input[type=text], input[type=number], textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+textarea { width: 100%; resize: vertical; line-height: 1.45; }
 input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .check { display: flex; gap: 10px; align-items: flex-start; }
 .check span { display: grid; }

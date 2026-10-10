@@ -86,7 +86,8 @@ h3 { font-size: .95rem; }
 .range { display: flex; align-items: center; gap: 10px; }
 .range input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
 .range output { font-family: var(--font-mono); font-size: 12.5px; min-width: 56px; text-align: right; }
-select, input[type=text], input[type=number] { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+select, input[type=text], input[type=number], textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 9px; min-width: 0; }
+textarea { width: 100%; resize: vertical; line-height: 1.45; }
 input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .check { display: flex; gap: 10px; align-items: flex-start; }
 .check span { display: grid; }
@@ -605,7 +606,7 @@ function defaultDoc() {
     bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
     cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true,
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
-    indexTitle: 'Die Fotos des Jahres',
+    indexTitle: 'Die Fotos des Jahres', indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
     dpi: 300, quality: 90,
   };
 }
@@ -1229,21 +1230,37 @@ function miniPage(p, tx, ty, s) {
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
   return out;
 }
-// Register: Einträge fließen über so viele Seiten wie nötig, Text wird nicht abgeschnitten
-function indexEntries() { return baseKeys().filter(k => S.pages[k] && visibleSlots(S.pages[k]).some(s => s.photo && S.photos[s.photo])); }
-function indexLayout() {
-  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
-  const cols = W / H > 1.15 ? 4 : 3, gx = 7 * f, gy = 6 * f;
-  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = cellW * .45, mh = mw * H / W, tw = cellW - mw - 4 * f;
-  const ls = 2.35 * f, lh = 3.25 * f, labelH = 3.1 * f * .74 + f;
+// Register in drei Arten (doc.indexMode):
+//   'photos' – je Seite die Fotos mit Bildtext (Nummern und Miniaturen optional)
+//   'pages'  – je Seite ein freier Text (Miniatur optional)
+//   'text'   – frei geschriebene Textseite(n)
+// Alles fließt über so viele Seiten wie nötig, Text wird nicht abgeschnitten.
+const indexMode = () => S.doc.indexMode || 'photos';
+function indexEntries() {
+  const mode = indexMode();
+  return baseKeys().filter(k => {
+    const p = S.pages[k]; if (!p) return false;
+    const hasPhoto = visibleSlots(p).some(s => s.photo && S.photos[s.photo]);
+    return mode === 'pages' ? hasPhoto || !!(p.caption || '').trim() : hasPhoto;
+  });
+}
+function indexLayout() { return indexMode() === 'text' ? textLayout() : entryLayout(); }
+function entryLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f, mode = indexMode();
+  const thumbs = doc.indexThumbs !== false, nums = mode === 'photos' && doc.indexNums !== false;
+  const cols = W / H > 1.15 ? (thumbs ? 4 : 3) : (thumbs ? 3 : 2), gx = 7 * f, gy = 6 * f;
+  const cellW = (W - 2 * mg - (cols - 1) * gx) / cols, mw = thumbs ? cellW * .45 : 0, mh = mw * H / W, tw = cellW - (thumbs ? mw + 4 * f : 0);
+  const ls = (thumbs ? 2.35 : 2.8) * f, lh = ls * 1.4, labelH = 3.1 * f * .74 + f, ind = nums ? 4 * f : 0;
   const entries = indexEntries().map(k => {
     const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
       const sl = slotOf(pg, r.i); if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
       caps.push([++num, S.photos[sl.photo].caption, r]);
     }
-    const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
-    return { k, caps, lines, h: Math.max(mh, labelH + lines.length * lh + f) };
+    let lines;
+    if (mode === 'pages') lines = String(pg.caption || '').split(/\n/).flatMap(par => par.trim() ? wrap(par, 'regular', ls, tw) : []).map(l => [null, l]);
+    else lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - ind).map((l, j) => [j === 0 && nums ? i : null, l]) : []);
+    return { k, caps: nums ? caps : [], lines, h: Math.max(mh, labelH + lines.length * lh + f) };
   });
   const pages = []; let cur = [], y = mg + 20 * f;
   for (let i = 0; i < entries.length; i += cols) {
@@ -1253,32 +1270,68 @@ function indexLayout() {
     y += rh + gy;
   }
   pages.push(cur);
-  pages.geom = { f, mg, mw, mh, ls, lh };
+  pages.geom = { f, mg, mw, mh, ls, lh, ind, thumbs };
+  return pages;
+}
+// Freier Text: Absätze durch Leerzeilen, „## “ am Zeilenanfang macht eine Zwischenüberschrift.
+// Spalten mit gut lesbarer Zeilenlänge, dann weiter auf der nächsten Seite.
+function textLayout() {
+  const doc = S.doc, W = doc.w, H = doc.h, f = Math.min(W, H) / 300, mg = 16 * f;
+  const cols = W / H > 1.15 ? 3 : 2, gx = 9 * f, colW = (W - 2 * mg - (cols - 1) * gx) / cols;
+  const bs = 3.2 * f, hs = 4.2 * f, blh = bs * 1.45;
+  const blocks = [];
+  for (const raw of String(doc.indexText || '').split(/\n\s*\n/)) {
+    const t = raw.trim(); if (!t) continue;
+    for (const line of t.split('\n')) {
+      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'bold', hs, colW) });
+      else if (line.trim()) blocks.push({ head: false, lines: wrap(line.trim(), 'regular', bs, colW) });
+    }
+    blocks.push({ gap: true });
+  }
+  const pages = []; let cur = [], col = 0, top = mg + 20 * f, y = top;
+  const nextCol = () => { col++; if (col >= cols) { pages.push(cur); cur = []; col = 0; top = mg + 12 * f; } y = top; };
+  for (const b of blocks) {
+    if (b.gap) { y += blh * .55; continue; }
+    const lh = b.head ? hs * 1.35 : blh;
+    if (b.head && y + lh * (b.lines.length + 1) > H - mg && y > top) nextCol();   // Überschrift nicht allein am Spaltenende
+    if (b.head && y > top) y += blh * .3;
+    for (const l of b.lines) {
+      if (y + lh > H - mg) nextCol();
+      y += lh;
+      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'bold' : 'regular', b.head ? hs : bs, null));
+    }
+  }
+  pages.push(cur);
+  pages.geom = { f, mg, text: true };
   return pages;
 }
 function indexItems(p) {
-  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), { f, mg, mw, ls, lh } = L.geom;
+  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), g = L.geom, { f, mg } = g;
   const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
     items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
     items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
-    if (!list.length) { items.push(T(mg, mg + 30 * f, 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
+    if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? 'Noch kein Text. Rechts unter „Register“ schreiben.' : 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
   } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
+  if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
+  const { mw, ls, lh, ind, thumbs } = g;
   for (const e of list) {
     const s = mw / W;
-    items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
-    for (const [num, , r] of e.caps) {
-      const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
-      items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
-      items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+    if (thumbs) {
+      items.push(...miniPage(S.pages[e.k], e.x, e.y, s));
+      for (const [num, , r] of e.caps) {
+        const vis = intersect(r, { x: 0, y: 0, w: W, h: doc.h }) || r, bx = e.x + (vis.x + vis.w / 2) * s, by = e.y + (vis.y + vis.h / 2) * s, br = Math.max(1.6, 2.1 * f);
+        items.push({ t: 'circle', x: bx, y: by, r: br, fill: 'white' });
+        items.push(T(bx, by + br * .42, String(num), 'bold', br * 1.15, 'black', 'middle'));
+      }
     }
-    const tx = e.x + mw + 4 * f; let y = e.y + 3.1 * f * .74;
+    const tx = e.x + (thumbs ? mw + 4 * f : 0); let y = e.y + 3.1 * f * .74;
     items.push(T(tx, y, pageLabel(e.k), 'bold', 3.1 * f, col)); y += f;
     for (const [num, l] of e.lines) {
       y += lh;
       if (num != null) items.push(T(tx, y, String(num), 'bold', ls, col));
-      items.push(T(tx + 4 * f, y, l, 'regular', ls, col));
+      items.push(T(tx + ind, y, l, 'regular', ls, col));
     }
   }
   return items;
@@ -1711,16 +1764,29 @@ function panelTitle(p) {
     <p class="hint">Den Titel im Bild an die gewünschte Stelle ziehen.</p>`;
 }
 function panelIndex() {
-  const rows = [];
-  for (const k of baseKeys()) {
-    const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
-    if (!ps.length) continue;
-    rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
+  const d = S.doc, mode = indexMode();
+  let body = '';
+  if (mode === 'photos') {
+    const rows = [];
+    for (const k of baseKeys()) {
+      const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
+      if (!ps.length) continue;
+      rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
+    }
+    body = `<div class="caplist">${rows.join('') || '<p class="empty-note">Noch keine Fotos auf den Seiten.</p>'}</div>`;
+  } else if (mode === 'pages') {
+    body = `<div class="caplist">${baseKeys().map(k => `<div class="field"><label for="pc-${k}">${esc(pageLabel(k))}</label><textarea id="pc-${k}" rows="2" data-page-cap="${k}" placeholder="Was auf dieser Seite zu sehen ist">${esc(S.pages[k].caption || '')}</textarea></div>`).join('')}</div>
+      <p class="hint">Seiten ohne Foto und ohne Text erscheinen nicht im Register.</p>`;
+  } else {
+    body = `<div class="field"><label for="ixtx">Text</label><textarea id="ixtx" rows="16" data-bind="doc.indexText" placeholder="Hier frei schreiben.&#10;&#10;Eine Leerzeile beginnt einen neuen Absatz.&#10;## am Zeilenanfang macht eine Zwischenüberschrift.">${esc(d.indexText || '')}</textarea></div>
+      <p class="hint">Der Text verteilt sich auf Spalten und, wenn nötig, auf weitere Registerseiten.</p>`;
   }
-  return `<div class="field"><label for="ixt">Überschrift</label><input type="text" id="ixt" data-bind="doc.indexTitle" value="${esc(S.doc.indexTitle)}"></div>
-    <div class="caplist">${rows.join('') || '<p class="empty-note">Noch keine Fotos auf den Seiten.</p>'}</div>`;
+  return `<div class="field"><span class="lbl">Art des Registers</span>${seg([['photos', 'Bilder je Seite'], ['pages', 'Text je Seite'], ['text', 'Freier Text']], mode, 'ixmode')}</div>
+    <div class="field"><label for="ixt">Überschrift</label><input type="text" id="ixt" data-bind="doc.indexTitle" value="${esc(d.indexTitle)}"></div>
+    ${mode !== 'text' ? `<div class="row"><label class="check"><input type="checkbox" id="ixth" data-bind="doc.indexThumbs" ${d.indexThumbs !== false ? 'checked' : ''}><span>Miniaturen der Seiten</span></label>
+      ${mode === 'photos' ? `<label class="check"><input type="checkbox" id="ixnu" data-bind="doc.indexNums" ${d.indexNums !== false ? 'checked' : ''}><span>Nummern</span></label>` : ''}</div>` : ''}
+    ${body}`;
 }
-
 /* ----- Druck ----- */
 function checks() {
   const out = [], d = S.doc, zone = bindZoneDepth();
@@ -1742,8 +1808,14 @@ function checks() {
     }
   }
   if (d.index) {
-    const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
-    if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
+    const mode = indexMode();
+    if (mode === 'photos') {
+      const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
+      if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
+    } else if (mode === 'pages') {
+      const missing = indexEntries().filter(k => !(S.pages[k].caption || '').trim()).length;
+      if (missing) out.push(['warn', `Bildregister: ${missing} Seiten ohne Text`, 'index']);
+    } else if (!(d.indexText || '').trim()) out.push(['warn', 'Bildregister: noch kein Text', 'index']);
   }
   // Jedes Foto gehört zu genau einem Monat; Mehrfachnutzung sichtbar machen
   for (const [id, keys] of Object.entries(usage())) {
@@ -1835,7 +1907,11 @@ function onBind(el, final) {
 }
 document.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.dataset.bind) { if (el.type === 'range' || el.type === 'text') onBind(el, false); return; }
+  if (el.dataset.bind) { if (el.type === 'range' || el.type === 'text' || el.tagName === 'TEXTAREA') onBind(el, false); return; }
+  if (el.dataset.pageCap) {
+    const pg = S.pages[el.dataset.pageCap]; if (pg) { pg.caption = el.value; clearTimeout(onBind._pc); onBind._pc = setTimeout(() => { commit(); if (isIndex(ui.page)) { refresh(); renderStrip(); } }, 600); }
+    return;
+  }
   if (el.dataset.photoCap) {
     const ph = S.photos[el.dataset.photoCap]; if (ph) { ph.caption = el.value; clearTimeout(onBind._c); onBind._c = setTimeout(() => { commit(); if (curPage().layout === 'index') refresh(); }, 600); }
     return;
@@ -1995,6 +2071,7 @@ const ACTIONS = {
   crop: () => setCrop(ui.crop == null ? ui.sel : null),
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
+  ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },
