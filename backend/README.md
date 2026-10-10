@@ -1,14 +1,16 @@
-# Lichtjahr – lokaler Dienst
+# Lichtjahr – local service
 
-Der Dienst arbeitet direkt in einem **Projektordner** auf deinem Rechner. Er liest die Fotos aus
-Monatsordnern, erzeugt Vorschaubilder, speichert den Gestaltungsstand und schützt das Projekt mit einer
-Bearbeitungssperre. Die Oberfläche im Browser spricht über eine HTTP-Schnittstelle mit ihm.
+**English** · [Deutsch](README.de.md)
 
-Der Dienst liefert die Oberfläche gleich mit aus: `lichtjahr serve` starten, Adresse im Browser öffnen, fertig.
+The service works directly in a **project folder** on your computer. It reads the photos from month
+folders, creates thumbnails, saves the design state and protects the project with an editing lock. The
+app in the browser talks to it through an HTTP API.
+
+The service also serves the app itself: start `lichtjahr serve`, open the address in your browser, done.
 
 ## Installation
 
-Voraussetzung: Python 3.11 oder neuer (unter Linux meist vorhanden).
+Requirement: Python 3.11 or newer (usually already installed on Linux).
 
 ```sh
 cd backend
@@ -17,138 +19,141 @@ python3 -m venv .venv
 pip install -e .
 ```
 
-## Benutzung
+## Usage
 
 ```sh
-# Dienst starten – nur auf diesem Rechner erreichbar
+# Start the service – reachable from this computer only
 lichtjahr serve
-# → Lichtjahr 0.1.0 läuft: http://localhost:8470/
+# → Lichtjahr 0.1.0 running: http://localhost:8470/
 ```
 
-Beim ersten Öffnen fragt die App nach dem Projektordner: neu anlegen (die Monatsordner entstehen dabei)
-oder einen vorhandenen öffnen. Alternativ auf der Befehlszeile:
+The first time you open it, the app asks for the project folder: create a new one (the month folders are
+created along with it) or open an existing one. Alternatively, on the command line:
 
 ```sh
-lichtjahr init ~/Bilder/Kalender-2027 --year 2027   # Projekt anlegen
-lichtjahr serve ~/Bilder/Kalender-2027              # Dienst starten und dieses Projekt gleich öffnen
+lichtjahr init ~/Pictures/Calendar-2027 --year 2027   # create a project
+lichtjahr serve ~/Pictures/Calendar-2027              # start the service and open this project right away
 ```
 
-Danach Fotos einfach in die Monatsordner legen, auch nach und nach und mit anderen Programmen. Die App
-gleicht beim Öffnen und beim Zurückkehren ins Fenster automatisch ab („Ordner abgleichen“ geht auch von
-Hand): neue Dateien kommen dazu, verschobene werden wiedererkannt, fehlende gemeldet.
+After that, just put photos into the month folders – bit by bit and with other programs, too. The app
+syncs automatically when it opens and whenever you return to its window ("Sync folder" also works by
+hand): new files are added, moved ones are recognized, missing ones are reported.
 
-### Was in der App passiert
+### What happens in the app
 
-| In der App | Im Projektordner |
+| In the app | In the project folder |
 |---|---|
-| Fotos hinzufügen (Dateien, Ordner, Drag & Drop) | Kopie im passenden Monatsordner; dasselbe Foto ein zweites Mal ergibt keine zweite Datei |
-| Foto einem anderen Monat zuordnen | Die Datei wandert in dessen Ordner (auch bei „Rückgängig“) |
-| Kopie für einen weiteren Monat | Eigene Datei im zweiten Monatsordner |
-| Foto entfernen | Nur aussortiert, die Datei bleibt liegen; „zurückholen“ geht jederzeit |
-| Gestalten, Bildtexte, Favoriten | `lichtjahr.json`, automatisch gespeichert |
-| Druck-PDF erzeugen | `Export/Familienkalender-2027-Druck.pdf` (PDF/X-1a, mit Prüfbericht) |
-| PDF-Entwurf erzeugen | `Export/Familienkalender-2027-Entwurf.pdf` |
+| Add photos (files, folders, drag and drop) | A copy in the matching month folder; adding the same photo again does not create a second file |
+| Assign a photo to another month | The file moves to that month's folder (also on "Undo") |
+| Copy for an additional month | A separate file in the second month folder |
+| Remove a photo | Only set aside, the file stays where it is; you can bring it back at any time |
+| Design, captions, favorites | `lichtjahr.json`, saved automatically |
+| Create Print PDF | `Export/Family-calendar-2027-Print.pdf` (PDF/X-1a, with check report) |
+| Create Draft PDF | `Export/Family-calendar-2027-Draft.pdf` |
 
-### Vom Handy im Heimnetz
+### From your phone on the home network
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 0.1.0 läuft: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 0.1.0 running: http://192.168.178.20:8470/?token=…
 ```
 
-Sobald der Dienst im Netz erreichbar ist, verlangt er einen Zugriffsschlüssel. Er wird automatisch erzeugt
-und steht in der angezeigten Adresse (oder wird mit `--token` selbst gesetzt). Die App behält ihn nur im
-Arbeitsspeicher, nicht im Browser-Speicher. Für unterwegs eignet sich ein VPN wie Tailscale; der Dienst
-richtet so etwas bewusst nicht selbst ein.
+As soon as the service is reachable on the network, it requires an access key. The key is generated
+automatically and included in the address shown (or you set it yourself with `--token`). The app keeps it
+in memory only, not in browser storage. For access on the go, a VPN such as Tailscale works well; the
+service deliberately does not set up anything like that itself.
 
-Ohne Schlüssel antwortet der Dienst nur unter `localhost` bzw. `127.0.0.1` und weist andere Hostnamen ab
-(Schutz vor DNS-Rebinding, bei dem eine fremde Webseite sich als „localhost“ ausgibt).
+Without a key, the service only answers on `localhost` or `127.0.0.1` and rejects other host names
+(protection against DNS rebinding, where a foreign website poses as "localhost").
 
-### Mehrere Fenster und Geräte
+### Several windows and devices
 
-Bearbeiten kann immer nur ein Fenster; weitere zeigen „Nur ansehen“ und übernehmen automatisch, sobald das
-Projekt frei ist. Wer ein Fenster schließt, gibt die Sperre sofort frei; bleibt ein Gerät einfach liegen,
-läuft sie nach 2 Minuten ohne Lebenszeichen ab. Geht die Sperre während der Arbeit verloren (Rechner war im
-Ruhezustand, inzwischen hat jemand anderes übernommen), sichert die App den letzten Stand auf diesem Rechner
-und bietet ihn beim nächsten Öffnen an.
+Only one window can edit at a time; others show "View only" and take over automatically as soon as the
+project is free. Closing a window releases the lock immediately; if a device is simply left lying around,
+the lock expires after 2 minutes without a sign of life. If the lock is lost while you are working (the
+computer was asleep and someone else has taken over in the meantime), the app saves the latest state on
+this computer and offers it the next time you open the project.
 
-## Projektordner
+## Project folder
 
 ```text
-Kalender-2027/
-├── lichtjahr.json          Manifest: Fotos, Gestaltungsstand, Revision (Schema-Version 1)
-├── Fotos/
-│   ├── 01 Januar/          ein Kandidatenordner je Monat – leere Ordner sind gültig
+Calendar-2027/
+├── lichtjahr.json          Manifest: photos, design state, revision (schema version 1)
+├── Photos/
+│   ├── 01 January/         one candidate folder per month – empty folders are valid
 │   ├── …
-│   ├── 12 Dezember/
-│   └── Ohne Monat/
-├── Export/                 fertige PDFs
+│   ├── 12 December/
+│   └── No month/
+├── Export/                 finished PDFs
 └── .lichtjahr/
-    ├── lock.json           Bearbeitungssperre
-    └── journal.jsonl       Journal für Dateiverschiebungen
+    ├── lock.json           editing lock
+    └── journal.jsonl       journal for file moves
 ```
 
-Vorschaubilder liegen nicht im Projektordner, sondern im Cache (`~/.cache/lichtjahr`). Die Liste der
-bekannten Projekte und gerettete Entwürfe liegen unter `~/.local/share/lichtjahr`.
+Thumbnails are not stored in the project folder but in the cache (`~/.cache/lichtjahr`). The list of known
+projects and rescued drafts live under `~/.local/share/lichtjahr`.
 
-## Druck-PDF
+## Print PDF
 
-`POST /api/projects/{id}/export/print` nimmt das PDF der Oberfläche (Fotos als sRGB-JPEG, alles andere CMYK) und
-ein Druckprofil entgegen (`lichtjahr/printing.py`):
+`POST /api/projects/{id}/export/print` accepts the PDF from the app (photos as sRGB JPEG, everything else
+CMYK) and a print profile (`lichtjahr/printing.py`):
 
-1. Fotos mit Pillow/LittleCMS über das ICC-Profil nach CMYK, als CMYK-JPEG ohne Adobe-Konvention (alle PDF-Leser zeigen es gleich)
-2. PDF/X-1a:2001: PDF 1.3 ohne Objektströme, OutputIntent mit eingebettetem Profil, `GTS_PDFXVersion`, `Trapped`, Datumsangaben (pikepdf/qpdf)
-3. Preflight auf die fertige Datei: PDF/X-Pflichtangaben, nur CMYK, Gesamtfarbauftrag, Beschnitt, Schriften, Transparenz, Bildauflösung
-4. Ablage in `Export/`, Antwort mit Pfad und Prüfbericht
+1. Photos converted to CMYK with Pillow/LittleCMS using the ICC profile, as CMYK JPEG without the Adobe convention (all PDF viewers show it the same way)
+2. PDF/X-1a:2001: PDF 1.3 without object streams, OutputIntent with embedded profile, `GTS_PDFXVersion`, `Trapped`, dates (pikepdf/qpdf)
+3. Preflight on the finished file: PDF/X required entries, CMYK only, total ink coverage, bleed, fonts, transparency, image resolution
+4. Saved to `Export/`, response with path and check report
 
-Druckprofile: mitgeliefert unter `lichtjahr/icc/` (basICColor, zlib-Lizenz), eigene ICC-Dateien über
-`POST /api/printers` (landen im Datenordner unter `printers/`). Das Profil muss ein CMYK-Ausgabeprofil der
-ICC-Version 2 sein; die Druckbedingung (z. B. FOGRA51) wird aus Beschreibung oder Messdaten erkannt.
+Print profiles: bundled under `lichtjahr/icc/` (basICColor, zlib license); your own ICC files via
+`POST /api/printers` (stored in the data folder under `printers/`). The profile must be a CMYK output
+profile of ICC version 2; the printing condition (e.g. FOGRA51) is detected from the description or the
+measurement data.
 
-## Grundsätze
+This is checked by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 
-- **Originale bleiben unangetastet.** Fotos werden nie verändert oder überschrieben. Verschieben ändert nur
-  den Pfad; bei gleichem Namen entsteht `foto (2).jpg`.
-- **Jedes Foto gehört zu genau einem Monat**, nämlich zu seinem Ordner. Ein Monatswechsel verschiebt die
-  Datei; eine Kopie für einen weiteren Monat entsteht nur ausdrücklich und bekommt eine eigene ID.
-- **Stabile IDs.** Fotos behalten ihre ID, auch wenn sie außerhalb der App verschoben werden (Wiedererkennung
-  über die SHA-256-Prüfsumme).
-- **Keine stillen Verluste.** Fehlende oder veränderte Dateien werden gemeldet, ihre Verwendung bleibt erhalten.
-- **Journal.** Datei verschieben und Manifest aktualisieren sind zwei Schritte. Bricht dazwischen etwas ab,
-  schließt der Dienst den Vorgang beim nächsten Erwerb der Sperre ab oder vermerkt ihn als abgebrochen.
-- **Eine Person bearbeitet, andere schauen zu.** Die Sperre hat eine begrenzte Laufzeit (Lease) und wird
-  regelmäßig erneuert. Eine abgelaufene Sperre kann kontrolliert übernommen werden; der alte Besitzer
-  bemerkt das beim nächsten Schreiben und kann nichts mehr überschreiben.
-- **Veraltete Schreiber werden abgewiesen.** Gespeichert wird nur mit passender Revision (`If-Match`);
-  sonst antwortet der Dienst mit 409 und dem aktuellen Stand.
+## Principles
 
-## Schnittstelle
+- **Originals stay untouched.** Photos are never modified or overwritten. Moving only changes the path; if
+  the name is taken, you get `photo (2).jpg`.
+- **Every photo belongs to exactly one month**, namely its folder. Changing the month moves the file; a copy
+  for an additional month is only made explicitly and gets its own ID.
+- **Stable IDs.** Photos keep their ID even when they are moved outside the app (recognized by their
+  SHA-256 checksum).
+- **No silent losses.** Missing or changed files are reported, and their use in the design is kept.
+- **Journal.** Moving a file and updating the manifest are two steps. If something breaks in between, the
+  service completes the operation the next time the lock is acquired, or marks it as aborted.
+- **One person edits, others watch.** The lock has a limited lifetime (lease) and is renewed regularly. An
+  expired lock can be taken over in a controlled way; the previous owner notices this on the next write and
+  can no longer overwrite anything.
+- **Stale writers are rejected.** Saving only works with a matching revision (`If-Match`); otherwise the
+  service responds with 409 and the current state.
 
-Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost:8470/api/docs`.
+## API
 
-| Methode | Pfad | Zweck |
+The running service shows the complete description at `http://localhost:8470/api/docs`.
+
+| Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/health` | Lebenszeichen |
-| GET / POST | `/api/projects` | bekannte Projekte / neues Projekt anlegen |
-| POST | `/api/projects/open` | vorhandenen Projektordner öffnen |
-| GET | `/api/projects/{id}` | Übersicht (Fotos je Monat, Sperre, Speicherort) |
-| GET / POST / DELETE | `/api/projects/{id}/lock` | Sperre ansehen / erwerben / freigeben |
-| POST | `/api/projects/{id}/lock/heartbeat` | Sperre verlängern |
-| GET / PUT | `/api/projects/{id}/manifest` | Manifest lesen / speichern (`If-Match: <Revision>`) |
-| PATCH | `/api/projects/{id}/editor` | nur den Gestaltungsstand speichern (`If-Match`) |
-| POST | `/api/projects/{id}/save` | automatisches Speichern der App: Gestaltung plus Bildtexte, Favoriten, Aussortieren in einer Revision |
-| POST | `/api/projects/{id}/export` | PDF in `Export/` ablegen |
-| POST | `/api/projects/{id}/scan` | Fotoordner abgleichen |
-| GET / POST | `/api/projects/{id}/assets` | Fotos auflisten / hochladen (`month` 0–11; Antwort mit `duplicate`) |
-| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Vorschaubild |
-| GET | `/api/projects/{id}/assets/{aid}/original` | Originaldatei |
-| POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Monat wechseln / ausdrücklich kopieren |
-| POST | `/api/projects/{id}/export/print` | Druck-PDF (PDF/X-1a) mit Farbprofil und Prüfbericht |
-| GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
-| GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |
-| GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
+| GET | `/api/health` | Sign of life |
+| GET / POST | `/api/projects` | Known projects / create a new project |
+| POST | `/api/projects/open` | Open an existing project folder |
+| GET | `/api/projects/{id}` | Overview (photos per month, lock, storage location) |
+| GET / POST / DELETE | `/api/projects/{id}/lock` | View / acquire / release the lock |
+| POST | `/api/projects/{id}/lock/heartbeat` | Extend the lock |
+| GET / PUT | `/api/projects/{id}/manifest` | Read / save the manifest (`If-Match: <revision>`) |
+| PATCH | `/api/projects/{id}/editor` | Save only the design state (`If-Match`) |
+| POST | `/api/projects/{id}/save` | The app's autosave: design plus captions, favorites and set-aside photos in one revision |
+| POST | `/api/projects/{id}/export` | Store a PDF in `Export/` |
+| POST | `/api/projects/{id}/scan` | Sync the photo folders |
+| GET / POST | `/api/projects/{id}/assets` | List / upload photos (`month` 0–11; response includes `duplicate`) |
+| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Thumbnail |
+| GET | `/api/projects/{id}/assets/{aid}/original` | Original file |
+| POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Change month / copy explicitly |
+| POST | `/api/projects/{id}/export/print` | Print PDF (PDF/X-1a) with color profile and check report |
+| GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
+| GET / POST / DELETE | `/api/printers` | List print profiles / add your own ICC profile / remove one |
+| GET / PUT / DELETE | `/api/projects/{id}/draft` | Rescue a draft on this computer (204 if there is none) |
 
-Schreibende Aufrufe brauchen die Kopfzeile `X-Lichtjahr-Session` mit der Sitzung aus dem Sperr-Erwerb.
+Writing calls need the `X-Lichtjahr-Session` header with the session from acquiring the lock.
 
 ## Tests
 
@@ -157,17 +162,17 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Die Tests decken unter anderem ab:
-- gleichzeitigen Sperr-Erwerb und gleichzeitige Übernahme einer abgelaufenen Sperre durch mehrere Prozesse (genau einer gewinnt)
-- veraltete Schreiber
-- außerhalb der App verschobene, veränderte und gelöschte Fotos
-- einen simulierten Absturz mitten in einer Verschiebung
-- bytegetreues Verschieben ohne Überschreiben
-- die EXIF-Ausrichtung der Vorschaubilder
-- Duplikate beim Hochladen, Aussortieren, Speichern nur erlaubter Felder, Export, Hostnamen-Prüfung
-- Druck-PDF: Farbumrechnung, PDF/X-1a-Merkmale, Preflight-Befunde, eigene Druckprofile
+Among other things, the tests cover:
+- simultaneous lock acquisition and simultaneous takeover of an expired lock by several processes (exactly one wins)
+- stale writers
+- photos moved, changed and deleted outside the app
+- a simulated crash in the middle of a move
+- byte-exact moving without overwriting
+- the EXIF orientation of thumbnails
+- duplicates on upload, setting photos aside, saving only permitted fields, export, host name check
+- Print PDF: color conversion, PDF/X-1a properties, preflight findings, custom print profiles
 
-## Ausblick
+## Outlook
 
-- Nextcloud über WebDAV als zweiter Speicherort mit derselben Schnittstelle (Sperre am gemeinsamen Endpunkt mit ETag-Prüfung).
-- PDF/X-4 und Softproof.
+- Nextcloud via WebDAV as a second storage location with the same API (lock at the shared endpoint with ETag checks).
+- PDF/X-4 and soft proofing.

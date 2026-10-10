@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 import pikepdf
 from PIL import Image, ImageChops, ImageCms
 
+from .i18n import _t
+
 PT_PER_MM = 72 / 25.4
 PDFX_VERSION = "PDF/X-1:2001"
 PDFX_CONFORMANCE = "PDF/X-1a:2001"
@@ -66,8 +68,7 @@ BUILTIN = [
     dict(id="fogra39", name="Gestrichenes Papier · FOGRA39", icc="ISOcoated_v2_300_bas.icc", condition="FOGRA39",
          info="ISO Coated v2 300% (basICColor)",
          conditionText="Offset commercial and specialty printing according to ISO 12647-2:2004 / Amd 1, paper type 1 or 2 (gloss or matte coated offset, 115 g/m2), screen frequency 60/cm.",
-         tac=300, note="Verbreiteter Standard für Fotokalender auf glänzendem oder mattem Papier. Verlangt die Druckerei PSO Coated v3 "
-                       "(FOGRA51), deren Profil als eigenes Druckprofil hinzufügen; frei mitliefern dürfen wir es nicht."),
+         tac=300, note="Verbreiteter Standard für Fotokalender auf glänzendem oder mattem Papier. Verlangt die Druckerei PSO Coated v3 (FOGRA51), deren Profil als eigenes Druckprofil hinzufügen; frei mitliefern dürfen wir es nicht."),
     dict(id="fogra47", name="Ungestrichenes Papier · FOGRA47", icc="PSO_Uncoated_ISO12647_bas.icc", condition="FOGRA47",
          info="PSO Uncoated ISO12647 (basICColor)",
          conditionText="Offset commercial and specialty printing according to ISO 12647-2:2004 / Amd 1, paper type 4 (uncoated white offset, 120 g/m2), screen frequency 60/cm.",
@@ -84,7 +85,7 @@ class PrinterRegistry:
         out = []
         for b in BUILTIN:
             path = os.path.join(BUNDLED_DIR, b["icc"])
-            out.append(PrinterProfile(**b, builtin=True, available=os.path.exists(path), path=path))
+            out.append(PrinterProfile(**{**b, "name": _t(b["name"]), "note": _t(b["note"])}, builtin=True, available=os.path.exists(path), path=path))
         if os.path.isdir(self.dir):
             for name in sorted(os.listdir(self.dir)):
                 if not name.endswith(".json"):
@@ -102,23 +103,23 @@ class PrinterRegistry:
     def get(self, pid: str) -> PrinterProfile:
         p = next((p for p in self.all() if p.id == pid), None)
         if not p:
-            raise PrintError("Unbekanntes Druckprofil.")
+            raise PrintError(_t("Unbekanntes Druckprofil."))
         if not p.available:
-            raise PrintError(f"Für „{p.name}“ fehlt die ICC-Datei {p.icc}.")
+            raise PrintError(_t("Für „{name}“ fehlt die ICC-Datei {icc}.", name=p.name, icc=p.icc))
         return p
 
     def add(self, icc_bytes: bytes, name: str | None = None, **settings) -> PrinterProfile:
         """Eigenes Profil aus der ICC-Datei der Druckerei. Prüft, dass es ein CMYK-Ausgabeprofil ist."""
         info = inspect_icc(icc_bytes)
         if info["version"] >= 4:
-            raise PrintError("Das Profil hat ICC-Version 4. PDF/X-1a braucht ein Profil der Version 2; die Druckereien bieten meist beide an.")
+            raise PrintError(_t("Das Profil hat ICC-Version 4. PDF/X-1a braucht ein Profil der Version 2; die Druckereien bieten meist beide an."))
         os.makedirs(self.dir, exist_ok=True)
         pid = "eigen-" + uuid.uuid4().hex[:8]
         icc_name = pid + ".icc"
         with open(os.path.join(self.dir, icc_name), "wb") as fh:
             fh.write(icc_bytes)
         allowed = {k: v for k, v in settings.items() if k in ("intent", "tac", "bleed", "minDpi", "goodDpi", "note") and v not in (None, "")}
-        p = PrinterProfile(id=pid, name=(name or info["description"] or "Eigenes Profil").strip()[:80], icc=icc_name,
+        p = PrinterProfile(id=pid, name=(name or info["description"] or _t("Eigenes Profil")).strip()[:80], icc=icc_name,
                            condition=info["condition"] or "Custom", info=info["description"], conditionText=info["conditionText"], **allowed)
         if p.intent not in ("perceptual", "relative"):
             p.intent = "perceptual"
@@ -131,7 +132,7 @@ class PrinterRegistry:
 
     def remove(self, pid: str) -> None:
         if not pid.startswith("eigen-") or "/" in pid or "\\" in pid:
-            raise PrintError("Mitgelieferte Profile lassen sich nicht löschen.")
+            raise PrintError(_t("Mitgelieferte Profile lassen sich nicht löschen."))
         for ext in (".json", ".icc"):
             try:
                 os.unlink(os.path.join(self.dir, pid + ext))
@@ -143,12 +144,12 @@ def inspect_icc(data: bytes) -> dict:
     try:
         prof = ImageCms.ImageCmsProfile(io.BytesIO(data))
     except (OSError, ImageCms.PyCMSError) as e:
-        raise PrintError(f"Keine gültige ICC-Datei: {e}") from e
+        raise PrintError(_t("Keine gültige ICC-Datei: {error}", error=e)) from e
     p = prof.profile
     if p.xcolor_space.strip() != "CMYK":
-        raise PrintError(f"Das Profil beschreibt {p.xcolor_space.strip()}, gebraucht wird ein CMYK-Druckprofil.")
+        raise PrintError(_t("Das Profil beschreibt {space}, gebraucht wird ein CMYK-Druckprofil.", space=p.xcolor_space.strip()))
     if p.device_class != "prtr":
-        raise PrintError("Das ist kein Ausgabeprofil für den Druck.")
+        raise PrintError(_t("Das ist kein Ausgabeprofil für den Druck."))
     desc = (p.profile_description or "").strip()
     try:
         target = (p.target or "")[:2000]        # Charakterisierungsdaten, nennen oft „FOGRA51“
@@ -194,7 +195,7 @@ def _strip_adobe(jpeg: bytes) -> bytes:
     out, i = bytearray(jpeg[:2]), 2
     while i < len(jpeg):
         if jpeg[i] != 0xFF:
-            raise PrintError("Unerwarteter JPEG-Aufbau.")
+            raise PrintError(_t("Unerwarteter JPEG-Aufbau."))
         marker = jpeg[i + 1]
         if marker == 0xDA:                      # Bilddaten: Rest unverändert übernehmen
             out += jpeg[i:]
@@ -234,7 +235,7 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
     try:
         pdf = pikepdf.open(io.BytesIO(data))
     except pikepdf.PdfError as e:
-        raise PrintError(f"Das PDF der Oberfläche ist unlesbar: {e}") from e
+        raise PrintError(_t("Das PDF der Oberfläche ist unlesbar: {error}", error=e)) from e
     transform = _transform(profile)
     images = [(n, xo) for page in pdf.pages for n, xo in (page.Resources.get("/XObject") or {}).items()
               if xo.get("/Subtype") == pikepdf.Name.Image]
@@ -311,27 +312,27 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
     pdf = pikepdf.open(io.BytesIO(data))
     info = pdf.docinfo
     if str(info.get("/GTS_PDFXVersion", "")) != PDFX_VERSION or str(info.get("/GTS_PDFXConformance", "")) != PDFX_CONFORMANCE:
-        add("error", "pdfx-id", "PDF/X-Kennung fehlt.")
+        add("error", "pdfx-id", _t("PDF/X-Kennung fehlt."))
     if info.get("/Trapped") not in (pikepdf.Name("/False"), pikepdf.Name("/True")):
-        add("error", "trapped", "Angabe zur Überfüllung (Trapped) fehlt.")
+        add("error", "trapped", _t("Angabe zur Überfüllung (Trapped) fehlt."))
     if not str(info.get("/Title", "")):
-        add("error", "title", "Titel fehlt.")
+        add("error", "title", _t("Titel fehlt."))
     if pdf.pdf_version > "1.3":
-        add("error", "version", f"PDF-Version {pdf.pdf_version}, für PDF/X-1a:2001 höchstens 1.3.")
+        add("error", "version", _t("PDF-Version {version}, für PDF/X-1a:2001 höchstens 1.3.", version=pdf.pdf_version))
     if pdf.is_encrypted:
-        add("error", "encrypted", "Das PDF ist verschlüsselt.")
+        add("error", "encrypted", _t("Das PDF ist verschlüsselt."))
     if "/ID" not in pdf.trailer:
-        add("error", "id", "Dokument-ID fehlt.")
+        add("error", "id", _t("Dokument-ID fehlt."))
     oi = pdf.Root.get("/OutputIntents")
     if not oi or not any(o.get("/S") == pikepdf.Name.GTS_PDFX and "/DestOutputProfile" in o for o in oi):
-        add("error", "outputintent", "Ausgabebedingung (OutputIntent mit ICC-Profil) fehlt.")
+        add("error", "outputintent", _t("Ausgabebedingung (OutputIntent mit ICC-Profil) fehlt."))
 
     min_dpi, vector_tac, fonts_ok = math.inf, 0.0, True
     bleed_short = []
     for pno, page in enumerate(pdf.pages, start=1):
         b = _boxes(page)
         if not b["trim"] and not b["art"]:
-            add("error", "trimbox", "Endformat (TrimBox) fehlt.", pno)
+            add("error", "trimbox", _t("Endformat (TrimBox) fehlt."), pno)
         else:
             t, bl = b["trim"] or b["art"], b["bleed"]
             short = min(t[0] - bl[0], t[1] - bl[1], bl[2] - t[2], bl[3] - t[3]) / PT_PER_MM
@@ -339,31 +340,31 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
                 bleed_short.append((pno, short))
             m = b["media"]
             if bl[0] < m[0] - .01 or bl[1] < m[1] - .01 or bl[2] > m[2] + .01 or bl[3] > m[3] + .01:
-                add("error", "bleedbox", "Beschnittrahmen ragt über das Papierformat hinaus.", pno)
+                add("error", "bleedbox", _t("Beschnittrahmen ragt über das Papierformat hinaus."), pno)
         if "/Group" in page.obj and page.obj.Group.get("/S") == pikepdf.Name.Transparency:
-            add("error", "transparency", "Seite verwendet Transparenz.", pno)
+            add("error", "transparency", _t("Seite verwendet Transparenz."), pno)
         res = page.Resources
         for _, gs in (res.get("/ExtGState") or {}).items():
             smask = gs.get("/SMask")
             if float(gs.get("/CA", 1)) < 1 or float(gs.get("/ca", 1)) < 1 or (smask is not None and smask != pikepdf.Name("/None")) \
                     or gs.get("/BM", pikepdf.Name.Normal) not in (pikepdf.Name.Normal, pikepdf.Name.Compatible):
-                add("error", "transparency", "Transparenz-Einstellung gefunden.", pno)
+                add("error", "transparency", _t("Transparenz-Einstellung gefunden."), pno)
         for _, font in (res.get("/Font") or {}).items():
             fd = font.get("/FontDescriptor")
             if font.get("/Subtype") == pikepdf.Name.Type0:
                 fd = font.DescendantFonts[0].get("/FontDescriptor")
             if fd is None or not any(k in fd for k in ("/FontFile", "/FontFile2", "/FontFile3")):
                 fonts_ok = False
-                add("error", "font", f"Schrift {font.get('/BaseFont', '?')} ist nicht eingebettet.", pno)
+                add("error", "font", _t("Schrift {font} ist nicht eingebettet.", font=font.get('/BaseFont', '?')), pno)
         xobjects = res.get("/XObject") or {}
         for name, xo in xobjects.items():
             if xo.get("/Subtype") != pikepdf.Name.Image:
                 continue
             cs = xo.get("/ColorSpace")
             if cs not in (pikepdf.Name.DeviceCMYK, pikepdf.Name.DeviceGray):
-                add("error", "rgb-image", f"Bild {name[1:]} ist nicht in CMYK ({cs}).", pno)
+                add("error", "rgb-image", _t("Bild {name} ist nicht in CMYK ({cs}).", name=name[1:], cs=cs), pno)
             if "/SMask" in xo or "/Mask" in xo:
-                add("error", "transparency", f"Bild {name[1:]} hat eine Transparenzmaske.", pno)
+                add("error", "transparency", _t("Bild {name} hat eine Transparenzmaske.", name=name[1:]), pno)
         # Inhalt: Farboperatoren und Bildgrößen
         ctm, stack = (1, 0, 0, 1, 0, 0), []
         for operands, op in pikepdf.parse_content_stream(page):
@@ -379,7 +380,7 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
             elif o in ("rg", "RG", "sc", "SC", "scn", "SCN", "cs", "CS"):
                 if o in ("cs", "CS") and str(operands[0]) in ("/DeviceCMYK", "/DeviceGray"):
                     continue
-                add("error", "rgb-vector", f"Farbe außerhalb von CMYK im Seiteninhalt ({o}).", pno)
+                add("error", "rgb-vector", _t("Farbe außerhalb von CMYK im Seiteninhalt ({op}).", op=o), pno)
             elif o == "Do":
                 xo = xobjects.get(str(operands[0]))
                 if xo is not None and xo.get("/Subtype") == pikepdf.Name.Image:
@@ -390,31 +391,31 @@ def preflight(data: bytes, profile: PrinterProfile, image_tac: list | None = Non
                         min_dpi = min(min_dpi, dpi)
                         # Geringe Auflösung macht ein Foto unscharf, die Datei aber nicht ungültig: Hinweis, kein Fehler
                         if dpi < profile.minDpi:
-                            add("warn", "dpi", f"Foto mit nur {dpi:.0f} dpi wird sichtbar unscharf (ab {profile.minDpi} dpi gut).", pno)
+                            add("warn", "dpi", _t("Foto mit nur {dpi} dpi wird sichtbar unscharf (ab {min} dpi gut).", dpi=f"{dpi:.0f}", min=profile.minDpi), pno)
                         elif dpi < profile.goodDpi:
-                            add("info", "dpi", f"Foto mit {dpi:.0f} dpi (bestens ab {profile.goodDpi} dpi).", pno)
+                            add("info", "dpi", _t("Foto mit {dpi} dpi (bestens ab {good} dpi).", dpi=f"{dpi:.0f}", good=profile.goodDpi), pno)
             elif o == "BI":
-                add("error", "inline-image", "Eingebettetes Inline-Bild gefunden.", pno)
+                add("error", "inline-image", _t("Eingebettetes Inline-Bild gefunden."), pno)
     for pno, short in bleed_short:
-        add("error", "bleed", f"Beschnitt nur {short:.1f} mm, verlangt {profile.bleed:g} mm.", pno)
+        add("error", "bleed", _t("Beschnitt nur {short} mm, verlangt {bleed} mm.", short=f"{short:.1f}", bleed=f"{profile.bleed:g}"), pno)
     tacs = [t for t in (image_tac or []) if t is not None]
     tac = max([vector_tac, *tacs], default=0)
     if tac > profile.tac + 0.5:
-        add("error", "tac", f"Gesamtfarbauftrag bis {tac:.0f} %, erlaubt sind {profile.tac} %.")
+        add("error", "tac", _t("Gesamtfarbauftrag bis {tac} %, erlaubt sind {limit} %.", tac=f"{tac:.0f}", limit=profile.tac))
     errors = [i for i in items if i["level"] == "error"]
     summary = [
         {"level": "ok" if not any(i["code"] in ("pdfx-id", "outputintent", "version", "trapped", "title", "id") for i in errors) else "error",
-         "code": "pdfx", "text": f"{PDFX_CONFORMANCE} mit Ausgabebedingung {profile.condition}"},
+         "code": "pdfx", "text": _t("{pdfx} mit Ausgabebedingung {condition}", pdfx=PDFX_CONFORMANCE, condition=profile.condition)},
         {"level": "ok" if not any(i["code"] in ("rgb-image", "rgb-vector") for i in errors) else "error", "code": "cmyk",
-         "text": f"Alle Farben in CMYK, Fotos mit Farbprofil umgerechnet ({'wahrnehmungsorientiert' if profile.intent == 'perceptual' else 'relativ farbmetrisch'})"},
-        {"level": "ok" if tac <= profile.tac + 0.5 else "error", "code": "tac", "text": f"Gesamtfarbauftrag höchstens {tac:.0f} % (Grenze {profile.tac} %)"},
-        {"level": "ok" if not bleed_short else "error", "code": "bleed", "text": f"Beschnitt mindestens {profile.bleed:g} mm an allen Seiten"},
-        {"level": "ok" if fonts_ok else "error", "code": "fonts", "text": "Schriften vollständig eingebettet"},
-        {"level": "ok" if not any(i["code"] == "transparency" for i in errors) else "error", "code": "transparency", "text": "Keine Transparenz"},
+         "text": _t("Alle Farben in CMYK, Fotos mit Farbprofil umgerechnet ({intent})", intent=_t("wahrnehmungsorientiert") if profile.intent == "perceptual" else _t("relativ farbmetrisch"))},
+        {"level": "ok" if tac <= profile.tac + 0.5 else "error", "code": "tac", "text": _t("Gesamtfarbauftrag höchstens {tac} % (Grenze {limit} %)", tac=f"{tac:.0f}", limit=profile.tac)},
+        {"level": "ok" if not bleed_short else "error", "code": "bleed", "text": _t("Beschnitt mindestens {bleed} mm an allen Seiten", bleed=f"{profile.bleed:g}")},
+        {"level": "ok" if fonts_ok else "error", "code": "fonts", "text": _t("Schriften vollständig eingebettet")},
+        {"level": "ok" if not any(i["code"] == "transparency" for i in errors) else "error", "code": "transparency", "text": _t("Keine Transparenz")},
     ]
     if min_dpi < math.inf:
         lvl = "warn" if min_dpi < profile.minDpi else "ok"
-        summary.append({"level": lvl, "code": "dpi", "text": f"Kleinste Bildauflösung {min_dpi:.0f} dpi"})
+        summary.append({"level": lvl, "code": "dpi", "text": _t("Kleinste Bildauflösung {dpi} dpi", dpi=f"{min_dpi:.0f}")})
     return {
         "ok": not errors,
         "pdfx": PDFX_CONFORMANCE,

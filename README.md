@@ -2,151 +2,153 @@
 
 # Lichtjahr
 
-**Der Familien-Fotokalender – vom Fotoordner bis zum Druck-PDF.**
+**English** · [Deutsch](README.de.md)
 
-Fotos den Monaten zuordnen, Seiten gestalten, Kalendarium platzieren, an der Wand durchblättern
-und ein CMYK-PDF für die Druckerei erzeugen. Im Browser, am Desktop wie auf dem Handy.
+**The family photo calendar – from photo folder to Print PDF.**
+
+Assign photos to months, design the pages, place the calendar grid, flip through the result on a wall
+and create a CMYK PDF for the print shop. In the browser, on desktop and phone alike.
 
 [![CI](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml/badge.svg)](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml)
-[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
-![Status: Prototyp](https://img.shields.io/badge/Status-Prototyp-orange.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Status: Prototype](https://img.shields.io/badge/Status-Prototype-orange.svg)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 
-[**▶ Im Browser ausprobieren**](https://jo-tud.github.io/Lichtjahr/) ·
-[Schnellstart](#schnellstart) ·
-[Funktionen](#was-lichtjahr-kann) ·
+[**▶ Try it in your browser**](https://jo-tud.github.io/Lichtjahr/) ·
+[Quick start](#quick-start) ·
+[Features](#what-lichtjahr-can-do) ·
 [Roadmap](#roadmap) ·
-[Mitmachen](CONTRIBUTING.md) ·
-[English](#english-summary)
+[Contributing](CONTRIBUTING.md)
 
 <br>
 
-<img src="docs/images/wand.gif" alt="Der fertige Kalender hängt an einer Wand und wird umgeblättert" width="720">
+<img src="docs/images/wand.gif" alt="The finished calendar hangs on a wall and its pages are being turned" width="720">
 
 </div>
 
 ---
 
-## Warum Lichtjahr?
+## Why Lichtjahr?
 
-Viele Familien gestalten einmal im Jahr einen Wandkalender mit eigenen Fotos. Wer das schon gemacht hat,
-kennt die Arbeit dahinter: Fotos von mehreren Leuten zusammentragen und den Monaten zuordnen, Kalendarien
-setzen, Feiertage und Geburtstage nachschlagen, Bildausschnitte wählen, an Beschnitt und Bindung denken und
-am Ende eine Datei liefern, die die Druckerei annimmt. Und weil das nur einmal im Jahr ansteht, fängt man
-jedes Mal fast von vorn an.
+Many families make a wall calendar with their own photos once a year. If you have done it before, you know
+the work behind it: gathering photos from several people and sorting them into months, setting up calendar
+grids, looking up holidays and birthdays, choosing crops, keeping bleed and binding in mind, and in the end
+delivering a file the print shop will accept. And because it only comes around once a year, you start almost
+from scratch every time.
 
-Lichtjahr ist für genau diesen einen Ablauf gebaut:
+Lichtjahr is built for exactly this one workflow:
 
-1. **Fotos sammeln** – ein Ordner je Monat, gern von mehreren Leuten und über das ganze Jahr verteilt.
-2. **Automatisch gestalten** – ein Klick verteilt Layouts, Fotos und Kalendarien. Danach ist alles frei änderbar.
-3. **An der Wand ansehen** – den fertigen Kalender durchblättern, bevor er in Druck geht.
-4. **PDF erzeugen** – mit Beschnitt, CMYK-Bildern, eingebetteter Schrift und ohne Transparenz.
+1. **Collect photos** – one folder per month, contributed by several people and spread across the whole year.
+2. **Design automatically** – one click distributes layouts, photos and calendar grids. After that, everything can be changed freely.
+3. **See it on the wall** – flip through the finished calendar before it goes to print.
+4. **Create the PDF** – with bleed, CMYK images, an embedded font and no transparency.
 
-Die Fotos bleiben bei dir: in einem ganz normalen Ordner auf deinem Rechner, mit einem Unterordner je
-Monat. Es gibt kein Konto und keine Cloud, die man dafür braucht.
+Your photos stay with you: in an ordinary folder on your computer, with one subfolder per month. No account
+and no cloud required.
 
-## Was Lichtjahr kann
+## What Lichtjahr can do
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### Automatisch gestalten
+### Automatic design
 
-Layout je Monat nach Fotozahl und Seitenformat, Rahmen gefüllt mit den passenden Fotos des Monats
-(Favoriten, Seitenverhältnis, genug Auflösung), Kalendarium an einer ruhigen Bildstelle.
-Ein Ausgangspunkt in Sekunden statt in Stunden.
+A layout for each month based on the number of photos and the page format, frames filled with the month's
+best-suited photos (favorites, aspect ratio, enough resolution), and the calendar grid placed on a calm area
+of the picture. A starting point in seconds instead of hours.
 
 </td>
-<td width="50%"><img src="docs/images/gestalten.webp" alt="Gestalten-Ansicht mit Seitenleiste, Seite und Layout-Vorlagen"></td>
+<td width="50%"><img src="docs/images/gestalten.webp" alt="Design view with sidebar, page and layout templates"></td>
 </tr>
 <tr>
 <td valign="top">
 
-### Rahmen frei setzen
+### Place frames freely
 
-16 Vorlagen als Start, dann Rahmen verschieben, an den Ecken skalieren, überlagern, drehen und
-duplizieren – mit Einrasten an Rändern, Mitte und Nachbarrahmen. Doppelklick öffnet den
-Bildausschnitt: Foto unter dem Rahmen schieben, zoomen, „Füllen“ oder „Ganz zeigen“.
+16 templates to start with, then move frames, scale them by their corners, overlap, rotate and duplicate
+them – snapping to edges, the center and neighboring frames. Double-click to adjust the crop: slide the
+photo under the frame, zoom, "Fill" or "Fit".
 
 </td>
-<td><img src="docs/images/rahmen.webp" alt="Ausgewählter Rahmen mit Griffen und Werkzeugleiste"></td>
+<td><img src="docs/images/rahmen.webp" alt="Selected frame with handles and toolbar"></td>
 </tr>
 <tr>
 <td valign="top">
 
-### Das Kalendarium sucht sich seinen Platz
+### The calendar grid finds its own spot
 
-„Platz automatisch finden“ analysiert das Foto: Wo ist wenig Detail, wo ist die Helligkeit
-gleichmäßig? Dort landet das Kalendarium, in passender Form (Leiste, Spalte, Raster), mit lesbarer
-Schriftfarbe und bei Bedarf einer Fläche dahinter – für eine Seite oder alle Monate auf einmal.
+"Find spot automatically" analyzes the photo: where is there little detail, where is the brightness even?
+That is where the calendar grid goes, in a fitting shape (strip, column, grid), with a legible text color
+and a backdrop if needed – for one page or all months at once.
 
 </td>
-<td><img src="docs/images/platz.webp" alt="Analyse der ruhigen Bildbereiche mit vorgeschlagener Position"></td>
+<td><img src="docs/images/platz.webp" alt="Analysis of calm image areas with the suggested position"></td>
 </tr>
 <tr>
 <td valign="top">
 
-### Fotos und Monate
+### Photos and months
 
-Import von Dateien, ganzen Ordnern oder per Drag & Drop. Der Monat kommt aus dem Ordnernamen, dem
-EXIF-Aufnahmedatum oder dem Dateinamen. Jedes Foto gehört zu genau einem Monat; Umordnen ist ein Zug.
+Import single files, whole folders or by drag and drop. The month comes from the folder name, the EXIF
+capture date or the file name. Every photo belongs to exactly one month; moving it to another is a single step.
 
 </td>
-<td><img src="docs/images/fotos.webp" alt="Fotos nach Monaten sortiert"></td>
+<td><img src="docs/images/fotos.webp" alt="Photos sorted by month"></td>
 </tr>
 <tr>
 <td valign="top">
 
-### Prüfen und drucken
+### Check and print
 
-Vor dem Export prüft Lichtjahr leere Rahmen, Auflösung, Lesbarkeit des Kalendariums, Abstand zu
-Schnitt und Bindung sowie fehlende Bildtexte – mit Sprung zur Seite und, wo möglich, direkter
-Korrektur. Der Leuchttisch zeigt alle Monatsansichten oder die Druckbogen.
+Before exporting, Lichtjahr checks for empty frames, resolution, legibility of the calendar grid, distance
+to the trim and binding, and missing captions – with a jump to the page and, where possible, a direct fix.
+The light table shows all month pages or the print sheets.
 
 </td>
-<td><img src="docs/images/druck.webp" alt="Druckansicht mit Prüfliste und Leuchttisch"></td>
+<td><img src="docs/images/druck.webp" alt="Print view with checklist and light table"></td>
 </tr>
 <tr>
 <td valign="top">
 
-### Auch auf dem Handy
+### On your phone, too
 
-Die eigentliche Arbeit passiert am großen Bildschirm, aber Ansehen, Fotos tauschen und
-Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoom.
+The real work happens on a big screen, but viewing, swapping photos and flipping through also work on
+the go – with swiping, tapping and pinch-to-zoom.
 
 </td>
-<td><img src="docs/images/handy.webp" alt="Gestalten und Wandansicht auf dem Smartphone"></td>
+<td><img src="docs/images/handy.webp" alt="Design view and wall view on a smartphone"></td>
 </tr>
 </table>
 
-### Alle Funktionen im Überblick
+### All features at a glance
 
-- **Projektordner:** Mit dem lokalen Dienst ist der Kalender ein Ordner mit `Fotos/01 Januar` bis `12 Dezember`. Fotos legst du dort hinein, wann und womit du willst; die App gleicht automatisch ab. Monat wechseln verschiebt die Datei, gespeichert wird von selbst, das PDF landet in `Export/`. Bearbeiten kann immer ein Fenster, weitere sehen zu.
-- **Formate:** 29,7 × 29,7 cm, DIN A3 quer und hoch, A4 quer, 30 × 30 cm, 21 × 21 cm oder eigene Maße. Formatwechsel auch später; die Seiten passen sich an.
-- **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
-- **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
-- **Kalendarium:** Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
-- **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten.
-- **Druck-PDF:** PDF/X-1a mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
-- **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
-- **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
-- **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
-- **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
+- **Project folder:** With the local service, the calendar is a folder containing `Photos/01 January` through `12 December`. Put photos in there whenever and with whatever you like; the app syncs automatically. Changing a photo's month moves the file, saving happens on its own, and the PDF ends up in `Export/`. One window can edit at a time; others can watch.
+- **Formats:** 29.7 × 29.7 cm, A3 landscape and portrait, A4 landscape, 30 × 30 cm, 21 × 21 cm or a custom size. You can change the format later; the pages adapt.
+- **Sheets:** 12 months, a cover, a photo index at the end and as many extra sheets as you like.
+- **Single- or double-sided:** Back sides *unfolded* (the back of the previous sheet on top, the month below, one shared calendar grid), as a second picture per month or as free photo pages.
+- **Calendar grid:** Strip, column or grid, freely movable, with a backdrop of adjustable opacity. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
+- **Languages:** The app is available in English and German. It follows your browser's language and can be switched at any time. The printed calendar has its own language setting for month names, weekdays, holidays and the photo index – so you can work in one language and print in the other. So far, only German public holidays and school holidays (for each of Germany's states) are supported.
+- **Photo index:** Pictures per page (with captions, numbers, thumbnails), text per page or free text; flows over as many pages as needed.
+- **Print PDF:** PDF/X-1a with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
+- **Binding:** Wire binding and hanger cut-out as guideline values or with measurements from the print shop's data sheet.
+- **Photo spacing:** 0–5 mm, for all pages or per page.
+- **Undo/redo** with a jump to the changed page; the history survives a reload.
+- **On the wall:** The calendar hangs on a wall and its pages turn over the wire binding – by click, swipe or arrow keys.
 
-## Schnellstart
+## Quick start
 
-### Nur ausprobieren
+### Just try it
 
-Öffne die **[Online-Version](https://jo-tud.github.io/Lichtjahr/)**. Sie startet mit Beispielbildern.
-Eigene Fotos bleiben im Browser (IndexedDB) und werden nirgendwohin hochgeladen.
+Open the **[online version](https://jo-tud.github.io/Lichtjahr/)**. It starts with sample pictures.
+Your own photos stay in the browser (IndexedDB) and are never uploaded anywhere.
 
-Ohne Internet geht es genauso: Repository klonen und `prototyp/dist/index.html` im Browser öffnen.
+It works just the same without internet: clone the repository and open `prototyp/dist/index.html` in your browser.
 
-### Mit Projektordner (empfohlen)
+### With a project folder (recommended)
 
-Für den echten Kalender läuft auf deinem Rechner ein kleiner Dienst, der die App ausliefert und direkt in
-einem Ordner arbeitet. Voraussetzung ist Python 3.11 oder neuer.
+For the real calendar, a small service runs on your computer. It serves the app and works directly in a
+folder. You need Python 3.11 or newer.
 
 ```sh
 git clone https://github.com/jo-tud/Lichtjahr.git
@@ -157,121 +159,122 @@ pip install -e .
 lichtjahr serve                                      # → http://localhost:8470/
 ```
 
-Beim ersten Öffnen legst du den Projektordner an, zum Beispiel `~/Bilder/Kalender-2027`. Danach Fotos in
-die Monatsordner legen, auch nach und nach, von mehreren Leuten und mit anderen Programmen; beim Öffnen
-der App sind sie da.
+The first time you open it, you create the project folder, for example `~/Pictures/Calendar-2027`. Then put
+photos into the month folders – bit by bit, from several people and with other programs; they will be there
+when you open the app.
 
-<img src="docs/images/projekt.webp" alt="Projektwahl beim Start und Projektordner-Karte" width="720">
+<img src="docs/images/projekt.webp" alt="Project selection at startup and project folder card" width="720">
 
-Vom Handy im Heimnetz geht es mit `lichtjahr serve --host 0.0.0.0`; der Dienst zeigt dann eine Adresse mit
-Zugriffsschlüssel. Mehr dazu in [`backend/README.md`](backend/README.md).
+To use it from your phone on your home network, run `lichtjahr serve --host 0.0.0.0`; the service then
+shows an address with an access key. More in [`backend/README.md`](backend/README.md).
 
-## Projektordner
+## Project folder
 
 ```text
-Kalender-2027/
-├── lichtjahr.json        Manifest: Fotos, Gestaltungsstand, Revision
-├── Fotos/
-│   ├── 01 Januar/        ein Ordner je Monat – das ist die eigentliche Zuordnung
+Calendar-2027/
+├── lichtjahr.json        Manifest: photos, design state, revision
+├── Photos/
+│   ├── 01 January/       one folder per month – this is the actual assignment
 │   ├── …
-│   ├── 12 Dezember/
-│   └── Ohne Monat/
-├── Export/               fertige PDFs
-└── .lichtjahr/           Sperre, Journal, interne Daten
+│   ├── 12 December/
+│   └── No month/
+├── Export/               finished PDFs
+└── .lichtjahr/           lock, journal, internal data
 ```
 
-Der Ordner ist das Projekt: Er lässt sich kopieren, sichern und mit Nextcloud, Syncthing oder einem
-Netzlaufwerk teilen. Fotos werden über ihren SHA-256-Hash wiedererkannt, auch wenn sie umbenannt oder
-verschoben wurden.
+The folder is the project: you can copy it, back it up and share it via Nextcloud, Syncthing or a network
+drive. Photos are recognized by their SHA-256 hash, even after they have been renamed or moved.
 
-## Druck-PDF und Farbmanagement
+## Print PDF and color management
 
-Mit dem lokalen Dienst erzeugt Lichtjahr ein **Druck-PDF nach PDF/X-1a:2001**:
+With the local service, Lichtjahr creates a **Print PDF conforming to PDF/X-1a:2001**:
 
-1. Die Oberfläche setzt die Seiten; Text, Kalendarium und Flächen sind CMYK-Vektoren, die Fotos gehen als sRGB an den Dienst.
-2. Der Dienst rechnet die Fotos mit **LittleCMS** über das ICC-Profil der Druckerei nach CMYK um (wahrnehmungsorientiert oder relativ farbmetrisch mit Tiefenkompensierung).
-3. Er schreibt PDF/X-1a mit Ausgabebedingung (OutputIntent samt eingebettetem Profil), Beschnitt- und Endformatrahmen.
-4. Ein **Preflight** prüft die fertige Datei und zeigt den Bericht in der App; das PDF landet in `Export/`.
+1. The app lays out the pages; text, calendar grid and backdrops are CMYK vectors, and the photos go to the service as sRGB.
+2. The service converts the photos to CMYK with **LittleCMS** using the print shop's ICC profile (perceptual, or relative colorimetric with black point compensation).
+3. It writes PDF/X-1a with an output condition (OutputIntent including the embedded profile), bleed box and trim box.
+4. A **preflight** checks the finished file and shows the report in the app; the PDF ends up in `Export/`.
 
-<img src="docs/images/druckpdf.webp" alt="Druck-PDF-Karte mit Druckprofil und bestandenem Prüfbericht" width="420" align="right">
+<img src="docs/images/druckpdf.webp" alt="Print PDF card with print profile and a passed check report" width="420" align="right">
 
-| Der Preflight prüft | |
+| The preflight checks | |
 |---|---|
-| PDF/X-Kennung, PDF 1.3, Ausgabebedingung, Dokument-ID, Titel, Überfüllung | Pflichtangaben von PDF/X-1a |
-| Nur CMYK, keine RGB-Bilder oder -Farben | Fotos mit dem Profil umgerechnet |
-| Gesamtfarbauftrag | gegen die Grenze des Druckprofils, z. B. 300 % |
-| Beschnitt an allen Seiten | gegen die Vorgabe des Druckprofils |
-| Schriften eingebettet, keine Transparenz | |
-| Auflösung jedes Fotos | Hinweis, wenn es sichtbar unscharf wird |
+| PDF/X identifier, PDF 1.3, output condition, document ID, title, trapping | Required entries of PDF/X-1a |
+| CMYK only, no RGB images or colors | Photos converted with the profile |
+| Total ink coverage | Against the print profile's limit, e.g. 300 % |
+| Bleed on all sides | Against the print profile's requirement |
+| Fonts embedded, no transparency | |
+| Resolution of every photo | A note when it will look visibly blurry |
 
-**Druckprofile:** Mitgeliefert sind *Gestrichenes Papier · FOGRA39* (ISO Coated v2 300 %) und *Ungestrichenes Papier · FOGRA47*,
-beide von basICColor unter zlib-Lizenz. Das Profil deiner Druckerei, etwa **PSO Coated v3 (FOGRA51)** von der
-[European Color Initiative](https://eci.org/doku.php_id=en_downloads.html), fügst du als `.icc`-Datei hinzu; Lichtjahr
-erkennt die Druckbedingung und übernimmt Farbauftrag, Beschnitt und Umrechnung aus deinen Angaben. Frei mitliefern
-dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
+**Print profiles:** Included are *Coated paper · FOGRA39* (ISO Coated v2 300 %) and *Uncoated paper · FOGRA47*,
+both by basICColor under the zlib license. You add your print shop's profile, such as **PSO Coated v3 (FOGRA51)** from the
+[European Color Initiative](https://eci.org/doku.php_id=en_downloads.html), as an `.icc` file; Lichtjahr
+recognizes the printing condition and takes ink coverage, bleed and conversion from your settings. We may not
+redistribute the ECI and Adobe profiles, but embedding them in the PDF is allowed.
 
-**Ehrliche Grenzen:**
-- Geprüft wird mit dem eigenen Preflight, nicht mit einem zertifizierten Prüfwerkzeug wie Acrobat Preflight.
-- Format, Seitenzahl, Bindung und Papier legt die Druckerei fest; das gleicht Lichtjahr nicht ab.
-- Fotos gelten als sRGB. Was der Browser an größerem Farbraum (Display P3 vom iPhone) mitbringt, wird auf sRGB begrenzt.
-- PDF/X-4 und eine Softproof-Ansicht am Bildschirm fehlen noch.
+**Honest limits:**
+- Checking is done by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
+- Format, page count, binding and paper are set by the print shop; Lichtjahr does not verify them against its requirements.
+- Photos are treated as sRGB. Any wider color space the browser brings along (Display P3 from an iPhone) is clipped to sRGB.
+- PDF/X-4 and an on-screen soft proof are not available yet.
 
 <br clear="right">
 
-**Ohne Dienst** (Online-Version, Datei im Browser) gibt es den **PDF-Entwurf**: CMYK mit einer einfachen
-Umrechnung ohne ICC-Profil, mit Beschnitt, eingebetteter Schrift und ohne Transparenz. Er eignet sich zum
-Ansehen und Probedrucken, für die Druckerei ist das Druck-PDF gedacht.
+**Without the service** (online version, file opened in the browser) you get the **Draft PDF**: CMYK with
+a simple conversion without an ICC profile, with bleed, an embedded font and no transparency. It is good for
+viewing and test prints; the Print PDF is the one meant for the print shop.
 
-## Aufbau
+## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Browser["Browser (Desktop oder Handy)"]
-    UI["Oberfläche<br/>prototyp/ – eine HTML-Datei"]
-    IDB[("IndexedDB<br/>nur ohne Dienst")]
+  subgraph Browser["Browser (desktop or phone)"]
+    UI["User interface<br/>prototyp/ – a single HTML file"]
+    IDB[("IndexedDB<br/>only without the service")]
   end
-  subgraph Rechner["Eigener Rechner"]
-    API["Lokaler Dienst<br/>backend/ – FastAPI"]
-    DIR[("Projektordner<br/>Fotos/01 Januar …<br/>lichtjahr.json<br/>Export/")]
+  subgraph Computer["Your own computer"]
+    API["Local service<br/>backend/ – FastAPI"]
+    DIR[("Project folder<br/>Photos/01 January …<br/>lichtjahr.json<br/>Export/")]
   end
-  UI -- "HTTP: Sperre, Speichern,<br/>Fotos, Abgleich" --> API
-  UI -. ohne Dienst .-> IDB
+  UI -- "HTTP: lock, saving,<br/>photos, sync" --> API
+  UI -. without the service .-> IDB
   API --> DIR
 ```
 
-Die Oberfläche erkennt beim Start, ob sie vom Dienst ausgeliefert wird. Ohne Dienst (Datei, GitHub Pages)
-arbeitet sie wie bisher nur im Browser.
+At startup, the app detects whether it is being served by the service. Without the service (local file,
+GitHub Pages), it works in the browser only, as before.
 
-| Ordner | Inhalt |
+| Folder | Contents |
 |---|---|
-| [`prototyp/`](prototyp) | Die Oberfläche: Vanilla JavaScript ohne Framework und ohne Build-Abhängigkeiten. Seiten werden in Millimetern beschrieben und daraus als SVG (Editor) und als PDF (Export) gezeichnet. Eigener CMYK-JPEG-Encoder und PDF-Writer. |
-| [`backend/`](backend) | Der lokale Dienst: Python, FastAPI, Pillow. Speicher-Adapter mit atomaren Operationen, Projektsperre mit Lease, Manifest mit Revision und ETag, Journal für Dateiverschiebungen. |
-| [`docs/`](docs) | UX-Prüfung und die Bilder für dieses README. |
-| [`tools/`](tools) | `screenshots.cjs` erzeugt die Bilder in `docs/images/`, `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser. |
+| [`prototyp/`](prototyp) | The user interface: vanilla JavaScript with no framework and no build dependencies. Pages are described in millimeters and drawn from that as SVG (editor) and as PDF (export). Its own CMYK JPEG encoder and PDF writer. |
+| [`backend/`](backend) | The local service: Python, FastAPI, Pillow. Storage adapter with atomic operations, project lock with lease, manifest with revision and ETag, journal for file moves. |
+| [`docs/`](docs) | UX review and the images for this README. |
+| [`tools/`](tools) | `screenshots.cjs` creates the images in `docs/images/`, `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations. |
 
 <details>
-<summary>Dateien des Prototyps</summary>
+<summary>Prototype files</summary>
 
-| Datei | Inhalt |
+| File | Contents |
 |---|---|
-| `src/style.css`, `src/body.html` | Oberfläche |
-| `src/a1_core.js` | Formate, Farben, Feiertage, Vorlagen, Zustand, Rückgängig, Speichern |
-| `src/a2_photos.js` | Import, EXIF, Monatserkennung, Beispielbilder |
-| `src/a3_render.js` | Geometrie in mm, Kalendarium, Register, SVG-Darstellung, Bindung |
-| `src/a4_ui.js` | Ansichten Projekt, Fotos, Gestalten, Druck |
-| `src/a5_actions.js` | Aktionen und automatisches Verteilen |
-| `src/a6_editor.js` | Ziehen, Zoomen, Verschieben im Editor |
-| `src/a7_export.js` | PDF-Export und Start |
-| `src/a8_wall.js` | Ansicht „An der Wand“ |
-| `src/a9_place.js` | Bildanalyse für „Platz automatisch finden“ |
-| `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
-| `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
-| `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
-| `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |
+| `src/style.css`, `src/body.html` | User interface |
+| `src/i18n.js`, `src/i18n/en_*.js` | Language switching and the English dictionaries |
+| `src/a1_core.js` | Formats, colors, holidays, templates, state, undo, saving |
+| `src/a2_photos.js` | Import, EXIF, month detection, sample pictures |
+| `src/a3_render.js` | Geometry in mm, calendar grid, photo index, SVG rendering, binding |
+| `src/a4_ui.js` | Project, Photos, Design and Print views |
+| `src/a5_actions.js` | Actions and automatic distribution |
+| `src/a6_editor.js` | Dragging, zooming and moving in the editor |
+| `src/a7_export.js` | PDF export and startup |
+| `src/a8_wall.js` | "On the wall" view |
+| `src/a9_place.js` | Image analysis for "Find spot automatically" |
+| `src/b1_service.js` | Connection to the local service: project selection, lock, saving, sync, upload |
+| `src/b2_print.js` | Print PDF via the local service: print profile, export, check report |
+| `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |
+| `src/schoolholidays.js` | School holidays 2025–2028 for each German state |
+| `fonts/fonts.js` | Jost (Regular, SemiBold), reduced to Windows-1252; created with `tools/mkfont.py` |
 
 </details>
 
-### Selbst bauen und testen
+### Build and test it yourself
 
 ```sh
 prototyp/build.sh                         # → prototyp/dist/index.html
@@ -280,40 +283,28 @@ cd backend && pip install -e '.[dev]' && pytest
 
 ## Roadmap
 
-- [x] Klickbarer Prototyp mit Gestaltung, Register, Wandansicht und PDF-Entwurf
-- [x] Lokaler Dienst mit Projektordner, Sperre und Journal
-- [x] UX-Prüfung durch unabhängige Agenten ([Ergebnis](docs/UX-PRUEFUNG.md))
-- [x] Oberfläche an den lokalen Dienst angebunden (Projektwahl, Abgleich, Monatsordner als Quelle, Export in den Ordner)
-- [ ] Nextcloud/WebDAV als zweiter Speicher-Adapter
-- [x] Druck-PDF im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X-1a, Druckprofile, Preflight
-- [ ] Softproof am Bildschirm, PDF/X-4
-- [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
+- [x] Clickable prototype with design, photo index, wall view and Draft PDF
+- [x] Local service with project folder, lock and journal
+- [x] UX review by independent agents ([results](docs/UX-PRUEFUNG.md), in German)
+- [x] App connected to the local service (project selection, sync, month folders as the source, export into the folder)
+- [ ] Nextcloud/WebDAV as a second storage adapter
+- [x] Print PDF in the service: ICC color management (LittleCMS), PDF/X-1a, print profiles, preflight
+- [x] English user interface, with a separate language setting for the printed calendar
+- [ ] On-screen soft proof, PDF/X-4
+- [ ] Take faces into account when cropping automatically
 
-Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
+Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).
 
-## Mitmachen
+## Contributing
 
-Beiträge sind willkommen – vom Fehlerbericht über neue Layout-Vorlagen bis zum Code. Wie das Projekt
-gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome – from bug reports to new layout templates to code. How the project is built,
+tested and reviewed is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Lizenz und Quellen
+## License and credits
 
-- **Code:** [MIT-Lizenz](LICENSE)
-- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
-- **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
-- **ICC-Druckprofile:** `ISOcoated_v2_300_bas.icc` und `PSO_Uncoated_ISO12647_bas.icc` von basICColor GmbH, zlib/libpng-Lizenz ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
-- **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf (jeweils eigene freie Lizenzen)
-- **Beispielbilder:** werden beim Start im Browser gezeichnet; es sind keine echten Fotos enthalten.
-
----
-
-## English summary
-
-**Lichtjahr** is a web app for the yearly family photo wall calendar: assign photos to months, lay out
-pages with free frames, let the calendar grid find a calm spot in each photo, flip through the result
-on a virtual wall and export a CMYK PDF with bleed for the print shop.
-
-- **Try it:** [jo-tud.github.io/Lichtjahr](https://jo-tud.github.io/Lichtjahr/) – runs entirely in the browser, your photos never leave it. Or open `prototyp/dist/index.html` locally.
-- **Local service (recommended):** `backend/` is a small FastAPI service that serves the app and works directly in a project folder with one subfolder per month: drop photos into the folders, the app picks them up; edits are saved to `lichtjahr.json`, PDFs go to `Export/` (`pip install -e backend && lichtjahr serve`).
-- **Status:** working prototype, German UI. The PDF is a solid draft (CMYK images, bleed, embedded font, no transparency) but not yet colour-managed (no ICC profile, no PDF/X).
-- **Licence:** MIT for the code; Jost font under OFL 1.1; school holiday data from OpenHolidays API under ODbL 1.0; bundled basICColor ICC profiles under zlib.
+- **Code:** [MIT License](LICENSE)
+- **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
+- **School holidays:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The extract in `prototyp/src/schoolholidays.js` is also licensed under the ODbL. No guarantee of accuracy.
+- **ICC print profiles:** `ISOcoated_v2_300_bas.icc` and `PSO_Uncoated_ISO12647_bas.icc` by basICColor GmbH, zlib/libpng license ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
+- **Service libraries:** FastAPI, Pillow with LittleCMS, pikepdf/qpdf (each under its own free license)
+- **Sample pictures:** drawn in the browser at startup; no real photos are included.

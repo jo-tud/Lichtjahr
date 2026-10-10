@@ -25,8 +25,9 @@ from pydantic import ValidationError
 
 from .lock import ProjectLock
 from .media import date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
-from .schema import (EXPORT_DIR, MANIFEST, META_DIR, MONTHS, NO_MONTH_DIR, PHOTO_DIR, SCHEMA_VERSION,
-                     Asset, Format, Manifest, month_dir, now_iso)
+from .i18n import _t
+from .schema import (EXPORT_DIR, MANIFEST, META_DIR, MONTH_NAMES, NO_MONTH_DIRS, PHOTO_DIRS, SCHEMA_VERSION,
+                     Asset, Format, Manifest, folders, lang_of, month_dir, now_iso)
 from .storage import AlreadyExists, Conflict, NotFound, Storage
 
 JOURNAL = f"{META_DIR}/journal.jsonl"
@@ -38,7 +39,7 @@ class ProjectError(Exception):
 
 class RevisionConflict(ProjectError):
     def __init__(self, current: int) -> None:
-        super().__init__(f"Das Projekt wurde inzwischen geändert (Revision {current}).")
+        super().__init__(_t("Das Projekt wurde inzwischen geändert (Revision {revision}).", revision=current))
         self.current = current
 
 
@@ -55,11 +56,11 @@ class ScanReport:
 
 
 def folder_month(path: str) -> int | None:
-    """Monat eines Fotos aus dem ersten Unterordner unter ``Fotos/``."""
+    """Monat eines Fotos aus dem ersten Unterordner unter ``Fotos/`` bzw. ``Photos/``."""
     parts = path.split("/")
-    if len(parts) < 3 or parts[0] != PHOTO_DIR:
+    if len(parts) < 3 or parts[0] not in PHOTO_DIRS.values():
         return None
-    if parts[1] == NO_MONTH_DIR:
+    if parts[1] in NO_MONTH_DIRS.values():
         return None
     return month_from_folder(parts[1])
 
@@ -90,21 +91,22 @@ class Project:
     # -- Anlegen und Öffnen ------------------------------------------------------------------
     @classmethod
     def create(cls, storage: Storage, cache_dir: str, *, title: str, calendar_year: int, source_year: int,
-               format: dict | None = None) -> "Project":
+               format: dict | None = None, language: str = "de") -> "Project":
         if storage.exists(MANIFEST):
-            raise ProjectError("In diesem Ordner gibt es schon ein Lichtjahr-Projekt.")
+            raise ProjectError(_t("In diesem Ordner gibt es schon ein Lichtjahr-Projekt."))
+        language = lang_of(language)
         for m in [*range(12), None]:
-            storage.makedirs(month_dir(m))
+            storage.makedirs(month_dir(m, language))
         storage.makedirs(EXPORT_DIR)
         storage.makedirs(META_DIR)
-        man = Manifest(title=title, calendarYear=calendar_year, sourceYear=source_year, **({"format": format} if format else {}))
+        man = Manifest(title=title, language=language, calendarYear=calendar_year, sourceYear=source_year, **({"format": format} if format else {}))
         storage.create_exclusive(MANIFEST, man.model_dump_json(indent=2).encode())
         return cls(storage, cache_dir)
 
     @classmethod
     def open(cls, storage: Storage, cache_dir: str) -> "Project":
         if not storage.exists(MANIFEST):
-            raise ProjectError("Hier liegt kein Lichtjahr-Projekt (lichtjahr.json fehlt).")
+            raise ProjectError(_t("Hier liegt kein Lichtjahr-Projekt (lichtjahr.json fehlt)."))
         p = cls(storage, cache_dir)
         p.load()
         return p
@@ -114,13 +116,13 @@ class Project:
         try:
             raw = json.loads(data)
         except ValueError as e:
-            raise ProjectError(f"lichtjahr.json ist beschädigt: {e}") from e
+            raise ProjectError(_t("lichtjahr.json ist beschädigt: {error}", error=e)) from e
         if raw.get("schemaVersion", 0) > SCHEMA_VERSION:
-            raise ProjectError("Das Projekt stammt aus einer neueren Lichtjahr-Version.")
+            raise ProjectError(_t("Das Projekt stammt aus einer neueren Lichtjahr-Version."))
         try:
             return Manifest.model_validate(raw), etag
         except ValidationError as e:
-            raise ProjectError(f"lichtjahr.json ist ungültig: {e}") from e
+            raise ProjectError(_t("lichtjahr.json ist ungültig: {error}", error=e)) from e
 
     # -- Speichern (nur unter Sperre, mit Revisionsprüfung) ----------------------------------
     def save(self, man: Manifest, *, session: str | None, expected_revision: int | None, etag: str | None = None) -> Manifest:
@@ -154,7 +156,7 @@ class Project:
             by_path = {a.path: a for a in man.assets}
             seen: set[str] = set()
             fresh: list[tuple[str, int, int]] = []
-            for e in self.storage.walk(PHOTO_DIR):
+            for e in self.storage.walk(PHOTO_DIRS[lang_of(man.language)]):
                 if e.is_dir or not is_photo(e.path):
                     continue
                 seen.add(e.path)
@@ -226,7 +228,7 @@ class Project:
         aussortiertes wird wieder aufgenommen. Rückgabe: (Asset, war schon vorhanden)."""
         self.lock.check(session)
         if not is_photo(name):
-            raise ProjectError(f"{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).")
+            raise ProjectError(_t("{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).", name=name))
         digest = hashlib.sha256(data).hexdigest()
         man, _ = self.load()
         twin = next((a for a in man.assets if a.contentHash == digest and a.status != "missing"), None)
@@ -239,7 +241,7 @@ class Project:
                 man = self.update(session, include)
             return man.asset(twin.id) or twin, True  # type: ignore[return-value]
         safe = posixpath.basename(name.replace("\\", "/")).strip() or "foto.jpg"
-        folder = month_dir(month)
+        folder = month_dir(month, man.language)
         while True:
             target = unique_name(self.storage, folder, safe)
             try:
@@ -280,11 +282,11 @@ class Project:
         man, _ = self.load()
         a = man.asset(asset_id)
         if not a:
-            raise ProjectError("Foto nicht gefunden.")
-        if a.month == month and posixpath.dirname(a.path) == month_dir(month):
+            raise ProjectError(_t("Foto nicht gefunden."))
+        if a.month == month and posixpath.dirname(a.path) == month_dir(month, man.language):
             return a
         src = a.path
-        dst = unique_name(self.storage, month_dir(month), posixpath.basename(src))
+        dst = unique_name(self.storage, month_dir(month, man.language), posixpath.basename(src))
         op = {"op": "move", "id": asset_id, "src": src, "dst": dst, "month": month}
         self._journal({**op, "state": "planned"})
         self.storage.move(src, dst)
@@ -307,8 +309,8 @@ class Project:
         man, _ = self.load()
         a = man.asset(asset_id)
         if not a:
-            raise ProjectError("Foto nicht gefunden.")
-        dst = unique_name(self.storage, month_dir(month), posixpath.basename(a.path))
+            raise ProjectError(_t("Foto nicht gefunden."))
+        dst = unique_name(self.storage, month_dir(month, man.language), posixpath.basename(a.path))
         self.storage.copy(a.path, dst)
         st = self.storage.stat(dst)
         holder: dict = {}
@@ -343,12 +345,12 @@ class Project:
             if dst_ok and not src_ok:
                 self._apply_move(session, e["id"], e["dst"], e["month"])
                 self._journal({**{k: e[k] for k in ("op", "id", "src", "dst", "month")}, "state": "done", "recovered": True})
-                notes.append(f"Verschiebung abgeschlossen: {e['src']} → {e['dst']}")
+                notes.append(_t("Verschiebung abgeschlossen: {src} → {dst}", src=e["src"], dst=e["dst"]))
             elif src_ok and not dst_ok:
                 self._journal({**{k: e[k] for k in ("op", "id", "src", "dst", "month")}, "state": "done", "aborted": True})
-                notes.append(f"Verschiebung nicht ausgeführt, Datei liegt weiter in {e['src']}")
+                notes.append(_t("Verschiebung nicht ausgeführt, Datei liegt weiter in {src}", src=e["src"]))
             else:
-                notes.append(f"Unklarer Stand, bitte prüfen: {e['src']} / {e['dst']}")
+                notes.append(_t("Unklarer Stand, bitte prüfen: {src} / {dst}", src=e["src"], dst=e["dst"]))
         return notes
 
     # -- Gestaltungsstand und Export --------------------------------------------------------
@@ -368,7 +370,7 @@ class Project:
                 try:
                     man.format = Format.model_validate({**man.format.model_dump(), **{k: v for k, v in format.items() if k in Format.model_fields}})
                 except ValidationError as e:
-                    raise ProjectError(f"Ungültiges Format: {e}") from e
+                    raise ProjectError(_t("Ungültiges Format: {error}", error=e)) from e
             for aid, meta in (assets or {}).items():
                 a = man.asset(aid)
                 if not a:
@@ -384,7 +386,7 @@ class Project:
         self.lock.check(session)
         safe = posixpath.basename(name.replace("\\", "/")).strip()
         if not safe.lower().endswith(".pdf") or safe.startswith("."):
-            raise ProjectError("Export: nur PDF-Dateien.")
+            raise ProjectError(_t("Export: nur PDF-Dateien."))
         path = f"{EXPORT_DIR}/{safe}"
         self.storage.makedirs(EXPORT_DIR)
         self.storage.replace(path, data, if_match=None)
@@ -415,8 +417,10 @@ class Project:
         lock, _ = self.lock.read()
         return {
             "id": man.id, "title": man.title, "calendarYear": man.calendarYear, "sourceYear": man.sourceYear,
-            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe(), "display": _display(self.storage.describe())},
-            "photos": sum(not a.excluded for a in man.assets), "perMonth": dict(zip(MONTHS, per_month)),
+            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe(), "display": _display(self.storage.describe()),
+                        "folders": folders(man.language)},
+            "photos": sum(not a.excluded for a in man.assets), "perMonth": dict(zip(MONTH_NAMES[lang_of(man.language)], per_month)),
+            "language": lang_of(man.language),
             "missing": sum(a.status == "missing" and not a.excluded for a in man.assets),
             "lock": lock.public() if lock else None,
         }

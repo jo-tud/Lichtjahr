@@ -18,6 +18,7 @@ import socket
 import time
 from dataclasses import asdict, dataclass
 
+from .i18n import _t
 from .schema import META_DIR
 from .storage import AlreadyExists, Conflict, NotFound, Storage
 
@@ -31,7 +32,7 @@ class LockError(Exception):
 
 class Locked(LockError):
     def __init__(self, info: "LockInfo") -> None:
-        super().__init__(f"Gesperrt durch {info.holder} auf {info.device}")
+        super().__init__(_t("Gesperrt durch {holder} auf {device}", holder=info.holder, device=info.device))
         self.info = info
 
 
@@ -107,11 +108,11 @@ class ProjectLock:
     def heartbeat(self, session: str) -> LockInfo:
         info, etag = self.read()
         if info is None or info.session != session:
-            raise LockLost("Die Sperre gehört nicht mehr dieser Sitzung.")
+            raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
         try:
             self.storage.replace(LOCK_PATH, self._payload(session, info.holder, info.created), if_match=etag)
         except Conflict as e:
-            raise LockLost("Die Sperre wurde zwischenzeitlich verändert.") from e
+            raise LockLost(_t("Die Sperre wurde zwischenzeitlich verändert.")) from e
         return self.read()[0]  # type: ignore[return-value]
 
     def release(self, session: str) -> None:
@@ -127,7 +128,7 @@ class ProjectLock:
         """Für Schreibzugriffe: Sperre muss dieser Sitzung gehören und gültig sein."""
         info, _ = self.read()
         if not session or info is None or info.session != session:
-            raise LockLost("Zum Ändern zuerst die Bearbeitungssperre erwerben.")
+            raise LockLost(_t("Zum Ändern zuerst die Bearbeitungssperre erwerben."))
         if info.expired:
-            raise LockLost("Die Sperre ist abgelaufen. Bitte erneut erwerben.")
+            raise LockLost(_t("Die Sperre ist abgelaufen. Bitte erneut erwerben."))
         return info

@@ -1,4 +1,4 @@
-// Erzeugt die Bilder für das README aus dem gebauten Prototyp (prototyp/dist/index.html).
+// Erzeugt die Bilder für das README aus dem gebauten Prototyp (prototyp/dist/index.html), auf Englisch und Deutsch.
 // Aufruf:  node tools/screenshots.cjs   (Playwright mit Chromium und Python mit Pillow werden vorausgesetzt)
 const path = require('path');
 const fs = require('fs');
@@ -9,9 +9,10 @@ const { chromium, devices } = pw;
 
 const ROOT = path.resolve(__dirname, '..');
 const URL = 'file://' + path.join(ROOT, 'prototyp/dist/index.html');
-const OUT = path.join(ROOT, 'docs/images');
-const TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lj-shots-'));
-fs.mkdirSync(OUT, { recursive: true });
+// Englisch nach docs/images, Deutsch nach docs/images/de (für README.de.md)
+const LANG_OUT = { en: path.join(ROOT, 'docs/images'), de: path.join(ROOT, 'docs/images/de') };
+let OUT = LANG_OUT.en;
+let TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lj-shots-'));
 
 async function ready(page) {
   await page.goto(URL);
@@ -30,9 +31,12 @@ im.save(${JSON.stringify(path.join(OUT, name + '.webp'))}, 'WEBP', quality=84, m
 `]);
 }
 
-(async () => {
-  const browser = await chromium.launch();
-  const desk = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+async function shoot(browser, lang) {
+  OUT = LANG_OUT[lang]; fs.mkdirSync(OUT, { recursive: true });
+  TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), `lj-shots-${lang}-`));
+  const setLang = (l) => { try { localStorage.setItem('lj-lang', l); } catch (e) { /* egal */ } };
+  const desk = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: lang === 'de' ? 'de-DE' : 'en-US' });
+  await desk.addInitScript(setLang, lang);
   const page = await desk.newPage();
   await ready(page);
 
@@ -88,7 +92,8 @@ pal[0].save(${JSON.stringify(path.join(OUT, 'wand.gif'))}, save_all=True, append
 `]);
 
   // 7. Handy: Gestalten und Wand nebeneinander
-  const phone = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 2 });
+  const phone = await browser.newContext({ ...devices['iPhone 13'], deviceScaleFactor: 2, locale: lang === 'de' ? 'de-DE' : 'en-US' });
+  await phone.addInitScript(setLang, lang);
   const mp = await phone.newPage();
   await ready(mp);
   await mp.evaluate(() => { ui.page = 'm1'; ui.tab = 'photos'; renderAll(); });
@@ -103,8 +108,13 @@ gap = 60; c = Image.new('RGB', (a.width + b.width + gap, max(a.height, b.height)
 c.paste(a, (0, 0)); c.paste(b, (a.width + gap, 0)); c.save(${JSON.stringify(png('handy'))})
 `]);
   webp('handy', 900);
-
-  await browser.close();
+  await desk.close(); await phone.close();
   console.log('Bilder geschrieben nach', OUT);
-  for (const f of fs.readdirSync(OUT)) console.log(' ', f, Math.round(fs.statSync(path.join(OUT, f)).size / 1024), 'KB');
+  for (const f of fs.readdirSync(OUT)) if (/\.(webp|gif)$/.test(f)) console.log(' ', f, Math.round(fs.statSync(path.join(OUT, f)).size / 1024), 'KB');
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  for (const lang of ['en', 'de']) await shoot(browser, lang);
+  await browser.close();
 })();

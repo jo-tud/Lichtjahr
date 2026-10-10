@@ -1,45 +1,63 @@
-# Mitmachen bei Lichtjahr
+# Contributing to Lichtjahr
 
-Schön, dass du helfen möchtest! Lichtjahr ist ein kleines Projekt mit einem klaren Ziel: den jährlichen
-Familien-Fotokalender so angenehm wie möglich machen – vom Fotoordner bis zum PDF für die Druckerei.
+Great that you want to help! Lichtjahr is a small project with a clear goal: making the yearly family
+photo calendar as pleasant as possible – from the photo folder to the PDF for the print shop.
 
-## Fehler melden und Ideen einbringen
+## Reporting bugs and sharing ideas
 
-- **Fehler:** Bitte ein [Issue](https://github.com/jo-tud/Lichtjahr/issues/new/choose) mit Browser,
-  Gerät und den Schritten bis zum Fehler. Ein Screenshot hilft fast immer.
-- **Ideen:** Gern auch als Issue. Beschreibe am besten, *was* du beim Kalendermachen erreichen willst,
-  nicht nur, welcher Knopf fehlt.
-- **Keine privaten Fotos** in Issues hochladen. Die Beispielbilder der App reichen meist zum Nachstellen.
+- **Bugs:** Please open an [issue](https://github.com/jo-tud/Lichtjahr/issues/new/choose) with your browser,
+  device and the steps that lead to the bug. A screenshot almost always helps.
+- **Ideas:** Issues are welcome for these, too. Ideally, describe *what* you want to achieve when making
+  your calendar, not just which button is missing.
+- **No private photos** in issues, please. The app's sample pictures are usually enough to reproduce a problem.
 
-## Projekt einrichten
+Issues and pull requests are welcome in English or German.
+
+## Setting up the project
 
 ```sh
 git clone https://github.com/jo-tud/Lichtjahr.git
 cd Lichtjahr
 ```
 
-### Oberfläche (`prototyp/`)
+### User interface (`prototyp/`)
 
-Kein Framework, kein npm, kein Bundler. Die Dateien in `prototyp/src/` werden von einem Shell-Skript zu
-einer einzigen HTML-Datei zusammengesetzt:
+No framework, no npm, no bundler. A shell script assembles the files in `prototyp/src/` into a single
+HTML file:
 
 ```sh
-prototyp/build.sh       # → prototyp/dist/index.html und prototyp/dist/kalenderwerkstatt.html
+prototyp/build.sh       # → prototyp/dist/index.html and prototyp/dist/kalenderwerkstatt.html
 ```
 
-Dann `prototyp/dist/index.html` im Browser öffnen. Die gebauten Dateien werden mit committet, damit die
-App ohne Build direkt aus dem Repository läuft.
+Then open `prototyp/dist/index.html` in your browser. The built files are committed as well, so the app
+runs straight from the repository without a build.
 
-Einige Grundsätze:
+A few principles:
 
-- Alle Seitenmaße sind **Millimeter**. Aus derselben Beschreibung (`pageItems`) entstehen das SVG im
-  Editor und das PDF. Wer etwas Neues auf die Seite bringt, ergänzt beides.
-- Das PDF darf **keine Transparenz** enthalten; halbtransparente Flächen werden ins Bild eingerechnet.
-- Die Oberfläche ist **deutsch**, kurz und ohne Fachjargon. Druckbegriffe (Beschnitt, CMYK) sind okay,
-  wo sie wirklich gebraucht werden.
-- Jede Funktion muss auch mit dem **Finger** gehen; das Handy ist Zweitgerät, nicht Nebensache.
+- All page measurements are in **millimeters**. The SVG in the editor and the PDF are both produced from
+  the same description (`pageItems`). If you add something new to the page, add it to both.
+- The PDF must not contain **any transparency**; semi-transparent backdrops are baked into the image.
+- UI texts are short and free of jargon. Print terms (bleed, CMYK) are fine where they are really needed.
+- Every feature must also work with a **finger**; the phone is a second device, not an afterthought.
 
-### Lokaler Dienst (`backend/`)
+### Languages and translations
+
+The app is available in English (the default) and German.
+
+- UI texts are written **in German in the source code** and wrapped in `_t()` (or `_tc()`); the German
+  text is also the lookup key, e.g. `_t('Fotos hinzufügen')`. Placeholders go in curly braces:
+  `_t('{n} Fotos eingelesen.', { n })`.
+- The English translations live in dictionaries in `prototyp/src/i18n/en_*.js`. If a translation is
+  missing, the German text is shown.
+- After `prototyp/build.sh`, `node tools/i18n-check.cjs` opens the app in English, walks through the views
+  and lists missing translations as well as visible text that still looks German.
+- The printed calendar has its own language setting (month names, weekdays, holidays, photo index),
+  separate from the UI language. Keep both in mind when you add text that ends up on the page.
+- The local service follows the same pattern for its messages (`backend/lichtjahr/i18n.py`).
+- Documentation: `README.md` and `backend/README.md` are in English, with German versions in
+  `README.de.md` and `backend/README.de.md`. Please update both when features change.
+
+### Local service (`backend/`)
 
 ```sh
 cd backend
@@ -48,35 +66,36 @@ pip install -e '.[dev]'
 pytest
 ```
 
-- Alle Dateizugriffe laufen über den Speicher-Adapter (`lichtjahr/storage/`), nie direkt über `open()`.
-  So kommt später WebDAV/Nextcloud ohne Umbau dazu.
-- Änderungen am Manifest gehen über `Project.save()`/`update()` mit Revision; nie an der Sperre vorbei.
-- Neue Funktionen bringen Tests mit. Die Sperrtests starten mehrere Prozesse – bitte nicht abschwächen.
-- Druck-PDF (`lichtjahr/printing.py`, Tests in `tests/test_printing.py`): Nur ICC-Profile einchecken, die frei
-  weitergegeben werden dürfen (siehe `lichtjahr/icc/README.md`); ECI- und Adobe-Profile gehören nicht ins Repository.
+- All file access goes through the storage adapter (`lichtjahr/storage/`), never directly via `open()`.
+  That way WebDAV/Nextcloud can be added later without restructuring.
+- Changes to the manifest go through `Project.save()`/`update()` with a revision; never around the lock.
+- New features come with tests. The lock tests start several processes – please don't weaken them.
+- Print PDF (`lichtjahr/printing.py`, tests in `tests/test_printing.py`): only check in ICC profiles that may
+  be freely redistributed (see `lichtjahr/icc/README.md`); ECI and Adobe profiles do not belong in the repository.
 
-## Prüfen vor dem Pull Request
+## Checks before a pull request
 
-- `pytest` im Ordner `backend/` ist grün.
-- `prototyp/build.sh` gelaufen und `prototyp/dist/` mit committet.
-- Im Browser ausprobiert, am Desktop **und** in Handy-Größe (Entwicklertools → Geräteansicht).
-- Bei Änderungen am Export: PDF erzeugen und in mindestens zwei Programmen ansehen
-  (z. B. Browser und einem PDF-Betrachter).
-- Bei Änderungen an Dienst oder Anbindung (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
-  startet den Dienst mit Testfotos und spielt die wichtigsten Abläufe im Browser durch.
-- Wenn sich das Aussehen geändert hat: `node tools/screenshots.cjs` erzeugt die README-Bilder neu
-  (beide Skripte brauchen Playwright mit Chromium und Python mit Pillow).
+- `pytest` in the `backend/` folder passes.
+- `prototyp/build.sh` has been run and `prototyp/dist/` is committed.
+- Tried out in the browser, on desktop **and** at phone size (developer tools → device view).
+- New or changed UI texts have English translations (`node tools/i18n-check.cjs`).
+- For changes to the export: create a PDF and look at it in at least two programs
+  (e.g. a browser and a PDF viewer).
+- For changes to the service or its connection (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
+  starts the service with test photos and runs through the most important workflows in the browser.
+- If the look has changed: `node tools/screenshots.cjs` regenerates the README images
+  (both scripts need Playwright with Chromium and Python with Pillow; `i18n-check.cjs` needs Playwright).
 
-Die CI auf GitHub prüft Tests und Build automatisch für jeden Pull Request.
+CI on GitHub runs the tests and the build automatically for every pull request.
 
-## Pull Requests
+## Pull requests
 
-- Ein Thema pro Pull Request, mit kurzer Beschreibung: Was ändert sich für die Nutzerin oder den Nutzer?
-- Commit-Nachrichten auf Deutsch oder Englisch, in der ersten Zeile knapp und im Präsens.
-- Größere Umbauten bitte vorher in einem Issue ansprechen.
+- One topic per pull request, with a short description: what changes for the person using the app?
+- Commit messages in English or German, with a concise first line in the present tense.
+- Please discuss larger restructurings in an issue first.
 
-## Lizenz
+## License
 
-Mit einem Beitrag stimmst du zu, dass er unter der [MIT-Lizenz](LICENSE) des Projekts steht.
-Ausnahme sind die Schulferien-Daten (`prototyp/src/schoolholidays.js`), die als Auszug der
-OpenHolidays API unter der ODbL 1.0 stehen.
+By contributing, you agree that your contribution is licensed under the project's [MIT License](LICENSE).
+The exception is the school holiday data (`prototyp/src/schoolholidays.js`), which is an extract from the
+OpenHolidays API and licensed under the ODbL 1.0.

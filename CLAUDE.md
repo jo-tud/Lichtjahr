@@ -7,7 +7,13 @@
 - Die Spezifikation liegt bewusst nicht im Repository. Der Nutzer fügt sie bei Bedarf in die Sitzung ein.
   Sie ist eine Richtschnur, keine starre Vorgabe: Eigene bessere Lösungen sind erwünscht, Abweichungen
   und Einwände kurz begründen.
-- Antworten und Oberfläche auf Deutsch.
+- Antworten an den Nutzer auf Deutsch.
+- Sprachen: Englisch ist Standard für App und Doku, Deutsch gleichwertig. In der Oberfläche stehen die Texte
+  deutsch im Quelltext und sind der Schlüssel für `_t()` (Oberfläche) bzw. `_tc()` (gedruckter Kalender);
+  englische Wörterbücher in `prototyp/src/i18n/en_*.js`, im Dienst `backend/lichtjahr/i18n.py`. Neue Texte immer
+  mit Übersetzung anlegen; `node tools/i18n-check.cjs` findet Lücken. README.md (Englisch) und README.de.md
+  gemeinsam pflegen, ebenso backend/README.md und backend/README.de.md.
+- Andere Programme im README nicht abwertend vergleichen; nur die Erfahrung beim Kalendermachen beschreiben.
 
 ## Produkt
 - Ziel ist ein Werkzeug für den jährlichen Familien-Fotokalender: Fotos den Monaten zuordnen, layouten,
