@@ -30,12 +30,22 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   // Für den Dienst: welches Foto, welcher Ausschnitt (Zielpixel → Fotopixel). Hat das Original einen größeren
   // Farbraum als sRGB (Display P3 …), rendert der Dienst den Ausschnitt selbst daraus.
   const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h] } : null;
-  if (ph.demo) drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
+  // Bildanpassung des Fotos und (nur Druck-PDF) der Druckausgleich des Profils: auf eigener Ebene, damit
+  // Hintergrund und Flächen unverändert bleiben
+  const adj = compileAdjust(adjOf(ph.id)), tl = rgb ? printTuneLut() : null;
+  const full = adj || tl ? { m: adj ? adj.m : [1, 0, 0, 0, 1, 0, 0, 0, 1], lut: adj ? (tl ? composeLut(adj.lut, tl) : adj.lut) : tl } : null;
+  let tx = x, pc = null;
+  if (full) { pc = document.createElement('canvas'); pc.width = ow; pc.height = oh; tx = pc.getContext('2d', { willReadFrequently: true }); tx.imageSmoothingQuality = 'high'; tx.setTransform(x.getTransform()); }
+  if (ph.demo) drawScene(tx, ph.w, ph.h, ph.demo.seed, ph.demo.m);
   else {
     const bmp = await sourceFor(ph);
-    if (bmp) x.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
+    if (bmp) tx.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
+  if (pc) {
+    const id = tx.getImageData(0, 0, ow, oh); applyAdjustPixels(id.data, full); tx.putImageData(id, 0, 0);
+    x.drawImage(pc, 0, 0); pc.width = pc.height = 0;
+  }
   const pans = [];
   for (const pn of panels) {
     const r = intersect(pn, clip); if (!r) continue;
@@ -49,7 +59,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
     const out = { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
     if (src && src.asset) {
       const m = src.m, n = (v) => String(+v.toFixed(6));   // genauer als pdfNum: Fehler wächst mit der Fotobreite
-      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}] >>`;
+      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''} >>`;
     }
     return out;
   }
@@ -75,6 +85,7 @@ let lastPdf = null;
 // der sie mit dem Farbprofil der Druckerei umrechnet, ein PDF/X-1a schreibt und es prüft.
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
+  if (print && tuneOn()) await loadTune(printerOf());
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
   const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;

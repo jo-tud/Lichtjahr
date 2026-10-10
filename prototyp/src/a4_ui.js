@@ -239,8 +239,20 @@ const dpiPill = (ph, r, sl) => {
   const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < DPI_BAD ? 'bad' : d < DPI_WARN ? 'warn' : 'ok';
   return `<span class="pill ${cls}" id="dpiPill">${d < DPI_BAD ? _t('{d} dpi · zu klein', { d }) : d < DPI_WARN ? _t('{d} dpi · knapp', { d }) : `${d} dpi`}</span>`;
 };
+// Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
+const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
+function tuneBar(ph) {
+  const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {};
+  return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b><span class="sp"></span>
+      <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
+      <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
+      <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
+    <div class="tune-sliders">${ADJ_SLIDERS().map(([k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`).join('')}</div>`;
+}
+const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
+  fb.classList.remove('tuning');
   if (ui.swapFrom != null) { fb.innerHTML = `<span>${_t('Tippe auf den Rahmen, mit dem getauscht werden soll.')}</span><button class="btn small" data-act="swapcancel">${_t('Abbrechen')}</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
     fb.innerHTML = `<span class="hint">${p.layout === 'index' ? _t('Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.') : ui.armed ? _t('Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.') : (coarse() ? _t('Rahmen antippen wählt ihn aus. Doppelt tippen bearbeitet den Bildausschnitt. Lange drücken und ziehen verschiebt einen ausgewählten Rahmen oder tauscht Fotos.') : _t('Foto in einen Rahmen ziehen. Rahmen anklicken wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick bearbeitet den Bildausschnitt. Ein Foto auf einen anderen Rahmen ziehen tauscht die beiden.'))}</span>`;
@@ -248,11 +260,13 @@ function renderFrameBar() {
   }
   const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
   if (!r) { fb.innerHTML = ''; return; }
-  const crop = ui.crop === ui.sel && ph;
+  const crop = ui.crop === ui.sel && ph, tune = ui.tune === ui.sel && ph && !crop;
   let h = '';
+  if (tune) { fb.classList.add('tuning'); fb.innerHTML = tuneBar(ph); return; }
   if (ph) {
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b>${dpiPill(ph, r, sl)}</div>
-      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>`;
+      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>
+      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}`;
     if (crop) h += `<div class="range"><span class="small muted">${_t('Zoom')}</span><input type="range" id="zm" aria-label="${_t('Zoom')}" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <div class="range"><span class="small muted">${_t('Drehen')}</span><input type="range" id="rt" aria-label="${_t('Foto drehen')}" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
       <button class="btn small" data-act="rot90" title="${_t('Um 90° drehen')}">↻ 90°</button>

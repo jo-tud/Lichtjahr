@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
 import pikepdf
-from PIL import Image, ImageChops, ImageCms, ImageOps
+from PIL import Image, ImageChops, ImageCms, ImageFilter, ImageOps
 
 from .i18n import _t
 from .media import rgb_profile
@@ -256,6 +256,81 @@ def _transform(profile: PrinterProfile, icc: bytes | None = None):
     return _cmyk_transform(profile.path, profile.intent, _mtime(profile), icc)
 
 
+# -- Bilder verbessern und für den Druck anpassen ---------------------------------------------
+# Rezepte je Foto rechnet die Oberfläche in eine Farbmatrix (3×3) und eine Tonkurve (65 Stützstellen) um; hier
+# werden sie nur angewendet, genauso wie im SVG-Filter der Vorschau. Der Druckausgleich hängt vom Profil ab:
+# Papier leuchtet nicht und hat weniger Kontrast als ein Bildschirm, darum Mitteltöne leicht anheben, Tiefen
+# öffnen und für den Druck schärfen – auf Naturpapier (helleres Schwarz) stärker als auf gestrichenem.
+def apply_adjust(im: Image.Image, m=None, lut=None) -> Image.Image:
+    import numpy as np
+    a = np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0
+    if m is not None:
+        a = np.clip(a @ np.asarray(m, dtype=np.float32).reshape(3, 3).T, 0.0, 1.0)
+    if lut is not None:
+        a = np.interp(a, np.linspace(0.0, 1.0, len(lut)), np.asarray(lut, dtype=np.float32))
+    out = Image.fromarray((a * 255.0 + 0.5).astype(np.uint8), "RGB")
+    if im.info.get("icc_profile"):
+        out.info["icc_profile"] = im.info["icc_profile"]
+    return out
+
+
+def compose_lut(first, then):
+    """Erst Kurve ``first``, dann ``then``, als eine Kurve mit den Stützstellen von ``first``."""
+    import numpy as np
+    if first is None:
+        return then
+    if then is None:
+        return first
+    return [float(v) for v in np.interp(np.asarray(first), np.linspace(0.0, 1.0, len(then)), np.asarray(then))]
+
+
+def parse_adjust(text: str):
+    """„m0,…,m8;l0,…,l64“ aus der Abfrage der Druckansicht → (m, lut); leer → (None, None)."""
+    if not text:
+        return None, None
+    try:
+        m_txt, l_txt = text.split(";", 1)
+        m = [float(v) for v in m_txt.split(",")] if m_txt else None
+        lut = [float(v) for v in l_txt.split(",")] if l_txt else None
+    except ValueError:
+        return None, None
+    if (m is not None and len(m) != 9) or (lut is not None and not 2 <= len(lut) <= 1025):
+        return None, None
+    return m, lut
+
+
+@functools.lru_cache(maxsize=16)
+def _tune(path: str, intent: str, mtime: float) -> dict:
+    prof = ImageCms.getOpenProfile(path)
+    to_lab = ImageCms.buildTransform(prof, ImageCms.createProfile("LAB"), "CMYK", "LAB",
+                                     renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+    black = ImageCms.applyTransform(Image.new("CMYK", (1, 1), (255, 255, 255, 255)), to_lab).getpixel((0, 0))[0] / 2.55
+    p = min(1.0, max(0.4, 0.4 + (black - 10) / 30))          # gestrichen (Schwarz ≈ L* 10) mild, Naturpapier stärker
+    g, lift = 1 / (1 + .16 * p), .25 * p
+    lut = []
+    for i in range(65):
+        x = (i / 64) ** g
+        lut.append(round(min(1.0, x + lift * x * (1 - x) ** 3), 5))
+    return {"strength": round(p, 2), "blackL": round(black, 1), "lut": lut, "midtones": round((lut[32] - .5) * 200),
+            "sharpen": {"radius": 1.2, "percent": round(45 + 45 * p), "threshold": 3}}
+
+
+def print_tune(profile: PrinterProfile) -> dict:
+    """Druckausgleich für dieses Profil: Kurve, Stärke, Schärfung."""
+    return _tune(profile.path, profile.intent, _mtime(profile))
+
+
+def sharpen_for_print(im: Image.Image, tune: dict) -> Image.Image:
+    """Ausgabeschärfung nur auf der Helligkeit (keine Farbsäume), in der Auflösung des Druckbilds."""
+    s = tune["sharpen"]
+    y, cb, cr = im.convert("YCbCr").split()
+    y = y.filter(ImageFilter.UnsharpMask(radius=s["radius"], percent=s["percent"], threshold=s["threshold"]))
+    out = Image.merge("YCbCr", (y, cb, cr)).convert("RGB")
+    if im.info.get("icc_profile"):
+        out.info["icc_profile"] = im.info["icc_profile"]
+    return out
+
+
 def _source_spec(xo) -> dict | None:
     """Herkunftsangabe der Oberfläche aus dem Bildobjekt lesen (und entfernen, sie gehört nicht ins Druck-PDF)."""
     src = xo.get("/LJSource")
@@ -270,12 +345,14 @@ def _source_spec(xo) -> dict | None:
             "photo": [float(v) for v in src.Photo][:2],
             "bg": tuple(max(0, min(255, int(v))) for v in src.BG)[:3],
             "panels": [panels[i:i + 8] for i in range(0, len(panels) - 7, 8)],
+            "adjM": [float(v) for v in src.AdjM] if "/AdjM" in src else None,
+            "adjL": [float(v) for v in src.AdjL] if "/AdjL" in src else None,
         }
     except (AttributeError, KeyError, TypeError, ValueError):
         return None
 
 
-def render_wide(original: bytes, spec: dict, size: tuple[int, int]) -> tuple[Image.Image, bytes, str] | None:
+def render_wide(original: bytes, spec: dict, size: tuple[int, int], tune_lut=None) -> tuple[Image.Image, bytes, str] | None:
     """Ausschnitt aus dem Original rendern, im Farbraum des Originals. ``None``, wenn das Foto sRGB ist oder
     kein eigenes Profil hat – dann ist die Fassung der Oberfläche schon richtig."""
     with Image.open(io.BytesIO(original)) as im:
@@ -294,6 +371,9 @@ def render_wide(original: bytes, spec: dict, size: tuple[int, int]) -> tuple[Ima
         if r > 1:
             im = im.reduce(r)
             a, b, c, d, e, f = a / r, b / r, c / r, d / r, e / r, f / r
+        lut = compose_lut(spec.get("adjL"), tune_lut)         # Rezept des Fotos, dann Druckausgleich
+        if spec.get("adjM") is not None or lut is not None:
+            im = apply_adjust(im, spec.get("adjM"), lut)      # nur aufs Foto, nicht auf Hintergrund und Flächen
         to_src = ImageCms.buildTransform(_rgb_source(None), _rgb_source(icc), "RGB", "RGB")
 
         def own(rgb):                                     # sRGB-Farbe der Oberfläche im Farbraum des Fotos
@@ -311,7 +391,7 @@ def render_wide(original: bytes, spec: dict, size: tuple[int, int]) -> tuple[Ima
 
 
 def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender", progress=None,
-                   standard: str = "x1a", original=None) -> tuple[bytes, dict]:
+                   standard: str = "x1a", original=None, tune: bool = False) -> tuple[bytes, dict]:
     """sRGB-Bilder nach CMYK umrechnen, PDF/X-Merkmale setzen (X-1a oder X-4), Preflight auf das Ergebnis.
     ``original(asset_id)`` liefert die Originaldatei (oder ``None``) für Fotos mit eigenem Farbraum."""
     std = STANDARDS.get(standard)
@@ -327,6 +407,7 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
     images = [(n, xo) for page in pdf.pages for n, xo in (page.Resources.get("/XObject") or {}).items()
               if xo.get("/Subtype") == pikepdf.Name.Image]
     tacs: dict = {}
+    tuned = print_tune(profile) if tune else None          # Kurve hat die Oberfläche schon angewendet; hier schärfen
     wide: dict[str, set] = {}                              # Farbraum → Fotos, die aus dem Original kamen
     originals: dict = {}
     for idx, (_, xo) in enumerate(images):
@@ -347,15 +428,19 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
                 src = originals[spec["asset"]]
                 if src:
                     try:
-                        rendered = render_wide(src, spec, (int(xo.Width), int(xo.Height)))
+                        rendered = render_wide(src, spec, (int(xo.Width), int(xo.Height)), tuned and tuned["lut"])
                     except (OSError, ValueError, ImageCms.PyCMSError):
                         rendered = None
             if rendered:
                 rgb, icc, name = rendered
+                if tuned:
+                    rgb = sharpen_for_print(rgb, tuned)
                 cmyk = ImageCms.applyTransform(rgb, _transform(profile, icc))
                 wide.setdefault(name, set()).add(spec["asset"])
             else:
                 rgb = pikepdf.PdfImage(xo).as_pil_image().convert("RGB")
+                if tuned:
+                    rgb = sharpen_for_print(rgb, tuned)
                 cmyk = ImageCms.applyTransform(rgb, transform)
             tacs[xo.objgen] = max_tac(cmyk)
             xo.write(cmyk_jpeg(cmyk, profile.quality), filter=pikepdf.Name.DCTDecode)
@@ -418,6 +503,10 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
                 else _t("{n} Fotos mit großem Farbraum ({names}) direkt aus dem Original umgerechnet", n=n, names=names))
         report["summary"].insert(2, {"level": "ok", "code": "wide", "text": text})
         report["wide"] = {k: len(v) for k, v in wide.items()}
+    if tuned:
+        report["summary"].insert(2, {"level": "ok", "code": "tune", "text": _t(
+            "Für den Druck angepasst: Mitteltöne {mid} % heller, Tiefen geöffnet, geschärft", mid=tuned["midtones"])})
+        report["tune"] = {"strength": tuned["strength"], "midtones": tuned["midtones"]}
     if progress:
         progress(1.0)
     return result, report
