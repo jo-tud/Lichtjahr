@@ -83,6 +83,9 @@ pytest
   (e.g. a browser and a PDF viewer).
 - For changes to the service or its connection (`prototyp/src/b1_service.js`): `node tools/e2e-dienst.cjs`
   starts the service with test photos and runs through the most important workflows in the browser.
+- For changes to photo enhancement (`prototyp/src/b4_adjust.js` or `apply_adjust` in the service): the parity test in
+  `backend/tests/test_adjust.py` runs the app's JavaScript in Node against numpy, so preview and print stay identical.
+- Face recognition tests download the SFace model once (10 MB); offline, point `LICHTJAHR_SFACE` to a local copy or they are skipped.
 - If the look has changed: `node tools/screenshots.cjs` (browser-only views) and `node tools/screenshots-dienst.cjs`
   (views that need the local service) regenerate the README images in English and German
   (these scripts need Playwright with Chromium and Python with Pillow; `i18n-check.cjs` needs Playwright).
