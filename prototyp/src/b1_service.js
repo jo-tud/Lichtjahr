@@ -166,7 +166,7 @@ async function leaveProject() {
 async function heartbeat() {
   if (!SVC.pid || SVC.readOnly || !SVC.session) return;
   try { SVC.lock = (await api(PP('/lock/heartbeat'), { method: 'POST' })).lock; if (SVC.offline) { SVC.offline = false; scheduleServiceSave(); } }
-  catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState(_t('Dienst nicht erreichbar')); } }
+  catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState(e.status === 503 ? _t('Nextcloud sperrt gerade kurz, nächster Versuch gleich …') : _t('Dienst nicht erreichbar')); } }
 }
 async function retryLock() {
   if (!SVC.readOnly || !SVC.pid) return;

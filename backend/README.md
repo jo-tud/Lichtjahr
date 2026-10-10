@@ -138,7 +138,12 @@ your own network. Thumbnails are cached locally, so every photo is downloaded on
 
 The tests run the complete project test suite against a WsgiDAV server as well (`tests/davserver.py`, with
 content-based ETags and serialized requests, like Nextcloud), including a race of six clients for the lock.
-They have not been run against a real Nextcloud instance yet.
+They don't run against a real Nextcloud automatically; in practical use it works.
+
+**Nextcloud's own file locks (HTTP 423):** While another operation writes a file (the Nextcloud sync client, a
+parallel request) or after an interrupted upload, Nextcloud briefly locks it and answers 423. The service
+then retries a few times over about five seconds. If the lock persists, the app shows a plain message
+(HTTP 503 with `Retry-After`) instead of a storage error; Nextcloud releases such locks by itself.
 
 ## Principles
 

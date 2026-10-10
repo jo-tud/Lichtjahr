@@ -90,6 +90,8 @@ EN = {
     "Anmeldung am WebDAV-Server abgelehnt. Benutzername und App-Passwort prüfen.": "The WebDAV server rejected the login. Check user name and app password.",
     "WebDAV-Fehler {status} bei {path}": "WebDAV error {status} at {path}",
     "Unter dieser Adresse gibt es keinen WebDAV-Ordner ({status}).": "There is no WebDAV folder at this address ({status}).",
+    "Nextcloud hält {path} gerade gesperrt (WebDAV 423). Meist schreibt gleichzeitig ein anderes Programm an der Datei, etwa der Nextcloud-Sync, oder ein abgebrochener Upload hat eine Sperre hinterlassen. Nextcloud gibt sie nach einiger Zeit selbst frei; bitte gleich noch einmal versuchen.":
+        "Nextcloud is holding a lock on {path} right now (WebDAV 423). Usually another program is writing the file at the same time, such as the Nextcloud sync client, or an interrupted upload left a lock behind. Nextcloud releases it by itself after a while; please try again shortly.",
     # Druckprofile
     "Unbekanntes Druckprofil.": "Unknown print profile.",
     "Für „{name}“ fehlt die ICC-Datei {icc}.": "The ICC file {icc} for “{name}” is missing.",

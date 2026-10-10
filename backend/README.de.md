@@ -136,7 +136,14 @@ für Adressen im eigenen Netz. Vorschaubilder liegen im lokalen Cache, jedes Fot
 
 Die Tests lassen die gesamte Projekt-Testreihe zusätzlich gegen einen WsgiDAV-Server laufen (`tests/davserver.py`,
 mit inhaltsbasierten ETags und nacheinander bearbeiteten Anfragen wie bei Nextcloud), einschließlich eines
-Wettlaufs von sechs Clients um die Sperre. Gegen eine echte Nextcloud sind sie noch nicht gelaufen.
+Wettlaufs von sechs Clients um die Sperre. Gegen eine echte Nextcloud laufen sie nicht automatisch; im praktischen
+Einsatz funktioniert es.
+
+**Eigene Dateisperren von Nextcloud (HTTP 423):** Während ein anderer Vorgang eine Datei schreibt (der
+Nextcloud-Sync-Client, eine parallele Anfrage) oder nach einem abgebrochenen Upload sperrt Nextcloud sie kurz und
+antwortet mit 423. Der Dienst versucht es dann einige Male über etwa fünf Sekunden erneut. Bleibt die Sperre, zeigt
+die App eine verständliche Meldung (HTTP 503 mit `Retry-After`) statt eines Speicherfehlers; Nextcloud gibt solche
+Sperren von selbst wieder frei.
 
 ## Grundsätze
 
