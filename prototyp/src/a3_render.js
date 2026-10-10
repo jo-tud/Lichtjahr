@@ -387,7 +387,9 @@ function indexItems(p) {
 }
 
 /* ---------- SVG ---------- */
-const cRGB = (id) => (COLORS[id] || COLORS.black).rgb;
+// Bildschirmfarbe einer Druckfarbe; in der Druckansicht (Softproof) so, wie sie mit dem Druckprofil gedruckt aussieht
+const cRGBraw = (id) => (COLORS[id] || COLORS.black).rgb;
+const cRGB = (id) => (proofOn() && PROOF.colors && PROOF.colors[id]) || cRGBraw(id);
 const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}"${pl.rot ? ` transform="rotate(${pl.rot} ${pl.fx} ${pl.fy})"` : ''}`;
 let svgN = 0;
 function svgPage(p, o = {}) {
@@ -399,7 +401,7 @@ function svgPage(p, o = {}) {
   const defs = [], body = [];
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
-  const url = (pid, small) => (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
   let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {

@@ -147,3 +147,76 @@ def test_print_export_api(tmp_path):
     # Druckprofil wird mit dem Gestaltungsstand im Manifest vermerkt
     c.post(f"/api/projects/{pid}/save", headers=H, json={"editor": {}, "printerProfileId": "fogra39"})
     assert c.get(f"/api/projects/{pid}/manifest").json()["printerProfileId"] == "fogra39"
+
+
+def test_pdfx4_has_xmp_identification_and_allows_transparency(fogra39):
+    out, report = make_print_pdf(page_pdf(), fogra39, "Familienkalender 2027", standard="x4")
+    assert report["ok"] and report["pdfx"] == "PDF/X-4", report["items"]
+    pdf = pikepdf.open(io.BytesIO(out))
+    assert pdf.pdf_version == "1.6" and str(pdf.docinfo.GTS_PDFXVersion) == "PDF/X-4" and "/GTS_PDFXConformance" not in pdf.docinfo
+    meta = pdf.open_metadata()
+    assert str(meta["{http://www.npes.org/pdfx/ns/id/}GTS_PDFXVersion"]) == "PDF/X-4"
+    for key in ("xmpMM:DocumentID", "xmpMM:VersionID", "xmpMM:RenditionClass", "xmp:CreateDate", "pdf:Trapped"):
+        assert str(meta[key]), key
+    assert str(meta["dc:title"]) == "Familienkalender 2027" and str(meta["pdf:Producer"]) == str(pdf.docinfo.Producer)
+    # Transparenz: in X-4 nur ein Hinweis, in X-1a ein Fehler
+    transparent = page_pdf(extgstate={"/Type": pikepdf.Name.ExtGState, "/ca": 0.5})
+    assert make_print_pdf(transparent, fogra39, standard="x4")[1]["ok"]
+    assert "transparency" in codes(make_print_pdf(transparent, fogra39, standard="x1a")[1])
+    # Ein X-1a-PDF besteht die X-4-Prüfung nicht (keine XMP-Kennung) und umgekehrt
+    x1a, _ = make_print_pdf(page_pdf(), fogra39)
+    assert {"pdfx-id", "xmp"} <= codes(preflight(x1a, fogra39, standard="x4"))
+    assert {"pdfx-id", "version"} <= codes(preflight(out, fogra39, standard="x1a"))
+
+
+def test_icc_v4_only_with_pdfx4(fogra39):
+    from dataclasses import replace
+    v4 = replace(fogra39, iccVersion=4.2)
+    with pytest.raises(PrintError):
+        make_print_pdf(page_pdf(), v4, standard="x1a")
+    assert make_print_pdf(page_pdf(), v4, standard="x4")[1]["ok"]
+    with pytest.raises(PrintError):
+        make_print_pdf(page_pdf(), fogra39, standard="x9")
+
+
+def test_softproof_image_colors_and_gamut_warning(fogra39):
+    from lichtjahr.printing import gamut_mask, proof_colors, proof_image
+    im = Image.new("RGB", (300, 50), (150, 120, 100))                         # Braun: druckbar
+    ImageDraw.Draw(im).rectangle([0, 0, 99, 49], fill=(0, 255, 0))           # Neongrün: außerhalb
+    ImageDraw.Draw(im).rectangle([200, 0, 299, 49], fill=(255, 255, 255))    # Weiß: Papier
+    plain = proof_image(im, fogra39, paper=False)
+    paper = proof_image(im, fogra39, paper=True)
+    assert plain.getpixel((250, 25)) == (255, 255, 255)                       # relativ: Weiß bleibt Weiß
+    assert paper.getpixel((250, 25)) != (255, 255, 255) and min(paper.getpixel((250, 25))) > 225   # Papierton
+    g = plain.getpixel((50, 25))
+    assert g[1] < 230 and g[0] > 60                                            # Neongrün wird gedämpfter
+    mask = gamut_mask(im.convert("RGB"), plain)
+    assert mask.getpixel((50, 25)) == 255 and mask.getpixel((150, 25)) == 0 and mask.getpixel((250, 25)) == 0
+    warned = proof_image(im, fogra39, paper=False, gamut=True)
+    assert warned.getpixel((50, 25)) != plain.getpixel((50, 25))               # markiert (zur Warnfarbe hin gemischt)
+    assert warned.getpixel((150, 25)) == plain.getpixel((150, 25))
+    cols = proof_colors(fogra39, {"black": [0, 0, 0, 1], "white": [0, 0, 0, 0], "bad": [1]}, paper=False)
+    assert cols["white"] == "#ffffff" and cols["paper"] == "#ffffff" and "bad" not in cols
+    assert int(cols["black"][1:3], 16) < 70                                     # Schwarz gedruckt: dunkelgrau
+    assert proof_colors(fogra39, {}, paper=True)["paper"] != "#ffffff"
+
+
+def test_softproof_api(tmp_path):
+    from conftest import photo_bytes
+    c = TestClient(create_app(Settings(data_dir=str(tmp_path / "d"), cache_dir=str(tmp_path / "c"))), base_url="http://localhost")
+    pid = c.post("/api/projects", json={"path": str(tmp_path / "K"), "calendarYear": 2027}).json()["id"]
+    H = {"X-Lichtjahr-Session": c.post(f"/api/projects/{pid}/lock", json={}).json()["session"]}
+    aid = c.post(f"/api/projects/{pid}/assets", headers=H, data={"month": "0"}, files={"file": ("a.jpg", photo_bytes(color=(0, 255, 0)), "image/jpeg")}).json()["id"]
+    r = c.get(f"/api/projects/{pid}/assets/{aid}/proof?printer=fogra39&size=200&paper=1&gamut=1")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    again = c.get(f"/api/projects/{pid}/assets/{aid}/proof?printer=fogra39&size=200&paper=1&gamut=1")
+    assert again.content == r.content                                           # aus dem Zwischenspeicher
+    assert c.get(f"/api/projects/{pid}/assets/{aid}/proof?printer=gibtsnicht").status_code == 400
+    cols = c.post("/api/printers/fogra39/proof-colors", json={"colors": {"navy": [1, .7, 0, .45]}, "paper": True}).json()
+    assert cols["navy"].startswith("#") and cols["paper"] != "#ffffff"
+    x4 = c.post(f"/api/projects/{pid}/export/print", headers=H, data={"printer": "fogra39", "standard": "x4"},
+                files={"file": ("K-Druck.pdf", page_pdf(), "application/pdf")})
+    assert x4.status_code == 200 and x4.json()["report"]["pdfx"] == "PDF/X-4"
+    bad = c.post(f"/api/projects/{pid}/export/print", headers=H, data={"printer": "fogra39", "standard": "x2"},
+                 files={"file": ("K-Druck.pdf", page_pdf(), "application/pdf")})
+    assert bad.status_code == 400

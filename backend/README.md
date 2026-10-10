@@ -48,7 +48,7 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 | Copy for an additional month | A separate file in the second month folder |
 | Remove a photo | Only set aside, the file stays where it is; you can bring it back at any time |
 | Design, captions, favorites | `lichtjahr.json`, saved automatically |
-| Create Print PDF | `Export/Family-Calendar-2027-Print.pdf` (PDF/X-1a, with check report) |
+| Create Print PDF | `Export/Family-Calendar-2027-Print.pdf` (PDF/X-1a or PDF/X-4, with check report) |
 | Create Draft PDF | `Export/Family-Calendar-2027-Draft.pdf` |
 
 ### From your phone on the home network
@@ -99,13 +99,13 @@ projects and rescued drafts live under `~/.local/share/lichtjahr`.
 CMYK) and a print profile (`lichtjahr/printing.py`):
 
 1. Photos converted to CMYK with Pillow/LittleCMS using the ICC profile, as CMYK JPEG without the Adobe convention (all PDF viewers show it the same way)
-2. PDF/X-1a:2001: PDF 1.3 without object streams, OutputIntent with embedded profile, `GTS_PDFXVersion`, `Trapped`, dates (pikepdf/qpdf)
-3. Preflight on the finished file: PDF/X required entries, CMYK only, total ink coverage, bleed, fonts, transparency, image resolution
+2. Form field `standard`: `x1a` (default) for PDF/X-1a:2001 – PDF 1.3 without object streams, OutputIntent with embedded profile, `GTS_PDFXVersion`, `Trapped`, dates (pikepdf/qpdf) – or `x4` for PDF/X-4: PDF 1.6 with the same entries plus XMP metadata (`pdfxid:GTS_PDFXVersion`, document and instance ID, version, rendition class)
+3. Preflight on the finished file: PDF/X required entries (for X-4 including XMP), PDF and ICC version, CMYK only, total ink coverage, bleed, fonts, transparency, image resolution
 4. Saved to `Export/`, response with path and check report
 
 Print profiles: bundled under `lichtjahr/icc/` (basICColor, zlib license); your own ICC files via
 `POST /api/printers` (stored in the data folder under `printers/`). The profile must be a CMYK output
-profile of ICC version 2; the printing condition (e.g. FOGRA51) is detected from the description or the
+profile; ICC version 4 profiles only work with PDF/X-4. The printing condition (e.g. FOGRA51) is detected from the description or the
 measurement data.
 
 This is checked by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
@@ -171,7 +171,9 @@ The running service shows the complete description at `http://localhost:8470/api
 | GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Thumbnail |
 | GET | `/api/projects/{id}/assets/{aid}/original` | Original file |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Change month / copy explicitly |
-| POST | `/api/projects/{id}/export/print` | Print PDF (PDF/X-1a) with color profile and check report |
+| POST | `/api/projects/{id}/export/print` | Print PDF (`standard=x1a` or `x4`) with color profile and check report |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching) |
+| POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
 | GET / POST / DELETE | `/api/printers` | List print profiles / add your own ICC profile / remove one |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Rescue a draft on this computer (204 if there is none) |
@@ -193,8 +195,9 @@ Among other things, the tests cover:
 - byte-exact moving without overwriting
 - the EXIF orientation of thumbnails
 - duplicates on upload, setting photos aside, saving only permitted fields, export, host name check
-- Print PDF: color conversion, PDF/X-1a properties, preflight findings, custom print profiles
+- Print PDF: color conversion, PDF/X-1a and PDF/X-4 properties, ICC version 4 only with X-4, preflight findings, custom print profiles
+- soft proof of photos and colors, gamut warning
 
 ## Outlook
 
-- PDF/X-4 and soft proofing.
+- Profile-aware check of photos in a wide color space (Display P3) instead of clipping to sRGB.

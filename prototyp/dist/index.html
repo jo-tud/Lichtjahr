@@ -382,6 +382,16 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
 a.btn.primary { color: var(--accent-ink); }
 .prn-form { width: min(460px, 100%); display: grid; gap: 12px; }
 .prn-form code { font-family: var(--font-mono); font-size: .92em; }
+
+/* ----- Druckansicht (Softproof) ----- */
+.canvas-wrap[data-proof]:not([data-proof=""])::before { content: attr(data-proof); position: sticky; top: 8px; left: 8px; z-index: 2; display: inline-block;
+  margin: 0 0 6px; padding: 4px 10px; border-radius: 999px; background: var(--ink); color: var(--surface); font-size: 12px; box-shadow: var(--shadow); }
+.wall-proof { position: absolute; top: 16px; left: 16px; z-index: 3; padding: 7px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12);
+  background: rgba(255,255,255,.85); color: #1a2028; font: inherit; font-size: 13px; cursor: pointer; backdrop-filter: blur(6px); }
+.wall-proof[aria-pressed="true"] { background: #1a2028; color: #fff; }
+.proof-opts { gap: 8px; }
+.field.proof-opts > label.check { font-size: 14px; font-weight: 400; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.proof-opts .check .hint { font-size: 12.5px; margin-top: 2px; }
 </style>
 <header class="bar">
   <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Lichtjahr</span></div>
@@ -976,7 +986,6 @@ Object.assign(EN, {
   'Relativ farbmetrisch mit Tiefenkompensierung': 'Relative colorimetric with black point compensation',
   'Druck-PDF': 'Print PDF',
   'Druckprofile werden geladen …': 'Loading print profiles …',
-  'Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X-1a geprüft und in {folder} abgelegt.': 'For the print shop: photos converted to CMYK with its color profile, checked as PDF/X-1a and saved to {folder}.',
   'Dafür braucht Lichtjahr das ICC-Farbprofil deiner Druckerei. Du findest es meist auf deren Website unter „Druckdaten“ oder „Farbprofile“, oft heißt es {pso} (FOGRA51) oder {iso} (FOGRA39).': 'For this, Lichtjahr needs your print shop’s ICC color profile. You’ll usually find it on their website under “print data” or “color profiles”; it’s often called {pso} (FOGRA51) or {iso} (FOGRA39).',
   'ICC-Profil hinzufügen': 'Add ICC profile',
   'Druckprofil': 'Print profile',
@@ -988,11 +997,9 @@ Object.assign(EN, {
   'Beschnitt': 'Bleed',
   '(eingestellt: {bleed} mm)': '(currently set: {bleed} mm)',
   'Standard': 'Standard',
-  'PDF/X-1a:2001, Fotos mit 300 dpi': 'PDF/X-1a:2001, photos at 300 dpi',
   'Druck-PDF erstellen': 'Create Print PDF',
   'Profil entfernen': 'Remove profile',
   // Prüfbericht
-  'Prüfung bestanden: PDF/X-1a': 'Check passed: PDF/X-1a',
   'Prüfung nicht bestanden': 'Check failed',
   '1 Seite': '1 page',
   '{n} Seiten': '{n} pages',
@@ -1037,6 +1044,23 @@ Object.assign(EN, {
   'Benutzername': 'User name',
   'App-Passwort': 'App password',
   'Ein App-Passwort legst du in Nextcloud unter Einstellungen → Sicherheit an; du kannst es jederzeit widerrufen. Der Dienst speichert es nur auf diesem Rechner, nie im Projekt oder im Browser.': 'Create an app password in Nextcloud under Settings → Security; you can revoke it at any time. The service stores it only on this computer, never in the project or the browser.',
+  'Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X geprüft und in {folder} abgelegt.': 'For the print shop: photos converted to CMYK with its color profile, checked as PDF/X and saved in {folder}.',
+  'Prüfung bestanden: {pdfx}': 'Check passed: {pdfx}',
+  'Neuerer Standard mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4. Am besten vorher fragen, ob die Druckerei ihn annimmt.': 'Newer standard with XMP metadata; also takes ICC version 4 profiles. Best to ask first whether your print shop accepts it.',
+  'Wird von fast allen Druckereien angenommen.': 'Accepted by almost every print shop.',
+  'Das Profil hat ICC-Version 4, dafür ist PDF/X-4 nötig.': 'The profile is ICC version 4, which needs PDF/X-4.',
+  'Am Bildschirm prüfen': 'Check on screen',
+  'Druckansicht (Softproof)': 'Print preview (soft proof)',
+  'Editor, Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit diesem Profil gedruckt aussehen.': 'The editor, light table and wall show photos and colors the way they will look printed with this profile.',
+  'Papierweiß simulieren': 'Simulate paper white',
+  'Weiß erscheint im Ton des Papiers, Kontraste etwas flacher, wie auf dem fertigen Blatt.': 'White takes on the tone of the paper and contrast gets slightly flatter, as on the printed sheet.',
+  'Farben außerhalb des Druckfarbraums markieren': 'Mark colors outside the printable range',
+  'Eine graue Schraffur markiert Stellen, die im Druck deutlich anders aussehen, etwa leuchtendes Blau oder Neonfarben.': 'Gray hatching marks areas that will look noticeably different in print, such as vivid blue or neon colors.',
+  'Druckansicht: {profile}': 'Print preview: {profile}',
+  'Papierweiß': 'paper white',
+  'Druckansicht an: Fotos und Farben so, wie sie mit „{profile}“ gedruckt aussehen.': 'Print preview on: photos and colors as they will look printed with “{profile}”.',
+  'Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)': 'Show colors the way they will look printed with the print profile (soft proof)',
+  'Druckansicht': 'Print preview',
 });
 // Englische Texte für die Ansichten (a4_ui.js): Projekt, Fotos, Gestalten, Prüfung, PDF, Leuchttisch
 Object.assign(EN, {
@@ -2662,7 +2686,9 @@ function indexItems(p) {
 }
 
 /* ---------- SVG ---------- */
-const cRGB = (id) => (COLORS[id] || COLORS.black).rgb;
+// Bildschirmfarbe einer Druckfarbe; in der Druckansicht (Softproof) so, wie sie mit dem Druckprofil gedruckt aussieht
+const cRGBraw = (id) => (COLORS[id] || COLORS.black).rgb;
+const cRGB = (id) => (proofOn() && PROOF.colors && PROOF.colors[id]) || cRGBraw(id);
 const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}"${pl.rot ? ` transform="rotate(${pl.rot} ${pl.fx} ${pl.fy})"` : ''}`;
 let svgN = 0;
 function svgPage(p, o = {}) {
@@ -2674,7 +2700,7 @@ function svgPage(p, o = {}) {
   const defs = [], body = [];
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
-  const url = (pid, small) => (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
   let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {
@@ -3031,11 +3057,13 @@ function renderStage() {
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">${_t('Beschnitt')}</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">${_t('Bindung')}</button>
     <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">${_t('Hilfslinien')}</button>
-    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">${_t('Aufgeklappt')}</button>` : ''}`;
+    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">${_t('Aufgeklappt')}</button>` : ''}
+    ${proofAvailable() ? `<button class="toggle" data-act="proof" aria-pressed="${!!ui.proof}" title="${esc(_t('Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)'))}">${_t('Druckansicht')}</button>` : ''}`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
   const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
+  wrap.dataset.proof = proofOn() ? proofLabel() : '';
   wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, partner: ui.showPartner ? partnerOf(ui.page) : null, attrs: 'id="editor"' });
   const svg = $('#editor');
   // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
@@ -3258,7 +3286,7 @@ function unreadable(p, blk, items) {
   let photo = 0;
   for (const it of items) if (it.t === 'img') { const r = intersect(it.clip, blk); if (r) photo += r.w * r.h; }
   if (photo > blk.w * blk.h * .5) return false;
-  const lum = (id) => { const h = cRGB(id).slice(1); return (parseInt(h.slice(0, 2), 16) * .299 + parseInt(h.slice(2, 4), 16) * .587 + parseInt(h.slice(4, 6), 16) * .114) / 255; };
+  const lum = (id) => { const h = cRGBraw(id).slice(1); return (parseInt(h.slice(0, 2), 16) * .299 + parseInt(h.slice(2, 4), 16) * .587 + parseInt(h.slice(4, 6), 16) * .114) / 255; };
   return Math.abs(lum(c.color) - lum(S.doc.bg)) < .35;
 }
 function renderPrint() {
@@ -4215,7 +4243,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   const ow = Math.max(1, Math.round(clip.w * k)), oh = Math.max(1, Math.round(clip.h * k));
   const c = document.createElement('canvas'); c.width = ow; c.height = oh;
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.fillStyle = cRGB(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
+  x.fillStyle = cRGBraw(S.doc.bg); x.fillRect(0, 0, ow, oh); x.imageSmoothingQuality = 'high';
   // Seiten-mm → Canvas-Pixel, dann in Fotokoordinaten (Pixel des Originals)
   x.setTransform(ow / clip.w, 0, 0, oh / clip.h, -clip.x * ow / clip.w, -clip.y * oh / clip.h);
   x.translate(pl.fx, pl.fy); x.rotate((pl.rot || 0) * Math.PI / 180);
@@ -4228,7 +4256,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   for (const pn of panels) {
     const r = intersect(pn, clip); if (!r) continue;
-    x.globalAlpha = pn.opacity; x.fillStyle = cRGB(pn.fill);
+    x.globalAlpha = pn.opacity; x.fillStyle = cRGBraw(pn.fill);
     x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
     x.globalAlpha = 1;
   }
@@ -4492,7 +4520,7 @@ async function renderSmall(p, px = 260) {
   const x = c.getContext('2d', { willReadFrequently: true });
   for (const it of pageItems(p, { noBlocks: true })) {
     x.setTransform(k, 0, 0, k, 0, 0);
-    if (it.t === 'rect') { x.fillStyle = cRGB(it.fill); x.fillRect(it.x, it.y, it.w, it.h); }
+    if (it.t === 'rect') { x.fillStyle = cRGBraw(it.fill); x.fillRect(it.x, it.y, it.w, it.h); }
     else if (it.t === 'empty') { x.fillStyle = '#d9dde1'; x.fillRect(it.clip.x, it.clip.y, it.clip.w, it.clip.h); }
     else if (it.t === 'img') {
       const ph = S.photos[it.photo], pl = it.place, im = await loadImg(RT.prev[ph.id] || RT.thumb[ph.id]); if (!im) continue;
@@ -4724,6 +4752,7 @@ async function openProject(pid) {
   const notes = await acquireLock();
   const man = await api(PP('/manifest'));
   applyManifest(man);
+  loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
   const u = new URL(location.href); u.searchParams.set('projekt', pid);
   try { history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* egal */ }
@@ -5137,7 +5166,9 @@ Object.assign(ACTIONS, {
 /* ---------- Druck-PDF über den lokalen Dienst ----------
    Druckprofil wählen (mitgeliefert oder ICC-Datei der Druckerei), Druck-PDF erzeugen lassen und den
    Prüfbericht zeigen. Die Oberfläche setzt die Seiten, der Dienst rechnet die Fotos mit LittleCMS um,
-   schreibt PDF/X-1a und prüft das Ergebnis. Nur verfügbar, wenn die App vom Dienst kommt. */
+   schreibt PDF/X-1a oder PDF/X-4 und prüft das Ergebnis. Dazu die Druckansicht (Softproof): Editor,
+   Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit dem Druckprofil gedruckt aussehen.
+   Nur verfügbar, wenn die App vom Dienst kommt. */
 const PRN = { list: [], loaded: false, result: null };
 
 async function loadPrinters() {
@@ -5146,13 +5177,46 @@ async function loadPrinters() {
 }
 const usablePrinters = () => PRN.list.filter(p => p.available);
 const printerOf = () => usablePrinters().find(p => p.id === S.doc.printer) || usablePrinters()[0] || null;
+// PDF/X-Standard des Druck-PDFs; ICC-v4-Profile gehen nur mit PDF/X-4
+const STD_LABEL = { x1a: 'PDF/X-1a:2001', x4: 'PDF/X-4' };
+const pdfxOf = (pr = printerOf()) => (pr && pr.iccVersion >= 4) ? 'x4' : (S.doc.pdfx === 'x4' ? 'x4' : 'x1a');
+
+/* ----- Druckansicht (Softproof) ----- */
+const PROOF = { colors: null, key: '' };
+const proofAvailable = () => !!(SVC.pid && PRN.loaded && printerOf());
+const proofOn = () => !!(ui.proof && proofAvailable());
+const proofLabel = () => { const pr = printerOf(); return pr ? _t('Druckansicht: {profile}', { profile: pr.condition || pr.name }) + (ui.proofPaper !== false ? ' · ' + _t('Papierweiß') : '') : ''; };
+// Bild-Adresse für die Druckansicht; Kopien teilen die Datei mit dem Original
+function proofUrl(id, small) {
+  const pr = printerOf(), ph = S.photos[id];
+  const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
+  if (!pr || !a) return null;
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+}
+// Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
+async function loadProofColors() {
+  const pr = printerOf(); if (!pr) return;
+  const key = pr.id + (ui.proofPaper !== false ? ':paper' : '');
+  if (PROOF.key === key && PROOF.colors) return;
+  const colors = Object.fromEntries(Object.entries(COLORS).map(([k, c]) => [k, c.cmyk]));
+  try { PROOF.colors = await api(`printers/${encodeURIComponent(pr.id)}/proof-colors`, { method: 'POST', body: { colors, paper: ui.proofPaper !== false } }); PROOF.key = key; }
+  catch (e) { PROOF.colors = null; PROOF.key = ''; }
+}
+async function setProof(patch) {
+  Object.assign(ui, patch);
+  if (proofOn()) await loadProofColors();
+  renderAll();
+  if (typeof wall !== 'undefined' && wall.el && typeof renderWall === 'function') renderWall();
+  if (patch.proof === true) toast(_t('Druckansicht an: Fotos und Farben so, wie sie mit „{profile}“ gedruckt aussehen.', { profile: printerOf().name }), 5000);
+}
+
 const intentLabel = (i) => i === 'perceptual' ? _t('Wahrnehmungsorientiert') : _t('Relativ farbmetrisch mit Tiefenkompensierung');
 
 function printCard() {
   if (!PRN.loaded) { loadPrinters().then(() => { if (ui.view === 'print') renderPrint(); }); return `<section class="card"><header><h2>${_t('Druck-PDF')}</h2><p>${_t('Druckprofile werden geladen …')}</p></header></section>`; }
   const pr = printerOf(), list = usablePrinters(), d = S.doc;
   const exportDir = `<code>${esc((typeof svcFolders === 'function' ? svcFolders().export : 'Export') + '/')}</code>`;
-  const head = `<header><h2>${_t('Druck-PDF')}</h2><p>${_t('Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X-1a geprüft und in {folder} abgelegt.', { folder: exportDir })}</p></header>`;
+  const head = `<header><h2>${_t('Druck-PDF')}</h2><p>${_t('Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X geprüft und in {folder} abgelegt.', { folder: exportDir })}</p></header>`;
   if (!pr) return `<section class="card print-card">${head}
     <p class="hint">${_t('Dafür braucht Lichtjahr das ICC-Farbprofil deiner Druckerei. Du findest es meist auf deren Website unter „Druckdaten“ oder „Farbprofile“, oft heißt es {pso} (FOGRA51) oder {iso} (FOGRA39).', { pso: '<i>PSO Coated v3</i>', iso: '<i>ISO Coated v2</i>' })}</p>
     <div class="row"><button class="btn primary" data-act="printeradd">${_t('ICC-Profil hinzufügen')}</button></div></section>`;
@@ -5166,9 +5230,17 @@ function printCard() {
       <dt>${_t('Umrechnung')}</dt><dd>${intentLabel(pr.intent)}</dd>
       <dt>${_t('Farbauftrag')}</dt><dd>${_t('höchstens {tac} %', { tac: pr.tac })}</dd>
       <dt>${_t('Beschnitt')}</dt><dd>${pr.bleed} mm ${d.bleed + 1e-6 < pr.bleed ? `<span class="bad-text">${_t('(eingestellt: {bleed} mm)', { bleed: fmt1(d.bleed) })}</span>` : '✓'}</dd>
-      <dt>${_t('Standard')}</dt><dd>${_t('PDF/X-1a:2001, Fotos mit 300 dpi')}</dd>
     </dl>
     ${pr.note ? `<p class="hint">${esc(pr.note)}</p>` : ''}
+    <div class="field"><label for="pdfx">${_t('Standard')}</label><select id="pdfx" data-act-change="pdfx">
+      <option value="x1a" ${pdfxOf(pr) === 'x1a' ? 'selected' : ''} ${pr.iccVersion >= 4 ? 'disabled' : ''}>PDF/X-1a:2001</option>
+      <option value="x4" ${pdfxOf(pr) === 'x4' ? 'selected' : ''}>PDF/X-4</option></select>
+      <span class="hint">${pr.iccVersion >= 4 ? _t('Das Profil hat ICC-Version 4, dafür ist PDF/X-4 nötig.') : pdfxOf(pr) === 'x4' ? _t('Neuerer Standard mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4. Am besten vorher fragen, ob die Druckerei ihn annimmt.') : _t('Wird von fast allen Druckereien angenommen.')}</span></div>
+    <div class="field proof-opts"><span class="lbl">${_t('Am Bildschirm prüfen')}</span>
+      <label class="check"><input type="checkbox" data-act-change="proof" ${ui.proof ? 'checked' : ''}><span>${_t('Druckansicht (Softproof)')}<span class="hint">${_t('Editor, Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit diesem Profil gedruckt aussehen.')}</span></span></label>
+      <label class="check"><input type="checkbox" data-act-change="proofpaper" ${ui.proofPaper !== false ? 'checked' : ''}><span>${_t('Papierweiß simulieren')}<span class="hint">${_t('Weiß erscheint im Ton des Papiers, Kontraste etwas flacher, wie auf dem fertigen Blatt.')}</span></span></label>
+      <label class="check"><input type="checkbox" data-act-change="proofgamut" ${ui.proofGamut ? 'checked' : ''}><span>${_t('Farben außerhalb des Druckfarbraums markieren')}<span class="hint">${_t('Eine graue Schraffur markiert Stellen, die im Druck deutlich anders aussehen, etwa leuchtendes Blau oder Neonfarben.')}</span></span></label>
+    </div>
     <div class="row"><button class="btn primary" data-act="printexport">${_t('Druck-PDF erstellen')}</button>${pr.builtin ? '' : `<button class="btn small" data-act="printerdel" data-v="${esc(pr.id)}">${_t('Profil entfernen')}</button>`}</div>
     <div id="printOut">${res ? reportHtml(res) : ''}</div>
   </section>`;
@@ -5180,7 +5252,7 @@ function reportHtml(res) {
   const lvl = (l) => l === 'ok' ? '' : l === 'warn' ? 'warn' : l === 'info' ? 'info' : 'bad';
   const details = r.items.filter(i => i.level !== 'info');
   return `<div class="report ${r.ok ? 'ok' : 'bad'}">
-    <b>${r.ok ? _t('Prüfung bestanden: PDF/X-1a') : _t('Prüfung nicht bestanden')}</b>
+    <b>${r.ok ? _t('Prüfung bestanden: {pdfx}', { pdfx: r.pdfx || 'PDF/X-1a' }) : _t('Prüfung nicht bestanden')}</b>
     <span class="muted small">${esc(res.path)} · ${mb} MB · ${r.pages === 1 ? _t('1 Seite') : _t('{n} Seiten', { n: r.pages })}</span>
     <ul class="checks">${r.summary.map(s => `<li><span class="dot ${lvl(s.level)}"></span><span>${esc(s.text)}</span></li>`).join('')}</ul>
     ${details.length ? `<details><summary>${details.length === 1 ? _t('1 Einzelheit') : _t('{n} Einzelheiten', { n: details.length })}</summary><ul class="checks">${details.slice(0, 60).map(i => `<li><span class="dot ${lvl(i.level)}"></span><span>${i.page ? esc(_t('Seite {n}: {text}', { n: i.page, text: i.text })) : esc(i.text)}</span></li>`).join('')}</ul></details>` : ''}
@@ -5195,6 +5267,7 @@ async function printExport(blob, name, bar) {
   try {
     const fd = new FormData();
     fd.append('file', blob, name); fd.append('printer', pr.id); fd.append('title', _tc('Familienkalender {year}', { year: S.doc.year }));
+    fd.append('standard', pdfxOf(pr));
     const r = await serial(() => api(PP('/export/print'), { method: 'POST', form: fd }));
     PRN.result = { ...r, name };
     bar.close();
@@ -5244,9 +5317,15 @@ document.addEventListener('change', async (e) => {
 
 CHANGE_ACTIONS.printer = (el) => {
   if (el.value === '__add') { el.value = (printerOf() || {}).id || ''; $('#iccIn').click(); return; }
-  S.doc.printer = el.value; PRN.result = null; commit(); renderPrint();
+  S.doc.printer = el.value; PRN.result = null; PROOF.key = ''; commit();
+  if (proofOn()) setProof({}); else renderPrint();
 };
+CHANGE_ACTIONS.pdfx = (el) => { S.doc.pdfx = el.value; PRN.result = null; commit(); renderPrint(); };
+CHANGE_ACTIONS.proof = (el) => setProof({ proof: el.checked });
+CHANGE_ACTIONS.proofpaper = (el) => setProof({ proofPaper: el.checked });
+CHANGE_ACTIONS.proofgamut = (el) => setProof({ proofGamut: el.checked });
 Object.assign(ACTIONS, {
+  proof: () => setProof({ proof: !ui.proof }),
   printeradd: () => $('#iccIn').click(),
   printerdel: async (el) => {
     const p = PRN.list.find(x => x.id === el.dataset.v); if (!p) return;
@@ -5301,6 +5380,7 @@ function openWall() {
   const el = document.createElement('div'); el.className = 'wall'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', _t('Kalender an der Wand'));
   el.innerHTML = `<div class="wall-light" aria-hidden="true"></div>
     <button class="wall-close" data-wall="close" aria-label="${esc(_t('Schließen'))}">×</button>
+    ${typeof proofAvailable === 'function' && proofAvailable() ? `<button class="wall-proof" data-wall="proof" aria-pressed="${!!ui.proof}" title="${esc(_t('Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)'))}">${esc(_t('Druckansicht'))}</button>` : ''}
     <div class="wall-stage"><div class="wall-cal" id="wallCal"></div></div>
     <div class="wall-nav">
       <button class="wall-btn" data-wall="prev" aria-label="${esc(_t('Vorheriger Monat'))}">‹</button>
@@ -5312,7 +5392,7 @@ function openWall() {
   document.documentElement.classList.add('wall-open');
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-wall]');
-    if (b) { const a = b.dataset.wall; if (a === 'close') closeWall(); else if (a === 'alt') toggleAlt(); else flip(a === 'next' ? 1 : -1); return; }
+    if (b) { const a = b.dataset.wall; if (a === 'close') closeWall(); else if (a === 'alt') toggleAlt(); else if (a === 'proof') setProof({ proof: !ui.proof }).then(() => b.setAttribute('aria-pressed', !!ui.proof)); else flip(a === 'next' ? 1 : -1); return; }
     if (e.target.closest('.wall-cal') && !wall.swiped) flip(1);
   });
   // Wischen: nach oben oder links blättert weiter, nach unten oder rechts zurück

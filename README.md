@@ -130,7 +130,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Calendar grid:** Strip, column or grid, freely movable, with a backdrop of adjustable opacity. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
 - **Languages:** The app is available in English and German. It follows your browser's language and can be switched at any time. The printed calendar has its own language setting for month names, weekdays, holidays and the photo index – so you can work in one language and print in the other. So far, only German public holidays and school holidays (for each of Germany's states) are supported.
 - **Photo index:** Pictures per page (with captions, numbers, thumbnails), text per page or free text; flows over as many pages as needed.
-- **Print PDF:** PDF/X-1a with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
+- **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
 - **Binding:** Wire binding and hanger cut-out as guideline values or with measurements from the print shop's data sheet.
 - **Photo spacing:** 0–5 mm, for all pages or per page.
 - **Undo/redo** with a jump to the changed page; the history survives a reload.
@@ -200,22 +200,22 @@ drop photos into the month folders from the Nextcloud app on their phone, and th
 
 ## Print PDF and color management
 
-With the local service, Lichtjahr creates a **Print PDF conforming to PDF/X-1a:2001**:
+With the local service, Lichtjahr creates a **Print PDF conforming to PDF/X-1a:2001 or PDF/X-4**:
 
 1. The app lays out the pages; text, calendar grid and backdrops are CMYK vectors, and the photos go to the service as sRGB.
 2. The service converts the photos to CMYK with **LittleCMS** using the print shop's ICC profile (perceptual, or relative colorimetric with black point compensation).
-3. It writes PDF/X-1a with an output condition (OutputIntent including the embedded profile), bleed box and trim box.
+3. It writes PDF/X-1a (PDF 1.3, the most widely accepted) or PDF/X-4 (PDF 1.6 with XMP metadata, also takes ICC version 4 profiles) with an output condition (OutputIntent including the embedded profile), bleed box and trim box.
 4. A **preflight** checks the finished file and shows the report in the app; the PDF ends up in `Export/`.
 
 <img src="docs/images/druckpdf.webp" alt="Print PDF card with print profile and a passed check report" width="420" align="right">
 
 | The preflight checks | |
 |---|---|
-| PDF/X identifier, PDF 1.3, output condition, document ID, title, trapping | Required entries of PDF/X-1a |
+| PDF/X identifier (for PDF/X-4 also in the XMP metadata), PDF version, output condition, document ID, title, trapping | Required entries of the chosen standard |
 | CMYK only, no RGB images or colors | Photos converted with the profile |
 | Total ink coverage | Against the print profile's limit, e.g. 300 % |
 | Bleed on all sides | Against the print profile's requirement |
-| Fonts embedded, no transparency | |
+| Fonts embedded, no transparency | Transparency is only a note for PDF/X-4 |
 | Resolution of every photo | A note when it will look visibly blurry |
 
 **Print profiles:** Included are *Coated paper · FOGRA39* (ISO Coated v2 300 %) and *Uncoated paper · FOGRA47*,
@@ -228,7 +228,12 @@ redistribute the ECI and Adobe profiles, but embedding them in the PDF is allowe
 - Checking is done by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 - Format, page count, binding and paper are set by the print shop; Lichtjahr does not verify them against its requirements.
 - Photos are treated as sRGB. Any wider color space the browser brings along (Display P3 from an iPhone) is clipped to sRGB.
-- PDF/X-4 and an on-screen soft proof are not available yet.
+- The soft proof is only as accurate as your screen. On an uncalibrated laptop it shows the direction (duller, darker, paper tint), not the exact shade.
+
+**Print preview on screen (soft proof):** Under *Check on screen*, the editor and the wall view show the photos as they
+will come out of the press: converted with the print profile and back to the screen, optionally including the paper
+white. Bright blues, neon colors and deep shadows lose punch exactly where they will in print. A gray hatching marks
+areas that the printing process clearly cannot reproduce, so you can still swap a photo or tone it down.
 
 <br clear="right">
 
@@ -303,7 +308,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Nextcloud/WebDAV as a second storage location (lock checked on the server, app password stored locally)
 - [x] Print PDF in the service: ICC color management (LittleCMS), PDF/X-1a, print profiles, preflight
 - [x] English user interface, with a separate language setting for the printed calendar
-- [ ] On-screen soft proof, PDF/X-4
+- [x] On-screen soft proof with gamut warning, PDF/X-4
 - [ ] Take faces into account when cropping automatically
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).

@@ -1,7 +1,9 @@
 /* ---------- Druck-PDF über den lokalen Dienst ----------
    Druckprofil wählen (mitgeliefert oder ICC-Datei der Druckerei), Druck-PDF erzeugen lassen und den
    Prüfbericht zeigen. Die Oberfläche setzt die Seiten, der Dienst rechnet die Fotos mit LittleCMS um,
-   schreibt PDF/X-1a und prüft das Ergebnis. Nur verfügbar, wenn die App vom Dienst kommt. */
+   schreibt PDF/X-1a oder PDF/X-4 und prüft das Ergebnis. Dazu die Druckansicht (Softproof): Editor,
+   Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit dem Druckprofil gedruckt aussehen.
+   Nur verfügbar, wenn die App vom Dienst kommt. */
 const PRN = { list: [], loaded: false, result: null };
 
 async function loadPrinters() {
@@ -10,13 +12,46 @@ async function loadPrinters() {
 }
 const usablePrinters = () => PRN.list.filter(p => p.available);
 const printerOf = () => usablePrinters().find(p => p.id === S.doc.printer) || usablePrinters()[0] || null;
+// PDF/X-Standard des Druck-PDFs; ICC-v4-Profile gehen nur mit PDF/X-4
+const STD_LABEL = { x1a: 'PDF/X-1a:2001', x4: 'PDF/X-4' };
+const pdfxOf = (pr = printerOf()) => (pr && pr.iccVersion >= 4) ? 'x4' : (S.doc.pdfx === 'x4' ? 'x4' : 'x1a');
+
+/* ----- Druckansicht (Softproof) ----- */
+const PROOF = { colors: null, key: '' };
+const proofAvailable = () => !!(SVC.pid && PRN.loaded && printerOf());
+const proofOn = () => !!(ui.proof && proofAvailable());
+const proofLabel = () => { const pr = printerOf(); return pr ? _t('Druckansicht: {profile}', { profile: pr.condition || pr.name }) + (ui.proofPaper !== false ? ' · ' + _t('Papierweiß') : '') : ''; };
+// Bild-Adresse für die Druckansicht; Kopien teilen die Datei mit dem Original
+function proofUrl(id, small) {
+  const pr = printerOf(), ph = S.photos[id];
+  const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
+  if (!pr || !a) return null;
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+}
+// Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
+async function loadProofColors() {
+  const pr = printerOf(); if (!pr) return;
+  const key = pr.id + (ui.proofPaper !== false ? ':paper' : '');
+  if (PROOF.key === key && PROOF.colors) return;
+  const colors = Object.fromEntries(Object.entries(COLORS).map(([k, c]) => [k, c.cmyk]));
+  try { PROOF.colors = await api(`printers/${encodeURIComponent(pr.id)}/proof-colors`, { method: 'POST', body: { colors, paper: ui.proofPaper !== false } }); PROOF.key = key; }
+  catch (e) { PROOF.colors = null; PROOF.key = ''; }
+}
+async function setProof(patch) {
+  Object.assign(ui, patch);
+  if (proofOn()) await loadProofColors();
+  renderAll();
+  if (typeof wall !== 'undefined' && wall.el && typeof renderWall === 'function') renderWall();
+  if (patch.proof === true) toast(_t('Druckansicht an: Fotos und Farben so, wie sie mit „{profile}“ gedruckt aussehen.', { profile: printerOf().name }), 5000);
+}
+
 const intentLabel = (i) => i === 'perceptual' ? _t('Wahrnehmungsorientiert') : _t('Relativ farbmetrisch mit Tiefenkompensierung');
 
 function printCard() {
   if (!PRN.loaded) { loadPrinters().then(() => { if (ui.view === 'print') renderPrint(); }); return `<section class="card"><header><h2>${_t('Druck-PDF')}</h2><p>${_t('Druckprofile werden geladen …')}</p></header></section>`; }
   const pr = printerOf(), list = usablePrinters(), d = S.doc;
   const exportDir = `<code>${esc((typeof svcFolders === 'function' ? svcFolders().export : 'Export') + '/')}</code>`;
-  const head = `<header><h2>${_t('Druck-PDF')}</h2><p>${_t('Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X-1a geprüft und in {folder} abgelegt.', { folder: exportDir })}</p></header>`;
+  const head = `<header><h2>${_t('Druck-PDF')}</h2><p>${_t('Für die Druckerei: Fotos mit deren Farbprofil nach CMYK umgerechnet, als PDF/X geprüft und in {folder} abgelegt.', { folder: exportDir })}</p></header>`;
   if (!pr) return `<section class="card print-card">${head}
     <p class="hint">${_t('Dafür braucht Lichtjahr das ICC-Farbprofil deiner Druckerei. Du findest es meist auf deren Website unter „Druckdaten“ oder „Farbprofile“, oft heißt es {pso} (FOGRA51) oder {iso} (FOGRA39).', { pso: '<i>PSO Coated v3</i>', iso: '<i>ISO Coated v2</i>' })}</p>
     <div class="row"><button class="btn primary" data-act="printeradd">${_t('ICC-Profil hinzufügen')}</button></div></section>`;
@@ -30,9 +65,17 @@ function printCard() {
       <dt>${_t('Umrechnung')}</dt><dd>${intentLabel(pr.intent)}</dd>
       <dt>${_t('Farbauftrag')}</dt><dd>${_t('höchstens {tac} %', { tac: pr.tac })}</dd>
       <dt>${_t('Beschnitt')}</dt><dd>${pr.bleed} mm ${d.bleed + 1e-6 < pr.bleed ? `<span class="bad-text">${_t('(eingestellt: {bleed} mm)', { bleed: fmt1(d.bleed) })}</span>` : '✓'}</dd>
-      <dt>${_t('Standard')}</dt><dd>${_t('PDF/X-1a:2001, Fotos mit 300 dpi')}</dd>
     </dl>
     ${pr.note ? `<p class="hint">${esc(pr.note)}</p>` : ''}
+    <div class="field"><label for="pdfx">${_t('Standard')}</label><select id="pdfx" data-act-change="pdfx">
+      <option value="x1a" ${pdfxOf(pr) === 'x1a' ? 'selected' : ''} ${pr.iccVersion >= 4 ? 'disabled' : ''}>PDF/X-1a:2001</option>
+      <option value="x4" ${pdfxOf(pr) === 'x4' ? 'selected' : ''}>PDF/X-4</option></select>
+      <span class="hint">${pr.iccVersion >= 4 ? _t('Das Profil hat ICC-Version 4, dafür ist PDF/X-4 nötig.') : pdfxOf(pr) === 'x4' ? _t('Neuerer Standard mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4. Am besten vorher fragen, ob die Druckerei ihn annimmt.') : _t('Wird von fast allen Druckereien angenommen.')}</span></div>
+    <div class="field proof-opts"><span class="lbl">${_t('Am Bildschirm prüfen')}</span>
+      <label class="check"><input type="checkbox" data-act-change="proof" ${ui.proof ? 'checked' : ''}><span>${_t('Druckansicht (Softproof)')}<span class="hint">${_t('Editor, Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit diesem Profil gedruckt aussehen.')}</span></span></label>
+      <label class="check"><input type="checkbox" data-act-change="proofpaper" ${ui.proofPaper !== false ? 'checked' : ''}><span>${_t('Papierweiß simulieren')}<span class="hint">${_t('Weiß erscheint im Ton des Papiers, Kontraste etwas flacher, wie auf dem fertigen Blatt.')}</span></span></label>
+      <label class="check"><input type="checkbox" data-act-change="proofgamut" ${ui.proofGamut ? 'checked' : ''}><span>${_t('Farben außerhalb des Druckfarbraums markieren')}<span class="hint">${_t('Eine graue Schraffur markiert Stellen, die im Druck deutlich anders aussehen, etwa leuchtendes Blau oder Neonfarben.')}</span></span></label>
+    </div>
     <div class="row"><button class="btn primary" data-act="printexport">${_t('Druck-PDF erstellen')}</button>${pr.builtin ? '' : `<button class="btn small" data-act="printerdel" data-v="${esc(pr.id)}">${_t('Profil entfernen')}</button>`}</div>
     <div id="printOut">${res ? reportHtml(res) : ''}</div>
   </section>`;
@@ -44,7 +87,7 @@ function reportHtml(res) {
   const lvl = (l) => l === 'ok' ? '' : l === 'warn' ? 'warn' : l === 'info' ? 'info' : 'bad';
   const details = r.items.filter(i => i.level !== 'info');
   return `<div class="report ${r.ok ? 'ok' : 'bad'}">
-    <b>${r.ok ? _t('Prüfung bestanden: PDF/X-1a') : _t('Prüfung nicht bestanden')}</b>
+    <b>${r.ok ? _t('Prüfung bestanden: {pdfx}', { pdfx: r.pdfx || 'PDF/X-1a' }) : _t('Prüfung nicht bestanden')}</b>
     <span class="muted small">${esc(res.path)} · ${mb} MB · ${r.pages === 1 ? _t('1 Seite') : _t('{n} Seiten', { n: r.pages })}</span>
     <ul class="checks">${r.summary.map(s => `<li><span class="dot ${lvl(s.level)}"></span><span>${esc(s.text)}</span></li>`).join('')}</ul>
     ${details.length ? `<details><summary>${details.length === 1 ? _t('1 Einzelheit') : _t('{n} Einzelheiten', { n: details.length })}</summary><ul class="checks">${details.slice(0, 60).map(i => `<li><span class="dot ${lvl(i.level)}"></span><span>${i.page ? esc(_t('Seite {n}: {text}', { n: i.page, text: i.text })) : esc(i.text)}</span></li>`).join('')}</ul></details>` : ''}
@@ -59,6 +102,7 @@ async function printExport(blob, name, bar) {
   try {
     const fd = new FormData();
     fd.append('file', blob, name); fd.append('printer', pr.id); fd.append('title', _tc('Familienkalender {year}', { year: S.doc.year }));
+    fd.append('standard', pdfxOf(pr));
     const r = await serial(() => api(PP('/export/print'), { method: 'POST', form: fd }));
     PRN.result = { ...r, name };
     bar.close();
@@ -108,9 +152,15 @@ document.addEventListener('change', async (e) => {
 
 CHANGE_ACTIONS.printer = (el) => {
   if (el.value === '__add') { el.value = (printerOf() || {}).id || ''; $('#iccIn').click(); return; }
-  S.doc.printer = el.value; PRN.result = null; commit(); renderPrint();
+  S.doc.printer = el.value; PRN.result = null; PROOF.key = ''; commit();
+  if (proofOn()) setProof({}); else renderPrint();
 };
+CHANGE_ACTIONS.pdfx = (el) => { S.doc.pdfx = el.value; PRN.result = null; commit(); renderPrint(); };
+CHANGE_ACTIONS.proof = (el) => setProof({ proof: el.checked });
+CHANGE_ACTIONS.proofpaper = (el) => setProof({ proofPaper: el.checked });
+CHANGE_ACTIONS.proofgamut = (el) => setProof({ proofGamut: el.checked });
 Object.assign(ACTIONS, {
+  proof: () => setProof({ proof: !ui.proof }),
   printeradd: () => $('#iccIn').click(),
   printerdel: async (el) => {
     const p = PRN.list.find(x => x.id === el.dataset.v); if (!p) return;

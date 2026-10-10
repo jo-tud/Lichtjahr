@@ -15,7 +15,7 @@ async function renderSmall(p, px = 260) {
   const x = c.getContext('2d', { willReadFrequently: true });
   for (const it of pageItems(p, { noBlocks: true })) {
     x.setTransform(k, 0, 0, k, 0, 0);
-    if (it.t === 'rect') { x.fillStyle = cRGB(it.fill); x.fillRect(it.x, it.y, it.w, it.h); }
+    if (it.t === 'rect') { x.fillStyle = cRGBraw(it.fill); x.fillRect(it.x, it.y, it.w, it.h); }
     else if (it.t === 'empty') { x.fillStyle = '#d9dde1'; x.fillRect(it.clip.x, it.clip.y, it.clip.w, it.clip.h); }
     else if (it.t === 'img') {
       const ph = S.photos[it.photo], pl = it.place, im = await loadImg(RT.prev[ph.id] || RT.thumb[ph.id]); if (!im) continue;
