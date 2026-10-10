@@ -233,6 +233,7 @@ const ACTIONS = {
   },
   viewcal: (el) => { const v = viewOf(ui.page), lower = v.part === 'upper' ? v.lower : ui.page; (S.doc.viewCal ||= {})[(sheetOf(lower) || {}).id] = el.dataset.v; commit(); renderDesign(); },
   ltmode: (el) => { ui.ltMode = el.dataset.v; renderPrint(); },
+  wall: () => openWall(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },

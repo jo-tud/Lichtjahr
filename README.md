@@ -20,6 +20,7 @@ Was der Prototyp kann:
 - Titelblatt
 - Bildregister in drei Arten: Bilder je Seite (Bildtexte, Nummern und Miniaturen wählbar), Text je Seite oder freier Text mit Zwischenüberschriften; fließt über beliebig viele Seiten
 - Lochung und Aufhänger-Ausschnitt als Richtwerte oder mit eigenen Maßen aus dem Datenblatt
+- „An der Wand“: der fertige Kalender hängt an einer Wand und lässt sich mit Wischen, Klick oder Pfeiltasten durchblättern; das Blatt schlägt über die Ringbindung um, in der aufgeklappten Ansicht wird seine Rückseite zum oberen Teil des nächsten Monats
 - PDF-Entwurf mit Beschnitt, TrimBox, eingebetteter Schrift, CMYK-Bildern und ohne Transparenz (Flächen werden eingerechnet)
 
 Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, kein Druckerei-Profil. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
