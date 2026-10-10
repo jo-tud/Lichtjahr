@@ -288,16 +288,29 @@ function panelTitle(p) {
     <p class="hint">Den Titel im Bild an die gewünschte Stelle ziehen.</p>`;
 }
 function panelIndex() {
-  const rows = [];
-  for (const k of baseKeys()) {
-    const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
-    if (!ps.length) continue;
-    rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
+  const d = S.doc, mode = indexMode();
+  let body = '';
+  if (mode === 'photos') {
+    const rows = [];
+    for (const k of baseKeys()) {
+      const ps = visibleSlots(S.pages[k]).map(s => s.photo && S.photos[s.photo]).filter(Boolean);
+      if (!ps.length) continue;
+      rows.push(`<div class="cap-month">${esc(pageLabel(k))}</div>` + ps.map((ph, i) => `<div class="caprow"><img src="${RT.thumb[ph.id]}" alt=""><input type="text" id="cap-${ph.id}" aria-label="Bildtext ${i + 1}" data-photo-cap="${ph.id}" value="${esc(ph.caption)}" placeholder="${i + 1}. Bildtext"></div>`).join(''));
+    }
+    body = `<div class="caplist">${rows.join('') || '<p class="empty-note">Noch keine Fotos auf den Seiten.</p>'}</div>`;
+  } else if (mode === 'pages') {
+    body = `<div class="caplist">${baseKeys().map(k => `<div class="field"><label for="pc-${k}">${esc(pageLabel(k))}</label><textarea id="pc-${k}" rows="2" data-page-cap="${k}" placeholder="Was auf dieser Seite zu sehen ist">${esc(S.pages[k].caption || '')}</textarea></div>`).join('')}</div>
+      <p class="hint">Seiten ohne Foto und ohne Text erscheinen nicht im Register.</p>`;
+  } else {
+    body = `<div class="field"><label for="ixtx">Text</label><textarea id="ixtx" rows="16" data-bind="doc.indexText" placeholder="Hier frei schreiben.&#10;&#10;Eine Leerzeile beginnt einen neuen Absatz.&#10;## am Zeilenanfang macht eine Zwischenüberschrift.">${esc(d.indexText || '')}</textarea></div>
+      <p class="hint">Der Text verteilt sich auf Spalten und, wenn nötig, auf weitere Registerseiten.</p>`;
   }
-  return `<div class="field"><label for="ixt">Überschrift</label><input type="text" id="ixt" data-bind="doc.indexTitle" value="${esc(S.doc.indexTitle)}"></div>
-    <div class="caplist">${rows.join('') || '<p class="empty-note">Noch keine Fotos auf den Seiten.</p>'}</div>`;
+  return `<div class="field"><span class="lbl">Art des Registers</span>${seg([['photos', 'Bilder je Seite'], ['pages', 'Text je Seite'], ['text', 'Freier Text']], mode, 'ixmode')}</div>
+    <div class="field"><label for="ixt">Überschrift</label><input type="text" id="ixt" data-bind="doc.indexTitle" value="${esc(d.indexTitle)}"></div>
+    ${mode !== 'text' ? `<div class="row"><label class="check"><input type="checkbox" id="ixth" data-bind="doc.indexThumbs" ${d.indexThumbs !== false ? 'checked' : ''}><span>Miniaturen der Seiten</span></label>
+      ${mode === 'photos' ? `<label class="check"><input type="checkbox" id="ixnu" data-bind="doc.indexNums" ${d.indexNums !== false ? 'checked' : ''}><span>Nummern</span></label>` : ''}</div>` : ''}
+    ${body}`;
 }
-
 /* ----- Druck ----- */
 function checks() {
   const out = [], d = S.doc, zone = bindZoneDepth();
@@ -319,8 +332,14 @@ function checks() {
     }
   }
   if (d.index) {
-    const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
-    if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
+    const mode = indexMode();
+    if (mode === 'photos') {
+      const missing = baseKeys().flatMap(k => visibleSlots(S.pages[k])).filter(s => s.photo && S.photos[s.photo] && !S.photos[s.photo].caption).length;
+      if (missing) out.push(['warn', `Bildregister: ${missing} Fotos ohne Bildtext`, 'index']);
+    } else if (mode === 'pages') {
+      const missing = indexEntries().filter(k => !(S.pages[k].caption || '').trim()).length;
+      if (missing) out.push(['warn', `Bildregister: ${missing} Seiten ohne Text`, 'index']);
+    } else if (!(d.indexText || '').trim()) out.push(['warn', 'Bildregister: noch kein Text', 'index']);
   }
   // Jedes Foto gehört zu genau einem Monat; Mehrfachnutzung sichtbar machen
   for (const [id, keys] of Object.entries(usage())) {

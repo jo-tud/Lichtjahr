@@ -43,7 +43,11 @@ function onBind(el, final) {
 }
 document.addEventListener('input', (e) => {
   const el = e.target;
-  if (el.dataset.bind) { if (el.type === 'range' || el.type === 'text') onBind(el, false); return; }
+  if (el.dataset.bind) { if (el.type === 'range' || el.type === 'text' || el.tagName === 'TEXTAREA') onBind(el, false); return; }
+  if (el.dataset.pageCap) {
+    const pg = S.pages[el.dataset.pageCap]; if (pg) { pg.caption = el.value; clearTimeout(onBind._pc); onBind._pc = setTimeout(() => { commit(); if (isIndex(ui.page)) { refresh(); renderStrip(); } }, 600); }
+    return;
+  }
   if (el.dataset.photoCap) {
     const ph = S.photos[el.dataset.photoCap]; if (ph) { ph.caption = el.value; clearTimeout(onBind._c); onBind._c = setTimeout(() => { commit(); if (curPage().layout === 'index') refresh(); }, 600); }
     return;
@@ -203,6 +207,7 @@ const ACTIONS = {
   crop: () => setCrop(ui.crop == null ? ui.sel : null),
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
+  ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },
