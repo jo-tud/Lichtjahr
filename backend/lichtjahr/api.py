@@ -187,7 +187,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Allgemein ------------------------------------------------------------------------
     @app.get("/api/health")
     def health():
-        return {"ok": True, "version": __version__}
+        return {"ok": True, "version": __version__, "instance": settings.instance}
 
     @app.get("/api/projects")
     def list_projects():

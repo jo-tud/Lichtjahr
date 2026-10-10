@@ -4,6 +4,19 @@
 # Benötigt wird nur uv (https://docs.astral.sh/uv/): es richtet Python und alle Pakete im Benutzerordner ein.
 # Weitere Angaben werden an „lichtjahr serve“ durchgereicht, z. B. --host 0.0.0.0 für das Handy.
 HERE=$(cd "$(dirname "$0")" && pwd)
+# Ohne Terminal gestartet (Doppelklick im Dateimanager): in einem Terminalfenster neu starten, damit man die
+# Rückfrage sieht und Lichtjahr durch Schließen des Fensters beenden kann
+if [ ! -t 0 ] && [ -z "${LICHTJAHR_IN_TERMINAL:-}" ]; then
+  export LICHTJAHR_IN_TERMINAL=1
+  for t in x-terminal-emulator gnome-terminal konsole xfce4-terminal xterm; do
+    command -v "$t" >/dev/null 2>&1 || continue
+    case "$t" in
+      gnome-terminal) exec "$t" -- "$HERE/$(basename "$0")" "$@" ;;
+      xfce4-terminal) exec "$t" -x "$HERE/$(basename "$0")" "$@" ;;
+      *) exec "$t" -e "$HERE/$(basename "$0")" "$@" ;;
+    esac
+  done
+fi
 PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 export PATH
 case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in de*) DE=1 ;; *) DE= ;; esac
@@ -14,8 +27,12 @@ if ! command -v uv >/dev/null 2>&1; then
       "Lichtjahr braucht einmalig das Hilfsprogramm uv (von Astral). Es richtet Python und alles Weitere"
   say "for Lichtjahr in your user folder; nothing is installed system-wide." \
       "für Lichtjahr in deinem Benutzerordner ein; systemweit wird nichts installiert."
+  if [ ! -t 0 ]; then                                # niemand kann antworten: nichts ohne Zustimmung installieren
+    say "Please start this script in a terminal." "Bitte dieses Skript in einem Terminal starten."
+    exit 1
+  fi
   if [ -n "$DE" ]; then printf 'uv jetzt installieren? [J/n] '; else printf 'Install uv now? [Y/n] '; fi
-  read -r answer
+  read -r answer || answer=n
   case "$answer" in
     [nN]*) say "Cancelled. To install uv yourself: https://docs.astral.sh/uv/" \
                "Abgebrochen. uv selbst installieren: https://docs.astral.sh/uv/"; exit 1 ;;
@@ -29,11 +46,13 @@ if ! command -v uv >/dev/null 2>&1; then
   fi
 fi
 
+REFRESH=
 WHEEL=$(ls "$HERE"/lichtjahr-*.whl 2>/dev/null | tail -n 1)
 if [ -n "$WHEEL" ]; then
   FROM=$WHEEL
 elif [ -f "$HERE/../backend/pyproject.toml" ]; then
   FROM="$HERE/../backend"
+  REFRESH="--reinstall-package lichtjahr"            # im Repository: geänderten Code jedes Mal neu bauen
   set -- --static "$HERE/../prototyp/dist" "$@"
 else
   say "The Lichtjahr package (lichtjahr-*.whl) is missing next to this script." \
@@ -43,4 +62,5 @@ fi
 
 say "Starting Lichtjahr. The first start downloads about 150 MB and takes a few minutes." \
     "Lichtjahr startet. Beim ersten Mal werden etwa 150 MB geladen, das dauert ein paar Minuten."
-exec uvx --python 3.12 --from "$FROM" --with pillow-heif lichtjahr serve "$@"
+# shellcheck disable=SC2086
+exec uvx --python 3.12 $REFRESH --from "$FROM" --with pillow-heif lichtjahr serve "$@"

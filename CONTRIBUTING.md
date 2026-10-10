@@ -104,8 +104,8 @@ CI on GitHub runs the tests and the build automatically for every pull request.
 
 ## Releases
 
-1. Raise the version in `backend/lichtjahr/__init__.py` and `backend/pyproject.toml` and add a section to
-   `CHANGELOG.md`.
+1. Raise the version in `backend/lichtjahr/__init__.py` (the only place; the package reads it from there) and
+   add a section to `CHANGELOG.md`.
 2. `tools/package.sh --check` builds the package with the app inside and the download ZIP with the start
    scripts (`start/`), installs the package in a fresh environment and starts it. CI does the same for every
    pull request.
