@@ -77,6 +77,7 @@ EN = {
     "Das Projekt wurde inzwischen geändert (Revision {revision}).": "The project was changed in the meantime (revision {revision}).",
     "{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).": "{name}: not a supported image format (JPEG, PNG, WebP, TIFF, GIF).",
     "Ungültiges Format: {error}": "Invalid format: {error}",
+    "Für HEIC die Erweiterung installieren: pip install 'lichtjahr[heic]'": "For HEIC, install the extension: pip install 'lichtjahr[heic]'",
     "Export: nur PDF-Dateien.": "Export: PDF files only.",
     "Verschiebung abgeschlossen: {src} → {dst}": "Move completed: {src} → {dst}",
     "Verschiebung nicht ausgeführt, Datei liegt weiter in {src}": "Move not carried out, the file is still in {src}",

@@ -17,6 +17,7 @@ cd backend
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e .
+pip install -e ".[heic]"     # optional: HEIC/HEIF photos from the iPhone (pillow-heif, brings libheif under LGPL)
 ```
 
 ## Usage
@@ -217,4 +218,6 @@ Among other things, the tests cover:
 
 ## Outlook
 
-- Reading HEIC directly (iPhone), without converting to JPEG first.
+- Recognizing who is in the photos ("who appears how often"), still entirely local.
+
+HEIC and TIFF: with the `heic` extra the service reads iPhone photos directly (thumbnails, faces, print from the original including Display P3). Browsers can't decode HEIC or TIFF, so `/original` serves such files as a full-size JPEG with the photo's color profile (cached).

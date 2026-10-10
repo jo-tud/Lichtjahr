@@ -11,6 +11,25 @@ from datetime import date
 from PIL import Image, ImageCms, ImageOps
 
 PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".gif"}
+# HEIC/HEIF (iPhone) mit der optionalen Erweiterung pillow-heif: pip install "lichtjahr[heic]"
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIF = True
+    PHOTO_EXT |= {".heic", ".heif"}
+except ImportError:
+    HEIF = False
+BROWSER_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}            # Formate, die jeder Browser selbst anzeigt
+
+
+def browser_copy(data: bytes) -> bytes:
+    """Für Formate, die Browser nicht lesen (HEIC, TIFF): JPEG in voller Größe, gedreht wie angezeigt, mit Farbprofil."""
+    with Image.open(io.BytesIO(data)) as im:
+        icc = im.info.get("icc_profile")
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        out = io.BytesIO()
+        im.save(out, "JPEG", quality=95, subsampling=0, **({"icc_profile": icc} if icc else {}))
+        return out.getvalue()
 _ORIENT_SWAP = {5, 6, 7, 8}
 _MONTH_WORDS = [
     ["januar", "jänner", "jaenner", "january", "jan"], ["februar", "feber", "february", "feb"],

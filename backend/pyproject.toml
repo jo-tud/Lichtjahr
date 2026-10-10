@@ -22,7 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "wsgidav>=4.3", "cheroot>=10"]
+dev = ["pytest>=8", "wsgidav>=4.3", "cheroot>=10", "pillow-heif>=0.16"]
+heic = ["pillow-heif>=0.16"]       # HEIC/HEIF vom iPhone (bringt libheif mit, LGPL)
 
 [project.scripts]
 lichtjahr = "lichtjahr.cli:main"
