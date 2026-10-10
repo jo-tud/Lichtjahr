@@ -72,7 +72,7 @@ async function shoot(browser, lang, port) {
     await page.waitForFunction(() => Object.keys(S.photos).length === 36, null, { timeout: 30000 });
     await page.evaluate(async () => { for (const p of Object.values(S.photos)) p.caption = p.caption || '·'; await autoDesign(); setView('project'); });
     await sleep(800);
-    await page.evaluate(() => { document.querySelector('#toast').classList.remove('on'); document.querySelector('.svc-card').style.alignSelf = 'start'; });
+    await page.evaluate(() => { document.querySelector('#toast').classList.remove('on'); document.querySelector('.svc-card').style.alignSelf = 'start'; document.querySelector('.bar').style.position = 'static'; });
     await (await page.$('.svc-card')).screenshot({ path: path.join(tmp, 'card.png') });
     compose([path.join(tmp, 'picker.png'), path.join(tmp, 'card.png')], path.join(OUT[lang], 'projekt.webp'), 1600);
     // Druck-PDF mit Prüfbericht
@@ -81,7 +81,7 @@ async function shoot(browser, lang, port) {
     await page.evaluate(async () => { await exportPDF('print'); });
     await page.waitForSelector('.report', { timeout: 180000 });
     await sleep(2600);
-    await page.evaluate(() => document.querySelector('#toast').classList.remove('on'));
+    await page.evaluate(() => { document.querySelector('#toast').classList.remove('on'); document.querySelector('.bar').style.position = 'static'; });
     await (await page.$('.print-card')).screenshot({ path: path.join(tmp, 'print.png') });
     compose([path.join(tmp, 'print.png')], path.join(OUT[lang], 'druckpdf.webp'), 900);
     await ctx.close();

@@ -17,7 +17,8 @@ let TMP = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lj-shots-'));
 async function ready(page) {
   await page.goto(URL);
   await page.waitForSelector('#editor', { timeout: 60000 });
-  await page.evaluate(() => { ui.banner = false; renderAll(); });
+  // Die Beispielfotos sind unterschiedlich hell; angeglichen gibt es keine Ausreißer-Hinweise in den Bildern
+  await page.evaluate(async () => { ui.banner = false; applyMatch(await monthTones(false), 1); commit(); renderAll(); });
   await page.waitForTimeout(500);
 }
 const png = (name) => path.join(TMP, name + '.png');

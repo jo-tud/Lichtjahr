@@ -18,19 +18,20 @@ pytestmark = pytest.mark.skipif(not faces.available(), reason="OpenCV fehlt")
 
 
 @pytest.fixture(scope="session")
-def model_dir(tmp_path_factory):
-    """Modell aus LICHTJAHR_SFACE (Pfad) oder einmal laden; ohne Netz wird übersprungen."""
-    d = str(tmp_path_factory.mktemp("models-data"))
+def model_dir(request):
+    """Modell aus LICHTJAHR_SFACE (Pfad) oder einmal laden und im pytest-Cache behalten; ohne Modell wird übersprungen."""
+    d = str(request.config.cache.mkdir("sface"))
     given = os.environ.get("LICHTJAHR_SFACE")
-    if given and os.path.exists(given):
+    if given:
+        if not os.path.isfile(given) or os.path.getsize(given) != faces.REC_SIZE:
+            pytest.skip(f"LICHTJAHR_SFACE zeigt nicht auf das Modell {faces.REC_FILE}: {given}")
         os.makedirs(os.path.dirname(faces.recognizer_path(d)), exist_ok=True)
         shutil.copy(given, faces.recognizer_path(d))
-    else:
+    elif not faces.recognizer_ready(d):
         try:
             faces.download_recognizer(d)
         except Exception as e:                       # kein Netz in dieser Umgebung
             pytest.skip(f"Erkennungsmodell nicht verfügbar: {e}")
-    assert faces.recognizer_ready(d)
     return d
 
 
