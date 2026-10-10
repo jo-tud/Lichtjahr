@@ -96,7 +96,7 @@ function bindEditor(svg) {
     const p = curPage();
     if (pointers.size === 2 && g && g.type === 'pan') {
       const [a, b] = [...pointers.values()];
-      g.type = 'pinch'; g.d0 = Math.hypot(a.x - b.x, a.y - b.y); g.z0 = slotOf(p, g.slot).zoom || 1;
+      g.type = 'pinch'; g.d0 = Math.max(15, Math.hypot(a.x - b.x, a.y - b.y)); g.z0 = slotOf(p, g.slot).zoom || 1;
       return;
     }
     const handle = e.target.closest('[data-handle]');
@@ -106,7 +106,7 @@ function bindEditor(svg) {
     svg.setPointerCapture(e.pointerId);
     if (handle) {
       const k = keyOf(handle.dataset.slotH);
-      g = { type: 'resize', corner: handle.dataset.handle, slot: k, start: pt, r0: { ...rectOf(p, k) } };
+      g = { type: 'resize', corner: handle.dataset.handle, slot: k, start: pt, r0: { ...rectOf(p, k) }, nb: e.altKey ? [] : neighbours(p, k, handle.dataset.handle) };
     } else if (slotEl && ui.crop != null && key === ui.crop) {
       const sl = slotOf(p, key);
       g = { type: 'pan', slot: key, start: pt, cx: sl.cx, cy: sl.cy, moved: false, ghost: !!e.target.closest('.cropghost') };
@@ -116,18 +116,34 @@ function bindEditor(svg) {
       const it = pageItems(p).find(x => x.t === 'block' && x.kind === kind);
       g = e.pointerType === 'mouse' || ui.selBlock === kind ? { type: 'block', kind, start: pt, it, el: block, moved: false } : { type: 'selblock', kind, start: pt };
     } else if (slotEl && key === ui.sel && ui.swapFrom == null) {
-      g = { type: 'move', slot: key, start: pt, r0: { ...rectOf(p, key) }, moved: false };
+      // Maus: ausgewählten Rahmen direkt ziehen. Finger: erst lange drücken, damit nichts versehentlich wandert.
+      g = { type: e.pointerType === 'mouse' ? 'move' : 'pendmove', slot: key, start: pt, r0: { ...rectOf(p, key) }, moved: false };
     } else if (slotEl) {
-      const sl = slotOf(p, key), filled = sl && sl.photo && S.photos[sl.photo];
-      g = { type: e.pointerType === 'mouse' && filled && ui.swapFrom == null && !ui.armed ? 'swapdrag' : 'tap', slot: key, start: pt, client: { x: e.clientX, y: e.clientY }, moved: false };
+      const sl = slotOf(p, key), filled = sl && sl.photo && S.photos[sl.photo], free = filled && ui.swapFrom == null && !ui.armed;
+      g = { type: free ? (e.pointerType === 'mouse' ? 'swapdrag' : 'pendswap') : 'tap', slot: key, start: pt, client: { x: e.clientX, y: e.clientY }, moved: false };
     } else { g = { type: 'none', start: pt }; }
+    if (g.type === 'pendmove' || g.type === 'pendswap') {
+      const gg = g;
+      setTimeout(() => {
+        if (g !== gg || gg.moved) return;
+        gg.type = gg.type === 'pendmove' ? 'move' : 'swapdrag'; gg.lifted = true;
+        drag.block = true; svg.classList.add('dragging');
+        if (navigator.vibrate) try { navigator.vibrate(12); } catch (err) { /* egal */ }
+        if (gg.type === 'move') { const el = svg.querySelector(`g[data-slot="${gg.slot}"]`); if (el) el.style.opacity = '.75'; }
+      }, 380);
+    }
   });
 
   svg.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId) || !g) return;
     const pt = svgPoint(svg, e); pointers.set(e.pointerId, pt);
     const p = curPage(), dx = pt.x - g.start.x, dy = pt.y - g.start.y;
-    if (!g.moved && Math.hypot(dx, dy) > tol() * .5) { g.moved = true; if (!['tap', 'none', 'selblock'].includes(g.type)) svg.classList.add('dragging'); }
+    if (!g.moved && Math.hypot(dx, dy) > tol() * .5) {
+      g.moved = true;
+      if (g.type === 'pendmove' || g.type === 'pendswap') { g.type = 'cancel'; return; }   // vor dem langen Drücken bewegt: scrollen statt ziehen
+      if (!['tap', 'none', 'selblock', 'cancel'].includes(g.type)) svg.classList.add('dragging');
+    }
+    if (g.type === 'cancel') return;
     if (!g.moved && g.type !== 'resize') return;
     if (g.type === 'pan') {
       const r = rectOf(p, g.slot), sl = slotOf(p, g.slot), ph = S.photos[sl.photo], pl = placeImage(r, ph, sl);
@@ -136,7 +152,7 @@ function bindEditor(svg) {
       const c = placeImage(r, ph, sl); sl.cx = c.cx; sl.cy = c.cy;
       liveImage(svg, g.slot);
     } else if (g.type === 'pinch' && pointers.size >= 2) {
-      const [a, b] = [...pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      const [a, b] = [...pointers.values()], d = Math.max(15, Math.hypot(a.x - b.x, a.y - b.y));
       const r = rectOf(p, g.slot), sl = slotOf(p, g.slot), ph = S.photos[sl.photo];
       zoomAt(r, ph, sl, g.z0 * d / g.d0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
       liveImage(svg, g.slot);
@@ -156,6 +172,16 @@ function bindEditor(svg) {
       if (c.includes('e')) { x1 = Math.max(x0 + MIN_FRAME, x1 + dx); const s = nearest([x1], T.xs, t); if (s && s.t - x0 >= MIN_FRAME) { x1 = s.t; gx.push(s.t); } }
       if (c.includes('n')) { y0 = Math.min(y1 - MIN_FRAME, y0 + dy); const s = nearest([y0], T.ys, t); if (s && y1 - s.t >= MIN_FRAME) { y0 = s.t; gy.push(s.t); } }
       if (c.includes('s')) { y1 = Math.max(y0 + MIN_FRAME, y1 + dy); const s = nearest([y1], T.ys, t); if (s && s.t - y0 >= MIN_FRAME) { y1 = s.t; gy.push(s.t); } }
+      // Nachbarn an gemeinsamen Kanten gehen mit, der Bildabstand bleibt gleich (Alt: allein ändern)
+      const gap = p.gap ?? S.doc.gap;
+      for (const n of g.nb) {
+        const b = { ...n.r };
+        if (n.edge === 'e') { x1 = Math.min(x1, b.x + b.w - MIN_FRAME - gap); b.w = b.x + b.w - (x1 + gap); b.x = x1 + gap; }
+        if (n.edge === 'w') { x0 = Math.max(x0, b.x + MIN_FRAME + gap); b.w = x0 - gap - b.x; }
+        if (n.edge === 's') { y1 = Math.min(y1, b.y + b.h - MIN_FRAME - gap); b.h = b.y + b.h - (y1 + gap); b.y = y1 + gap; }
+        if (n.edge === 'n') { y0 = Math.max(y0, b.y + MIN_FRAME + gap); b.h = y0 - gap - b.y; }
+        setBox(p, n.key, b);
+      }
       setBox(p, g.slot, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
       renderEditorKeepGesture(svg);
       showGuides(svg, gx, gy);
@@ -189,9 +215,11 @@ function bindEditor(svg) {
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     if (pointers.size > 0) { if (g && g.type === 'pinch') { const [rest] = [...pointers.values()]; const sl = slotOf(curPage(), g.slot); g = { type: 'pan', slot: g.slot, start: rest, cx: sl.cx, cy: sl.cy, moved: true }; } return; }
-    svg.classList.remove('dragging');
+    svg.classList.remove('dragging'); drag.block = false;
     const p = curPage(), gg = g; g = null;
-    if (!gg) return;
+    if (!gg || gg.type === 'cancel') return;
+    if (gg.type === 'pendmove') gg.type = 'move';
+    if (gg.type === 'pendswap') gg.type = 'tap';
     const cancelled = e.type === 'pointercancel';
     if (gg.type === 'swapdrag' && gg.moved) {
       if (drag.ghost) { drag.ghost.remove(); drag.ghost = null; }
@@ -214,8 +242,12 @@ function bindEditor(svg) {
     }
     if ((gg.type === 'pan' || gg.type === 'pinch') && gg.moved) { commit(); updateThumb(); renderFrameBarMeta(); return; }
     if ((gg.type === 'move' || gg.type === 'resize') && gg.moved) { commit(); renderEditor(); updateThumb(); renderFrameBar(); renderPanelKeepScroll(); return; }
-    if (gg.moved) return;
-    if (gg.type === 'move') { setCrop(gg.slot); return; }              // zweites Antippen: Ausschnitt bearbeiten
+    if (gg.moved) { if (gg.type === 'move' && gg.lifted) renderEditor(); return; }
+    // Doppeltippen (Finger) öffnet den Ausschnitt; ein einfacher Klick auf den ausgewählten Rahmen ändert nichts
+    const now = Date.now(), dbl = e.pointerType !== 'mouse' && bindEditor._last && bindEditor._last.key === gg.slot && now - bindEditor._last.t < 380;
+    bindEditor._last = { key: gg.slot, t: now };
+    if (dbl && gg.slot != null) { setCrop(gg.slot); return; }
+    if (gg.type === 'move') { if (gg.lifted) renderEditor(); return; }
     if (gg.type === 'tap' || gg.type === 'pan' || gg.type === 'swapdrag') {
       if (ui.swapFrom != null && ui.swapFrom !== gg.slot) { swapSlots(ui.swapFrom, gg.slot); return; }
       if (ui.armed) { placePhoto(gg.slot, ui.armed); return; }
@@ -230,7 +262,8 @@ function bindEditor(svg) {
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
   svg.addEventListener('dblclick', (e) => {
-    const slotEl = e.target.closest('[data-slot]'); if (!slotEl) return;
+    // Wegen der Zeigerbindung ist das Ziel oft das SVG selbst; daher das Element unter dem Zeiger suchen
+    const hit = document.elementFromPoint(e.clientX, e.clientY), slotEl = hit && hit.closest('#editor [data-slot]'); if (!slotEl) return;
     setCrop(keyOf(slotEl.dataset.slot));
   });
   svg.addEventListener('wheel', (e) => {
@@ -267,7 +300,7 @@ document.addEventListener('pointermove', (e) => {
   if (p.type === 'mouse' && d > 6) startDrag(e.clientX, e.clientY);
   else if (p.type !== 'mouse' && d > 10) { clearTimeout(drag.lp); drag.pend = null; }
 });
-document.addEventListener('touchmove', (e) => { if (drag.active) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', (e) => { if (drag.active || drag.block) e.preventDefault(); }, { passive: false });
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('.thumb')) e.preventDefault(); });
 function startDrag(x, y) {
   const p = drag.pend; if (!p) return;
@@ -338,7 +371,7 @@ function photoTap(id, e) {
 
 /* ---------- Tastatur ---------- */
 document.addEventListener('keydown', (e) => {
-  const inField = /INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
+  const ae = document.activeElement, inField = /INPUT|TEXTAREA|SELECT/.test(ae && ae.tagName) && !(ae.type === 'range' && e.key === 'Escape');
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inField) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !inField) { e.preventDefault(); redo(); return; }
   if (inField || ui.view !== 'design') return;
@@ -358,3 +391,18 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'PageDown' || (e.key === 'ArrowRight' && e.altKey)) ACTIONS.nextpage();
   if (e.key === 'PageUp' || (e.key === 'ArrowLeft' && e.altKey)) ACTIONS.prevpage();
 });
+
+// Rahmen, die an der gezogenen Kante im Bildabstand anliegen (nur Rahmen, die nicht über anderen liegen)
+function neighbours(p, key, corner) {
+  const r0 = rectOf(p, key), gap = p.gap ?? S.doc.gap, out = [], tol = .8;
+  if (r0.overlay) return out;
+  for (const r of slotRects(p)) {
+    if (r.i === key || r.overlay) continue;
+    const vov = r.y < r0.y + r0.h - .5 && r.y + r.h > r0.y + .5, hov = r.x < r0.x + r0.w - .5 && r.x + r.w > r0.x + .5;
+    if (corner.includes('e') && vov && Math.abs(r.x - (r0.x + r0.w) - gap) < tol) out.push({ key: r.i, r: { ...r }, edge: 'e' });
+    if (corner.includes('w') && vov && Math.abs(r0.x - (r.x + r.w) - gap) < tol) out.push({ key: r.i, r: { ...r }, edge: 'w' });
+    if (corner.includes('s') && hov && Math.abs(r.y - (r0.y + r0.h) - gap) < tol) out.push({ key: r.i, r: { ...r }, edge: 's' });
+    if (corner.includes('n') && hov && Math.abs(r0.y - (r.y + r.h) - gap) < tol) out.push({ key: r.i, r: { ...r }, edge: 'n' });
+  }
+  return out;
+}

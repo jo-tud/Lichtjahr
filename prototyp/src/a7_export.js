@@ -123,7 +123,24 @@ async function exportPDF() {
 }
 function showPdfResult() {
   const o = $('#exportOut'); if (!o || !lastPdf) return;
-  o.innerHTML = `<div class="row"><span class="pill ok">Fertig · ${fmt1(lastPdf.blob.size / 1048576)} MB</span><button class="btn small" data-act="savepdf">Erneut speichern</button></div>`;
+  o.innerHTML = `<div class="done-box"><b>Geschafft: dein Kalender ${S.doc.year} ist fertig.</b><span class="muted small">${lastPdf.name} · ${fmt1(lastPdf.blob.size / 1048576)} MB</span>
+    <div class="row"><button class="btn small" data-act="savepdf">Erneut speichern</button><button class="btn small primary" data-act="wall">An der Wand ansehen</button></div></div>`;
+  celebrate();
+}
+// Kleiner Moment der Freude nach dem Export: Papierschnipsel in den Druckfarben
+function celebrate() {
+  if (reduceMotion()) return;
+  const c = document.createElement('canvas'); c.className = 'confetti'; c.width = innerWidth; c.height = innerHeight;
+  document.body.appendChild(c);
+  const x = c.getContext('2d'), cols = ['#00a0e3', '#e5007e', '#ffd500', '#1d1d1b'];
+  const bits = Array.from({ length: 140 }, () => ({ x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 12, vy: -Math.random() * 12 - 4, r: Math.random() * 6, vr: (Math.random() - .5) * .3, w: 6 + Math.random() * 6, c: cols[Math.floor(Math.random() * 4)] }));
+  const t0 = performance.now();
+  const step = (t) => {
+    x.clearRect(0, 0, c.width, c.height);
+    for (const b of bits) { b.vy += .35; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.r += b.vr; x.save(); x.translate(b.x, b.y); x.rotate(b.r); x.fillStyle = b.c; x.fillRect(-b.w / 2, -2, b.w, 4); x.restore(); }
+    if (t - t0 < 2200) requestAnimationFrame(step); else c.remove();
+  };
+  requestAnimationFrame(step);
 }
 let downloadsCap = null;
 async function savePdf() {
@@ -165,10 +182,15 @@ async function loadSaved() {
     delete S.doc.backs;
     for (const [k, p] of Object.entries(S.pages)) if (isBack(k) && p.cal && p.cal.style === 'off' && Object.keys(p.cal).length === 1) p.cal = {};
   } catch (e) { return false; }
+  // Gespeicherter Verlauf: Fotos, die er noch kennt, bleiben erhalten (Rückgängig nach dem Neuladen)
+  let past = []; try { past = JSON.parse(await DB.get('kv', 'hist') || '[]'); } catch (e) { past = []; }
+  const keep = new Set();
+  for (const sj of past) { try { const o = JSON.parse(sj); for (const [id, p] of Object.entries(o.photos || {})) { keep.add(id); if (p.copyOf) keep.add(p.copyOf); } } catch (e) { /* egal */ } }
+  hist.past = past;
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {
     const rec = await DB.get('blobs', id);
-    if (!S.photos[id] && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
+    if (!S.photos[id] && !keep.has(id) && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
     if (rec) { setUrls(id, rec.prev, rec.thumb); if (rec.file) RT.file[id] = rec.file; }
   }
   for (const ph of Object.values(S.photos)) if (ph.copyOf && RT.thumb[ph.copyOf]) {
@@ -181,6 +203,8 @@ async function init() {
   injectFonts();
   $('#undo').innerHTML = ICON.undo; $('#redo').innerHTML = ICON.redo;
   try { downloadsCap = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); } catch (e) { downloadsCap = Promise.resolve(null); }
+  $('#vcfIn').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importContacts(await f.text()); });
+  window.addEventListener('popstate', () => { const v = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (v && v !== ui.view && !wall.el) setView(v, true); else if (wall.el) closeWall(); });
   $('#fileIn').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) { setView('photos'); importFiles(f); } });
   $('#dirIn').addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) { setView('photos'); importFiles(f); } });
   document.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); const z = $('#dropzone'); if (z) z.classList.add('over'); } });
@@ -196,8 +220,30 @@ async function init() {
   ensurePages();
   if (!had) { await setupDemo(); ui.view = 'design'; }
   else { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } }
-  hist.last = snap(); scheduleSave();
+  hist.last = snap(); scheduleSave(); updateUndo();
+  if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(`Willkommen zurück. Weiter bei ${pageLabel(pg)}.`), 600); } } catch (e) { /* egal */ } }
   if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalJost'), document.fonts.load('600 16px CalJost')]); } catch (e) { /* egal */ } }
+  const hv = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (hv) ui.view = hv;   // Direktlink auf einen Schritt
+  try { history.replaceState({ view: ui.view }, '', '#' + VIEW_HASH[ui.view]); } catch (e) { /* egal */ }
   renderAll();
   window.addEventListener('resize', () => { if (ui.view === 'design') renderEditor(); });
+}
+
+// Geburtstage aus Kontakten (vCard) oder Kalenderdateien (iCalendar) übernehmen
+function importContacts(text) {
+  const found = [], un = text.replace(/\r?\n[ \t]/g, '');
+  for (const card of un.split(/BEGIN:VCARD/i).slice(1)) {
+    const fn = (/^FN[^:]*:(.+)$/im.exec(card) || [])[1], bd = (/^BDAY[^:]*:(.+)$/im.exec(card) || [])[1];
+    const m = bd && /(\d{4}|--)-?(\d{2})-?(\d{2})/.exec(bd.trim());
+    if (fn && m) found.push({ name: fn.trim().replace(/\\,/g, ','), y: m[1] === '--' || m[1] === '1604' ? '' : m[1], m: +m[2], d: +m[3] });
+  }
+  for (const ev of un.split(/BEGIN:VEVENT/i).slice(1)) {
+    const sum = (/^SUMMARY[^:]*:(.+)$/im.exec(ev) || [])[1], dt = (/^DTSTART[^:]*:(\d{4})(\d{2})(\d{2})/im.exec(ev) || []);
+    if (sum && dt[2] && /RRULE:FREQ=YEARLY/i.test(ev)) found.push({ name: sum.trim().replace(/^Geburtstag( von)?:?\s*/i, ''), y: '', m: +dt[2], d: +dt[3] });
+  }
+  const have = new Set((S.doc.birthdays || []).map(b => b.name + '|' + b.d + '|' + b.m));
+  const add = found.filter(b => !have.has(b.name + '|' + b.d + '|' + b.m));
+  for (const b of add) (S.doc.birthdays ||= []).push({ id: uid(), ...b });
+  commit(); renderAll();
+  toast(add.length ? `${plural(add.length, 'Geburtstag', 'Geburtstage')} übernommen.` : 'In der Datei wurden keine neuen Geburtstage gefunden.', 5000, add.length ? { label: 'Rückgängig', fn: undo } : null);
 }
