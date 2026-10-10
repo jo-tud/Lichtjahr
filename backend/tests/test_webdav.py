@@ -142,3 +142,22 @@ def test_api_webdav_project_keeps_password_out_of_project(dav, tmp_path):
     # Vergessen entfernt auch die Zugangsdaten
     c2.delete(f"/api/projects/{pid}")
     assert url.rstrip("/") + "/" not in json.load(open(cred))
+
+
+def test_server_lock_423_is_retried_then_explained(monkeypatch):
+    import httpx
+    from lichtjahr.storage.webdav import ServerLocked
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        if len(calls) <= 2:                                         # Nextcloud hält die Datei kurz gesperrt
+            return httpx.Response(423)
+        return httpx.Response(201, headers={"ETag": '"e1"'})
+    s = WebDavStorage("https://cloud.example.org/remote.php/dav/files/anna/K", USER, PASSWORD, transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(WebDavStorage, "RETRY_LOCKED", (0, 0, 0))
+    assert s.create_exclusive(".lichtjahr/lock.json", b"{}") == '"e1"' and calls == ["PUT"] * 3
+    stuck = WebDavStorage("https://cloud.example.org/remote.php/dav/files/anna/K", USER, PASSWORD,
+                          transport=httpx.MockTransport(lambda r: httpx.Response(423)))
+    with pytest.raises(ServerLocked, match="423"):
+        stuck.replace(".lichtjahr/lock.json", b"{}", if_match='"e0"')
