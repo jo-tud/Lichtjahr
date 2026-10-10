@@ -192,6 +192,8 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
 | GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |
+| GET / POST | `/api/people/model` | Status des Erkennungsmodells / einmalig laden (SFace, 10 MB, SHA-256 geprüft) in den Datenordner |
+| POST | `/api/projects/{id}/people` | Gesichter mit je 128 Merkmalen für die angegebenen Fotos; nur lokal zwischengespeichert, nie im Projektordner; die Oberfläche gruppiert sie zu Personen |
 | POST | `/api/projects/{id}/faces` | Gesichter in den angegebenen Fotos (`{ids: [...]}`): Rechtecke in Bruchteilen des Fotos, je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
 
@@ -218,6 +220,6 @@ Die Tests decken unter anderem ab:
 
 ## Ausblick
 
-- Erkennen, wer auf den Fotos ist („wer ist wie oft drauf“), weiterhin ganz lokal.
+- Belichtungsfusion (Mertens) für starkes Gegenlicht und Farbrauschminderung, wenn Tiefen angehoben werden.
 
 HEIC und TIFF: Mit der Erweiterung `heic` liest der Dienst iPhone-Fotos direkt (Vorschau, Gesichter, Druck aus dem Original samt Display P3). Browser können HEIC und TIFF nicht dekodieren, darum liefert `/original` solche Dateien als JPEG in voller Größe mit dem Farbprofil des Fotos (zwischengespeichert).

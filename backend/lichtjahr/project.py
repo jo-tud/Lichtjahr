@@ -435,6 +435,22 @@ class Project:
         os.replace(tmp, path)
         return found
 
+    def face_features(self, asset: Asset, data_dir: str) -> list[dict]:
+        """Gesichter mit Merkmalen zum Wiedererkennen, nur im lokalen Zwischenspeicher (nie im Projektordner)."""
+        path = os.path.join(self.cache_dir, "people", asset.contentHash[:2],
+                            f"{asset.contentHash}_{facedet.VERSION}_{facedet.REC_VERSION}.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        with open(self.thumbnail(asset, facedet.SIZE), "rb") as fh:
+            found = facedet.embed(fh.read(), data_dir)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(found, fh)
+        os.replace(tmp, path)
+        return found
+
     # -- Übersicht --------------------------------------------------------------------------
     def summary(self) -> dict:
         man, _ = self.load()

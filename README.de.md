@@ -136,6 +136,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
 - **Bild verbessern:** *Auto* korrigiert Belichtung, Tonwertumfang, Weißabgleich, Kontrast und Farbe mit einem Klick, mit einstellbarer Stärke; *Alle Fotos automatisch* macht das für den ganzen Kalender. Gesichter zählen mit, ein Hautton wird aber nie angesteuert: Ein sichtbar belichtetes Gesicht heißt nur „das Motiv stimmt, wenig aufhellen“. Sonnenuntergänge behalten ihre Wärme. Looks (Lebendig, Warm, Sanft, Film, Schwarzweiß, S/W kräftig) erscheinen als Kacheln des eigenen Fotos, jeweils mit eigener Stärke. Dazu Helligkeit, Kontrast, Wärme und Farbe, auf Wunsch auch Lichter, Tiefen und Tönung, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen.
+- **Wer ist wie oft drauf:** Mit dem lokalen Dienst erkennt Lichtjahr Gesichter über die Fotos hinweg wieder und zeigt, wer auf wie vielen Fotos und wie oft im Kalender ist; wer noch fehlt, steht oben. Namen vergeben, alle Fotos einer Person zeigen, und die Prüfliste erinnert an Benannte, die noch nicht im Kalender sind. Alles läuft auf dem eigenen Rechner; das Erkennungsmodell (10 MB) wird beim ersten Gebrauch einmal geladen, die Gesichtsmerkmale bleiben im lokalen Zwischenspeicher des Dienstes – im Projekt stehen nur Namen.
 - **Serienbilder:** Fünfmal fast dasselbe Motiv? Lichtjahr findet solche Serien (gleicher Monat und Tag, sehr ähnliches Bild) und schlägt das beste Foto vor: am schärfsten, gut belichtet, Gesichter gut sichtbar, Favoriten zählen mit. Die übrigen lassen sich mit einem Klick aussortieren; steht eines davon schon im Kalender, rückt das gewählte an seine Stelle.
 - **Alle Monate angleichen:** Belichtung und Farbstimmung der zwölf Monate werden einander angenähert, so weit man möchte, mit allen Monaten nebeneinander und einer Vorher-Ansicht zum Gedrückthalten. Die Jahreszeiten bleiben erkennbar. Die Prüfliste meldet Monate, die deutlich dunkler oder heller sind als die anderen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
@@ -297,6 +298,7 @@ arbeitet sie wie bisher nur im Browser.
 | `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
 | `src/b2_print.js` | Druck-PDF über den lokalen Dienst: Druckprofil, Export, Prüfbericht |
 | `src/b3_faces.js` | Gesichter vom Dienst: Ausschnitt um Gesichter, Kalendarium meidet Köpfe, Hinweise |
+| `src/b6_people.js` | Wer ist wie oft drauf: Gesichter zu Personen gruppieren, Namen, Filter, Prüfung |
 | `src/b5_series.js` | Serienbilder: ähnliche Fotos (dHash, Farbe, Seitenverhältnis), bestes nach Schärfe, Belichtung, Gesichtern |
 | `src/b4_adjust.js` | Bilder verbessern: Rezepte als Farbmatrix und Tonkurve, SVG-Filter, Pixel |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
@@ -325,7 +327,8 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Großer Farbraum (Display P3, Adobe RGB) direkt aus dem Original gedruckt
 - [x] Gesichter: automatische Ausschnitte behalten sie im Bild, das Kalendarium meidet sie, angeschnittene werden gemeldet
 - [x] Fotos für den Druck optimieren: Automatik, Looks, Regler, Monate angleichen, Druckausgleich
-- [ ] Wer ist wie oft auf den Fotos
+- [x] Wer ist wie oft auf den Fotos (lokale Gesichtserkennung)
+- [x] Serienbilder: bestes Foto vorgeschlagen
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -339,6 +342,7 @@ gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md) 
 - **Code:** [MIT-Lizenz](LICENSE)
 - **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
 - **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
+- **Wiedererkennung:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; nicht im Repository, wird beim ersten Gebrauch geladen und gegen seine SHA-256-Prüfsumme geprüft.
 - **Gesichtserkennung:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) von Shiqi Yu, MIT-Lizenz ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); findet Gesichter, erkennt aber keine Personen. Die Testfotos in `backend/tests/data/` sind gemeinfreie NASA-Porträts.
 - **ICC-Druckprofile:** `ISOcoated_v2_300_bas.icc` und `PSO_Uncoated_ISO12647_bas.icc` von basICColor GmbH, zlib/libpng-Lizenz ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
 - **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf (jeweils eigene freie Lizenzen)

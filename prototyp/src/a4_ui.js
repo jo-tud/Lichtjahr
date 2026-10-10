@@ -138,7 +138,7 @@ function photoThumb(ph, u, extra = '') {
     ${pages ? `<span class="b use">${pages.map(pageShort).join(', ')}</span>` : ''}</button>`;
 }
 function renderPhotos() {
-  const u = usage(), all = Object.values(S.photos);
+  const u = usage(), pf = ui.personFilter, all = Object.values(S.photos).filter(ph => !pf || pf.has(ph.id));
   const byM = Array.from({ length: 13 }, () => []);
   for (const ph of all) byM[ph.month < 0 ? 12 : ph.month].push(ph);
   byM.forEach(l => l.sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.name.localeCompare(b.name)));
@@ -163,7 +163,7 @@ function renderPhotos() {
       <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? (SVC.pid ? _t('Für HEIC-Fotos braucht der lokale Dienst seine Erweiterung: pip install "lichtjahr[heic]".') : _t('HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Mit dem lokalen Dienst gehen sie direkt, in Safari meist auch; sonst am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen.')) + ' ' : ''}${_t('Andere Dateien sind vermutlich beschädigt oder keine Fotos.')}</p>
       <div class="row"><button class="btn small" data-act="clearerr">${_t('Verstanden')}</button></div></section>` : ''}
     ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>${_t('Fotos auf die Seiten bringen')}</h2><p class="hint">${_t('Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.')}</p></div><button class="btn primary" data-act="autodesign">${_t('Kalender automatisch gestalten')}</button></section>` : ''}
-    ${seriesCard()}
+    ${pf ? `<div class="person-filter">${_t('Nur Fotos mit {name}', { name: esc(ui.personName || '') })} <button class="btn small" data-act="personclear">${_t('Alle Fotos zeigen')}</button></div>` : seriesCard() + peopleCard()}
     <div class="dropzone" id="dropzone"><span>${SVC.pid ? _t('Fotos oder ganze Ordner hierher ziehen, sie werden in die Monatsordner des Projekts kopiert.') : _t('Fotos oder ganze Ordner hierher ziehen.')} ${_t('Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.')}${SVC.pid ? ' ' + _t('Du kannst Dateien auch direkt in die Monatsordner legen und dann abgleichen.') : ''}</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
@@ -484,6 +484,7 @@ function checks() {
   // Monate, die deutlich dunkler oder heller als die anderen sind (im Hintergrund gemessen)
   refreshMonthTones(() => { if (ui.view === 'print' && outlierMonths().length) renderPrint(); });
   for (const o of outlierMonths()) out.push(['warn', o.darker ? _t('{page} ist deutlich dunkler als die anderen Monate', { page: pageLabel(o.key) }) : _t('{page} ist deutlich heller als die anderen Monate', { page: pageLabel(o.key) }), o.key, { act: 'matchmonths', label: _t('Angleichen') }]);
+  out.push(...peopleChecks());
   if (d.index) {
     const mode = indexMode();
     if (mode === 'photos') {

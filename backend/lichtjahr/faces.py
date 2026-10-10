@@ -41,10 +41,8 @@ def _detector(size: tuple[int, int]):
     return det
 
 
-def detect(data: bytes) -> list[dict]:
-    """Gesichter in einem Bild (JPEG/PNG …); leer, wenn keine gefunden werden oder OpenCV fehlt."""
-    if not available():
-        return []
+def _find(data: bytes):
+    """Bild laden (wie angezeigt, höchstens SIZE) und Gesichter suchen: (BGR-Bild, [(Rechteck, Rohzeile)]), größte zuerst."""
     import numpy as np
     with Image.open(io.BytesIO(data)) as im:
         im = ImageOps.exif_transpose(im).convert("RGB")
@@ -59,7 +57,86 @@ def detect(data: bytes) -> list[dict]:
         x0, y0, x1, y1 = max(0.0, x), max(0.0, y), min(float(w), x + fw), min(float(h), y + fh)
         if x1 <= x0 or y1 <= y0 or min(x1 - x0, y1 - y0) < MIN_FACE * min(w, h):
             continue
-        out.append({"x": round(x0 / w, 4), "y": round(y0 / h, 4), "w": round((x1 - x0) / w, 4), "h": round((y1 - y0) / h, 4),
-                    "score": round(score, 3)})
-    out.sort(key=lambda r: r["w"] * r["h"], reverse=True)
+        box = {"x": round(x0 / w, 4), "y": round(y0 / h, 4), "w": round((x1 - x0) / w, 4), "h": round((y1 - y0) / h, 4),
+               "score": round(score, 3)}
+        out.append((box, f, min(x1 - x0, y1 - y0)))
+    out.sort(key=lambda r: r[0]["w"] * r[0]["h"], reverse=True)
+    return bgr, out
+
+
+def detect(data: bytes) -> list[dict]:
+    """Gesichter in einem Bild (JPEG/PNG …); leer, wenn keine gefunden werden oder OpenCV fehlt."""
+    if not available():
+        return []
+    return [box for box, _, _ in _find(data)[1]]
+
+
+# -- Wiedererkennen: wer ist wie oft auf den Fotos ---------------------------------------------
+# SFace (OpenCV Zoo, Apache-2.0) berechnet je Gesicht 128 Merkmale; ähnliche Merkmale heißen „dieselbe Person“.
+# Das Modell (10 MB) liegt nicht im Repository, sondern wird beim ersten Gebrauch geladen und geprüft. Die Merkmale
+# bleiben im lokalen Zwischenspeicher des Dienstes und kommen nie in den Projektordner.
+REC_FILE = "face_recognition_sface_2021dec_int8.onnx"
+REC_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/" + REC_FILE
+REC_SHA256 = "2b0e941e6f16cc048c20aee0c8e31f569118f65d702914540f7bfdc14048d78a"
+REC_SIZE = 9_896_933
+REC_VERSION = "sface2021dec8-1"
+MIN_REC_PX = 36                          # kleinere Gesichter geben unzuverlässige Merkmale
+
+
+def recognizer_path(data_dir: str) -> str:
+    return os.path.join(data_dir, "models", REC_FILE)
+
+
+def recognizer_ready(data_dir: str) -> bool:
+    path = recognizer_path(data_dir)
+    return available() and os.path.exists(path) and os.path.getsize(path) == REC_SIZE
+
+
+def download_recognizer(data_dir: str, url: str = REC_URL) -> None:
+    """Modell laden und gegen die Prüfsumme prüfen; nur eine vollständige, passende Datei bleibt liegen."""
+    import hashlib
+
+    import httpx
+    path = recognizer_path(data_dir)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.part"
+    digest = hashlib.sha256()
+    try:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(tmp, "wb") as fh:
+                for chunk in r.iter_bytes(1 << 20):
+                    digest.update(chunk)
+                    fh.write(chunk)
+        if digest.hexdigest() != REC_SHA256:
+            raise ValueError("checksum")
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _recognizer(path: str):
+    import cv2
+    rec = getattr(_local, "rec", None)
+    if rec is None:
+        rec = _local.rec = cv2.FaceRecognizerSF.create(path, "")
+    return rec
+
+
+def embed(data: bytes, data_dir: str) -> list[dict]:
+    """Wie ``detect``, dazu je Gesicht „emb“: 128 Merkmale (Länge 1) oder ``None`` für zu kleine Gesichter."""
+    if not recognizer_ready(data_dir):
+        return []
+    import numpy as np
+    bgr, found = _find(data)
+    rec = _recognizer(recognizer_path(data_dir))
+    out = []
+    for box, row, px in found:
+        e = None
+        if px >= MIN_REC_PX:
+            v = rec.feature(rec.alignCrop(bgr, row)).flatten().astype(np.float64)
+            n = float(np.linalg.norm(v))
+            e = [round(float(x) / n, 4) for x in v] if n else None
+        out.append({**box, "emb": e})
     return out
