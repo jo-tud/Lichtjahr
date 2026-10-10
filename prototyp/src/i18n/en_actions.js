@@ -133,4 +133,10 @@ Object.assign(EN, {
   'Fotos werden verbessert': 'Enhancing photos',
   '1 Foto automatisch verbessert. Jedes lässt sich einzeln nachregeln.': '1 photo enhanced automatically. Each one can be fine-tuned individually.',
   '{n} Fotos automatisch verbessert. Jedes lässt sich einzeln nachregeln.': '{n} photos enhanced automatically. Each one can be fine-tuned individually.',
+  'Monate werden verglichen': 'Comparing months',
+  'Dafür braucht es Fotos auf mindestens zwei Monatsseiten.': 'This needs photos on at least two month pages.',
+  'Alle Monate angleichen': 'Match all months',
+  'Belichtung und Farbstimmung der Monate werden einander angenähert. Die Jahreszeiten bleiben erkennbar, der Kalender wirkt wie aus einem Guss.': 'Exposure and color mood of the months are brought closer together. The seasons stay recognizable, and the calendar looks all of a piece.',
+  'Vorher': 'Before',
+  'Monate angeglichen. Jedes Foto lässt sich weiter einzeln nachregeln.': 'Months matched. Each photo can still be fine-tuned individually.',
 });

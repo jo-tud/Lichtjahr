@@ -241,15 +241,26 @@ const dpiPill = (ph, r, sl) => {
 };
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
+const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')]];
+const LOOK_NAMES = () => [['', _t('Ohne Look')], ['vivid', _t('Lebendig')], ['warm', _t('Warm')], ['soft', _t('Sanft')], ['film', _t('Film')], ['bw', _t('Schwarzweiß')], ['bwstrong', _t('S/W kräftig')]];
+// Kachel: das eigene Foto mit diesem Look (und allem anderen, was schon eingestellt ist)
+function lookThumb(ph, look) {
+  const c = compileAdjust(adjOf(ph.id, { look })), fid = c ? `lk${look || 'x'}${adjFilterId(c)}` : '';
+  return `<svg viewBox="0 0 64 48" aria-hidden="true">${c ? `<defs>${adjFilterDef(c, fid)}</defs>` : ''}<image href="${RT.thumb[ph.id]}" width="64" height="48" preserveAspectRatio="xMidYMid slice"${c ? ` filter="url(#${fid})"` : ''}/></svg>`;
+}
+const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`;
 function tuneBar(ph) {
   const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {}, auto = !!r.auto;
   return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b>
       <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(_t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
-      <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button><span class="sp"></span>
+      <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button>
+      <button class="linkbtn" data-act="matchmonths">${_t('Monate angleichen')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
-    <div class="tune-sliders">${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(([k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`).join('')}</div>`;
+    <div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
+    <div class="tune-sliders">${r.look ? `<label class="adj strength"><span>${_t('Stärke des Looks')}<output>${Math.round((r.lookAmt ?? 1) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.lookAmt ?? 1}" data-act-input="adjlookamt" data-photo="${ph.id}"></label>` : ''}${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(x => adjSlider(ph, r, x)).join('')}${ui.adjMore ? ADJ_MORE().map(x => adjSlider(ph, r, x)).join('') : ''}
+      <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 function renderFrameBar() {
@@ -460,6 +471,9 @@ function checks() {
       else if (it.x < 4 || it.y < 4 || it.x + it.w > d.w - 4 || it.y + it.h > d.h - 4) out.push(['warn', cal ? _t('{page}: Kalendarium liegt sehr nah am Schnitt', { page }) : _t('{page}: Titel liegt sehr nah am Schnitt', { page }), k]);
     }
   }
+  // Monate, die deutlich dunkler oder heller als die anderen sind (im Hintergrund gemessen)
+  refreshMonthTones(() => { if (ui.view === 'print' && outlierMonths().length) renderPrint(); });
+  for (const o of outlierMonths()) out.push(['warn', o.darker ? _t('{page} ist deutlich dunkler als die anderen Monate', { page: pageLabel(o.key) }) : _t('{page} ist deutlich heller als die anderen Monate', { page: pageLabel(o.key) }), o.key, { act: 'matchmonths', label: _t('Angleichen') }]);
   if (d.index) {
     const mode = indexMode();
     if (mode === 'photos') {

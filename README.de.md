@@ -135,7 +135,8 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
-- **Bild verbessern:** *Auto* korrigiert Belichtung, Tonwertumfang, Weißabgleich, Kontrast und Farbe mit einem Klick, mit einstellbarer Stärke; *Alle Fotos automatisch* macht das für den ganzen Kalender. Gesichter zählen mit, ein Hautton wird aber nie angesteuert: Ein sichtbar belichtetes Gesicht heißt nur „das Motiv stimmt, wenig aufhellen“. Sonnenuntergänge behalten ihre Wärme. Dazu Helligkeit, Kontrast, Wärme und Farbe je Foto, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
+- **Bild verbessern:** *Auto* korrigiert Belichtung, Tonwertumfang, Weißabgleich, Kontrast und Farbe mit einem Klick, mit einstellbarer Stärke; *Alle Fotos automatisch* macht das für den ganzen Kalender. Gesichter zählen mit, ein Hautton wird aber nie angesteuert: Ein sichtbar belichtetes Gesicht heißt nur „das Motiv stimmt, wenig aufhellen“. Sonnenuntergänge behalten ihre Wärme. Looks (Lebendig, Warm, Sanft, Film, Schwarzweiß, S/W kräftig) erscheinen als Kacheln des eigenen Fotos, jeweils mit eigener Stärke. Dazu Helligkeit, Kontrast, Wärme und Farbe, auf Wunsch auch Lichter, Tiefen und Tönung, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen.
+- **Alle Monate angleichen:** Belichtung und Farbstimmung der zwölf Monate werden einander angenähert, so weit man möchte, mit allen Monaten nebeneinander und einer Vorher-Ansicht zum Gedrückthalten. Die Jahreszeiten bleiben erkennbar. Die Prüfliste meldet Monate, die deutlich dunkler oder heller sind als die anderen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
 - **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
 
@@ -321,7 +322,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Softproof am Bildschirm mit Farbumfang-Warnung, PDF/X-4
 - [x] Großer Farbraum (Display P3, Adobe RGB) direkt aus dem Original gedruckt
 - [x] Gesichter: automatische Ausschnitte behalten sie im Bild, das Kalendarium meidet sie, angeschnittene werden gemeldet
-- [ ] Fotos für den Druck optimieren (automatisch und von Hand)
+- [x] Fotos für den Druck optimieren: Automatik, Looks, Regler, Monate angleichen, Druckausgleich
 - [ ] Wer ist wie oft auf den Fotos
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).

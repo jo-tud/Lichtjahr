@@ -135,7 +135,8 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
 - **Binding:** Wire binding and hanger cut-out as guideline values or with measurements from the print shop's data sheet.
 - **Photo spacing:** 0–5 mm, for all pages or per page.
-- **Enhance photo:** *Auto* corrects exposure, tonal range, white balance, contrast and color with one click, with an adjustable strength; *All photos automatically* does it for the whole calendar. Faces count, but no skin tone is ever targeted: a visibly exposed face only means "the subject is fine, brighten little". Sunsets keep their warmth. On top, brightness, contrast, warmth and color per photo, right below the picture; press and hold *Original* to compare. The originals stay untouched; the same recipe drives the preview, the soft proof and the PDF.
+- **Enhance photo:** *Auto* corrects exposure, tonal range, white balance, contrast and color with one click, with an adjustable strength; *All photos automatically* does it for the whole calendar. Faces count, but no skin tone is ever targeted: a visibly exposed face only means "the subject is fine, brighten little". Sunsets keep their warmth. Looks (Vivid, Warm, Soft, Film, Black & white, B&W strong) appear as tiles of your own photo, each with its own strength. On top, brightness, contrast, warmth and color, and on request highlights, shadows and tint, right below the picture; press and hold *Original* to compare.
+- **Match all months:** Exposure and color mood of the twelve months are brought closer together, as much as you like, shown side by side with a press-and-hold before view. The seasons stay recognizable. The check list points out months that are noticeably darker or brighter than the rest. The originals stay untouched; the same recipe drives the preview, the soft proof and the PDF.
 - **Undo/redo** with a jump to the changed page; the history survives a reload.
 - **On the wall:** The calendar hangs on a wall and its pages turn over the wire binding – by click, swipe or arrow keys.
 
@@ -320,7 +321,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] On-screen soft proof with gamut warning, PDF/X-4
 - [x] Wide color (Display P3, Adobe RGB) printed straight from the original
 - [x] Faces: automatic crops keep them in the picture, the calendar grid avoids them, cut-off faces are flagged
-- [ ] Optimize photos for print (automatic and manual)
+- [x] Optimize photos for print: automatic mode, looks, manual sliders, matching months, print adaptation
 - [ ] Who appears how often in the photos
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).

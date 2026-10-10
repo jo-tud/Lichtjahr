@@ -8,13 +8,27 @@
    So sieht der Druck aus wie die Vorschau. Die Druckanpassung (Ausgleich für Papier, Schärfung) kommt vom
    Dienst, weil sie vom Druckprofil abhängt. */
 const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation'];
+// Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
+const LOOKS = {
+  vivid: { contrast: .2, saturation: .35, shadows: .05 },
+  warm: { warmth: .35, saturation: .1, exposure: .05 },
+  soft: { contrast: -.3, highlights: -.25, shadows: .2, saturation: -.15 },
+  film: { contrast: .12, saturation: -.3, warmth: .12, fade: .05 },
+  bw: { mono: 1, contrast: .1 },
+  bwstrong: { mono: 1, contrast: .4, shadows: -.1 },
+};
+const LOOK_KEYS = [...ADJ_KEYS, 'mono', 'fade'];
 const ADJ_NODES = 65;
-// Wirksames Rezept: Automatik (aufgelöste Werte × Stärke) plus Regler als Versatz dazu
-function adjOf(id) {
-  const r = S.doc.adjust && S.doc.adjust[id]; if (!r) return null;
-  const a = r.auto && r.autoV, s = r.strength ?? .7, out = {};
-  for (const k of ADJ_KEYS) { const v = (r[k] || 0) + (a ? (a[k] || 0) * s : 0); if (v) out[k] = Math.max(-1, Math.min(1, v)); }
-  if (a) {                                                  // Tonwertumfang und Weißabgleich nur aus der Automatik
+// Wirksames Rezept: Automatik (aufgelöste Werte × Stärke), Angleichung der Monate, Look × Stärke, Regler als Versatz
+function adjOf(id, { noMatch = false, look } = {}) {
+  const r = S.doc.adjust && S.doc.adjust[id]; if (!r && !look) return null;
+  const rr = r || {}, a = rr.auto && rr.autoV, s = rr.strength ?? .7, out = {};
+  const lk = LOOKS[look !== undefined ? look : rr.look], la = look !== undefined ? 1 : (rr.lookAmt ?? 1), m = !noMatch && rr.match;
+  for (const k of LOOK_KEYS) {
+    const v = (rr[k] || 0) + (a ? (a[k] || 0) * s : 0) + (m ? m[k] || 0 : 0) + (lk ? (lk[k] || 0) * la : 0);
+    if (v) out[k] = k === 'mono' || k === 'fade' ? clamp01(v) : Math.max(-1, Math.min(1, v));
+  }
+  if (a) {                                            // Tonwertumfang und Weißabgleich nur aus der Automatik
     if (a.lvlB || a.lvlW !== undefined && a.lvlW !== 1) { out.lvlB = (a.lvlB || 0) * s; out.lvlW = 1 - (1 - (a.lvlW ?? 1)) * s; }
     if (a.wbR && a.wbR !== 1) out.wbR = 1 + (a.wbR - 1) * s;
     if (a.wbB && a.wbB !== 1) out.wbB = 1 + (a.wbB - 1) * s;
@@ -26,19 +40,19 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 // Tonkurve als Funktion; alle Regler −1 … +1
 function toneCurve(r) {
   const e = r.exposure || 0, c = r.contrast || 0, sh = r.shadows || 0, hl = r.highlights || 0, g = Math.pow(2, -.75 * e);
-  const b = r.lvlB || 0, w = r.lvlW ?? 1;
+  const b = r.lvlB || 0, w = r.lvlW ?? 1, fade = r.fade || 0;
   return (v) => {
     let x = Math.pow(clamp01((v - b) / Math.max(.05, w - b)), g);
     x = c >= 0 ? x + c * .7 * (x * x * (3 - 2 * x) - x) : .5 + (x - .5) * (1 + .45 * c);
     x = clamp01(x);
     x += sh * .9 * x * (1 - x) * (1 - x);                    // Tiefen: wirkt vor allem im unteren Drittel
     x += hl * .9 * x * x * (1 - x);                          // Lichter: vor allem im oberen Drittel
-    return clamp01(x);
+    return clamp01(fade + clamp01(x) * (1 - fade));
   };
 }
 function compileAdjust(r) {
   if (!r) return null;
-  const w = r.warmth || 0, t = r.tint || 0, k = 1 + .5 * (r.saturation || 0), L = [.2126, .7152, .0722];
+  const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
   const gain = [(1 + .07 * w + .02 * t) * (r.wbR || 1), 1 - .045 * t, (1 - .07 * w + .02 * t) * (r.wbB || 1)];
   const m = [];
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m.push(((1 - k) * L[j] + (i === j ? k : 0)) * gain[j]);
@@ -88,6 +102,8 @@ function setAdjust(id, patch) {
   const r = { ...(S.doc.adjust[id] || {}), ...patch };
   for (const k of ADJ_KEYS) if (!r[k]) delete r[k];
   if (!r.auto) { delete r.autoV; delete r.strength; delete r.auto; }
+  if (!r.look) { delete r.look; delete r.lookAmt; }
+  if (!r.match || !Object.keys(r.match).length) delete r.match;
   if (Object.keys(r).length) S.doc.adjust[id] = r; else delete S.doc.adjust[id];
 }
 
@@ -101,6 +117,8 @@ function setAdjust(id, patch) {
    - Farbe: blasse Fotos etwas kräftiger, bunte nicht; dunkle Tiefen etwas öffnen
    Die Werte werden gespeichert (autoV), damit das Foto in einem Jahr gleich gedruckt wird, auch wenn sich das Verfahren ändert. */
 const AUTO_VERSION = 'auto-1';
+// Belichtungsregler, der den Wert cur auf target bringt (Gamma-Modell der Tonkurve)
+const adjEv = (cur, target) => (cur > .03 && cur < .97 ? -Math.log2(Math.log(target) / Math.log(cur)) / .75 : 0);
 async function photoPixels(id, size = 256) {
   const ph = S.photos[id], src = (ph && (RT.prev[id] || RT.thumb[id])); if (!src) return null;
   const im = await loadImg(src); if (!im) return null;
@@ -134,7 +152,7 @@ function autoRecipe(st) {
   if (st.hi < .97) a.lvlW = Math.max(.88, 1 - (1 - st.hi) * .5);
   const stretch = (v) => clamp01((v - (a.lvlB || 0)) / ((a.lvlW ?? 1) - (a.lvlB || 0)));
   // Belichtung über Gamma: Median Richtung Mitte, gedämpft (Low-Key und helle Szenen behalten ihre Stimmung)
-  const evFor = (cur, target) => (cur > .03 && cur < .97 ? -Math.log2(Math.log(target) / Math.log(cur)) / .75 : 0);
+  const evFor = adjEv;
   let ev = evFor(stretch(st.med), .46) * .6;
   // Hat das Foto schon helle Lichter, ist es meist richtig belichtet (etwa vor dunklem Hintergrund): kaum aufhellen
   if (ev > 0) ev *= .35 + .65 * clamp01((.97 - st.hi) / .25);
@@ -168,4 +186,104 @@ async function setAuto(id, on) {
   if (!autoV) return false;
   setAdjust(id, { auto: true, autoV, strength: (r && r.strength) ?? .7 });
   return true;
+}
+
+
+/* ----- Alle Monate angleichen -----
+   Belichtung und Farbstimmung der Monatsseiten zum Mittel des Kalenders ziehen, zu einem einstellbaren Teil:
+   Der Kalender wirkt wie aus einem Guss, die Jahreszeiten bleiben erkennbar. Gemessen wird nach den bisherigen
+   Anpassungen (ohne eine frühere Angleichung); das Ergebnis steht je Foto in r.match und lässt sich neu berechnen. */
+async function photoTone(id, withMatch = false) {
+  const px = await photoPixels(id, 128); if (!px) return null;
+  const c = compileAdjust(adjOf(id, { noMatch: !withMatch })); if (c) applyAdjustPixels(px.data, c);
+  const d = px.data, Ls = []; let lr = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    Ls.push(.2126 * r + .7152 * g + .0722 * b);
+    if (mx > 25 && mx < 240 && (mx - mn) / mx < .55) { lr += Math.log((b + 1) / (r + 1)); n++; }
+  }
+  Ls.sort((a, b) => a - b);
+  return { med: Ls[Ls.length >> 1] / 255, cast: n ? lr / n : 0 };
+}
+// Je Monatsseite: Helligkeit und Farbstich (Mittel ihrer Fotos, nach Fläche gewichtet)
+async function monthTones(withMatch = false) {
+  const out = {};
+  for (const k of pageKeys().filter(k => pageMonth(k) != null && S.pages[k] && S.pages[k].layout !== 'index')) {
+    let med = 0, cast = 0, wsum = 0;
+    for (const it of pageItems(S.pages[k], { noBlocks: true })) {
+      if (it.t !== 'img' || !S.photos[it.photo]) continue;
+      const t = await photoTone(it.photo, withMatch); if (!t) continue;
+      const w = it.clip.w * it.clip.h; med += t.med * w; cast += t.cast * w; wsum += w;
+    }
+    if (wsum) out[k] = { med: med / wsum, cast: cast / wsum };
+  }
+  return out;
+}
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0; };
+// Angleichung berechnen (amount 0–1) und je Foto als r.match setzen; gibt die Zahl der Seiten zurück
+function applyMatch(tones, amount) {
+  const keys = Object.keys(tones); if (keys.length < 2) return 0;
+  const tMed = median(keys.map(k => tones[k].med)), tCast = median(keys.map(k => tones[k].cast));
+  const cap = (v, m) => Math.max(-m, Math.min(m, v));
+  for (const k of keys) {
+    const ev = cap(adjEv(tones[k].med, tMed) * amount, .6), warm = cap((tones[k].cast - tCast) / .14 * amount, .35);   // mehr Wärme senkt ln(b/r) um etwa 0,14 je Einheit
+    for (const it of pageItems(S.pages[k], { noBlocks: true })) {
+      if (it.t !== 'img' || !S.photos[it.photo]) continue;
+      const match = {}; if (Math.abs(ev) > .02) match.exposure = +ev.toFixed(3); if (Math.abs(warm) > .02) match.warmth = +warm.toFixed(3);
+      setAdjust(it.photo, { match });
+    }
+  }
+  return keys.length;
+}
+// Für die Prüfliste: Monate, die deutlich aus der Reihe fallen (dunkler oder heller), im Hintergrund berechnet
+const MONTH_TONE = { key: '', tones: null, busy: false };
+function monthToneKey() { return JSON.stringify([pageKeys().map(k => S.pages[k] && visibleSlots(S.pages[k]).map(s => s.photo)), S.doc.adjust || {}]); }
+function refreshMonthTones(after) {
+  const key = monthToneKey();
+  if (MONTH_TONE.busy || MONTH_TONE.key === key) return;
+  MONTH_TONE.busy = true;
+  monthTones(true).then(t => { MONTH_TONE.tones = t; MONTH_TONE.key = key; }).catch(() => {}).finally(() => { MONTH_TONE.busy = false; if (after) after(); });
+}
+function outlierMonths() {
+  const t = MONTH_TONE.tones; if (!t || MONTH_TONE.key !== monthToneKey()) return [];
+  const keys = Object.keys(t); if (keys.length < 4) return [];
+  const m = median(keys.map(k => t[k].med));
+  return keys.filter(k => Math.abs(t[k].med - m) > .14).map(k => ({ key: k, darker: t[k].med < m }));
+}
+
+// Dialog „Alle Monate angleichen“: zwölf Monate auf einen Blick, Regler für den Anteil, gedrückt halten für vorher
+async function openMatchDialog() {
+  const bar = busy(_t('Monate werden verglichen'), '');
+  if (facesReady()) await loadFaces(Object.keys(usage()));
+  const before = JSON.stringify(S.doc.adjust || {});
+  let tones;
+  try { tones = await monthTones(); } finally { bar.close(); }
+  if (Object.keys(tones).length < 2) { toast(_t('Dafür braucht es Fotos auf mindestens zwei Monatsseiten.')); return; }
+  const keys = Object.keys(tones);
+  let amount = .5;
+  const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  const grid = () => keys.map(k => `<figure><div class="mt">${svgPage(S.pages[k], { mode: 'thumb' })}</div><figcaption>${esc(pageLabel(k))}</figcaption></figure>`).join('');
+  el.innerHTML = `<div class="card match-card"><h2>${_t('Alle Monate angleichen')}</h2>
+    <p class="hint">${_t('Belichtung und Farbstimmung der Monate werden einander angenähert. Die Jahreszeiten bleiben erkennbar, der Kalender wirkt wie aus einem Guss.')}</p>
+    <div class="match-grid">${grid()}</div>
+    <div class="row match-ctl"><label class="adj strength" style="flex:1"><span>${_t('Angleichen')}<output>50 %</output></span><input type="range" min="0" max="1" step="0.05" value=".5" id="matchAmt"></label>
+      <button class="btn" data-hold-match>${_t('Vorher')}</button></div>
+    <div class="row"><button class="btn primary" data-ok>${_t('Übernehmen')}</button><button class="btn" data-cancel>${_t('Abbrechen')}</button></div></div>`;
+  const redraw = () => { el.querySelector('.match-grid').innerHTML = grid(); };
+  const apply = () => { S.doc.adjust = JSON.parse(before); if (amount > 0) applyMatch(tones, amount); redraw(); };
+  const done = (ok) => {
+    document.removeEventListener('keydown', key, true); el.remove();
+    if (ok) { commit(); renderAll(); toast(_t('Monate angeglichen. Jedes Foto lässt sich weiter einzeln nachregeln.'), 5000, { label: _t('Rückgängig'), fn: undo }); }
+    else { S.doc.adjust = JSON.parse(before); renderAll(); }
+  };
+  const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+  el.addEventListener('input', (e) => { if (e.target.id === 'matchAmt') { amount = +e.target.value; e.target.parentElement.querySelector('output').textContent = Math.round(amount * 100) + ' %'; clearTimeout(apply._t); apply._t = setTimeout(apply, 120); } });
+  el.addEventListener('click', (e) => { if (e.target.closest('[data-ok]')) done(true); if (e.target.closest('[data-cancel]')) done(false); });
+  const hold = (on) => { const cur = JSON.stringify(S.doc.adjust || {}); if (on) { el._cur = cur; S.doc.adjust = JSON.parse(before); redraw(); } else if (el._cur) { S.doc.adjust = JSON.parse(el._cur); el._cur = null; redraw(); } };
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-hold-match]')) hold(true); });
+  el.addEventListener('pointerup', () => hold(false)); el.addEventListener('pointerleave', () => hold(false));
+  document.addEventListener('keydown', key, true);
+  document.body.appendChild(el);
+  apply();
+  el.querySelector('[data-ok]').focus();
 }

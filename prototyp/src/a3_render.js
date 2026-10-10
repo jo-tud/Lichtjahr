@@ -512,7 +512,8 @@ function svgPage(p, o = {}) {
         if (!live) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
         const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, cx = vis.x + vis.w / 2, cy = vis.y + vis.h / 2, s = Math.min(vis.w, vis.h) * .08;
         return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
-          `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
+          // feine, durchgezogene Kontur des sichtbaren Rahmens; gestrichelt sind nur Beschnitt- und Hilfslinien
+          `<rect x="${vis.x + .3}" y="${vis.y + .3}" width="${Math.max(0, vis.w - .6)}" height="${Math.max(0, vis.h - .6)}" fill="none" stroke="#c3cad2" stroke-width="0.6"/>` +
           `<path d="M${cx - s} ${cy}h${2 * s}M${cx} ${cy - s}v${2 * s}" stroke="#7d8793" stroke-width="${s * .18}" stroke-linecap="round"/>` +
           (vis.w > 60 ? `<text x="${cx}" y="${cy + s * 2.2}" font-size="${Math.min(5, s * .7)}" fill="#6b7580" text-anchor="middle">${esc(_t('Foto hierher ziehen'))}</text>` : '') + `</g>`;
       }
