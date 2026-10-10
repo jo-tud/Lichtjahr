@@ -8,7 +8,7 @@ import os
 import re
 from datetime import date
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageCms, ImageOps
 
 PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".gif"}
 _ORIENT_SWAP = {5, 6, 7, 8}
@@ -77,13 +77,34 @@ def inspect(fh) -> dict:
     return info
 
 
+def rgb_profile(im: Image.Image) -> tuple[bytes | None, str]:
+    """Eingebettetes RGB-Farbprofil und sein Name. ``None``, wenn keins da ist oder es sRGB beschreibt
+    (dann gilt das Foto ohnehin als sRGB). Typisch sonst: „Display P3“ vom iPhone, „Adobe RGB“ von Kameras."""
+    icc = im.info.get("icc_profile")
+    if not icc or im.mode not in ("RGB", "RGBA", "RGBX", "P", "I;16", "I;16B"):
+        return None, "sRGB"
+    try:
+        prof = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+        if prof.profile.xcolor_space.strip() != "RGB":
+            return None, "sRGB"
+        name = (ImageCms.getProfileDescription(prof) or "").strip() or "RGB"
+    except (OSError, ImageCms.PyCMSError):
+        return None, "sRGB"
+    if "srgb" in name.lower().replace(" ", "") or "iec61966-2" in name.lower():
+        return None, "sRGB"
+    return icc, name
+
+
 def make_thumbnail(src_fh, max_px: int, quality: int = 85) -> bytes:
-    """JPEG-Vorschau mit korrekter Ausrichtung; das Original bleibt unverändert."""
+    """JPEG-Vorschau mit korrekter Ausrichtung; das Original bleibt unverändert.
+    Ein eigenes Farbprofil (etwa Display P3) wird mitgegeben: Browser zeigen die Farben dann richtig und
+    die Druckansicht rechnet vom echten Farbraum aus."""
     with Image.open(src_fh) as im:
         im.draft("RGB", (max_px, max_px))         # JPEG schon beim Dekodieren verkleinern (schnell)
+        icc, _ = rgb_profile(im)
         im = ImageOps.exif_transpose(im)
         im = im.convert("RGB")
         im.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
         out = io.BytesIO()
-        im.save(out, "JPEG", quality=quality, optimize=True)
+        im.save(out, "JPEG", quality=quality, optimize=True, **({"icc_profile": icc} if icc else {}))
         return out.getvalue()

@@ -27,22 +27,31 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   x.setTransform(ow / clip.w, 0, 0, oh / clip.h, -clip.x * ow / clip.w, -clip.y * oh / clip.h);
   x.translate(pl.fx, pl.fy); x.rotate((pl.rot || 0) * Math.PI / 180);
   x.scale(pl.w / ph.w, pl.h / ph.h); x.translate(-pl.cx * ph.w, -pl.cy * ph.h);
+  // Für den Dienst: welches Foto, welcher Ausschnitt (Zielpixel → Fotopixel). Hat das Original einen größeren
+  // Farbraum als sRGB (Display P3 …), rendert der Dienst den Ausschnitt selbst daraus.
+  const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h] } : null;
   if (ph.demo) drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
   else {
     const bmp = await sourceFor(ph);
     if (bmp) x.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
+  const pans = [];
   for (const pn of panels) {
     const r = intersect(pn, clip); if (!r) continue;
-    x.globalAlpha = pn.opacity; x.fillStyle = cRGBraw(pn.fill);
-    x.fillRect((r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh);
-    x.globalAlpha = 1;
+    const box = [(r.x - clip.x) / clip.w * ow, (r.y - clip.y) / clip.h * oh, r.w / clip.w * ow, r.h / clip.h * oh];
+    x.globalAlpha = pn.opacity; x.fillStyle = cRGBraw(pn.fill); x.fillRect(...box); x.globalAlpha = 1;
+    pans.push(...box, ...hexRGB(cRGBraw(pn.fill)), pn.opacity);
   }
   if (rgb) {
     const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .95));
     c.width = c.height = 0;
-    return { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
+    const out = { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
+    if (src && src.asset) {
+      const m = src.m, n = (v) => String(+v.toFixed(6));   // genauer als pdfNum: Fehler wächst mit der Fotobreite
+      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}] >>`;
+    }
+    return out;
   }
   const rgba = x.getImageData(0, 0, ow, oh).data, cmyk = new Uint8Array(ow * oh * 4);
   for (let i = 0; i < rgba.length; i += 4) {
@@ -54,6 +63,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   c.width = c.height = 0;
   return { w: ow, h: oh, cmyk };
 }
+const hexRGB = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 const pdfNum = (v) => (Math.round(v * 1000) / 1000).toString();
 const pdfStr = (t) => [...t].map(ch => { const s = String.fromCharCode(winAnsi(ch)); return s === '(' || s === ')' || s === '\\' ? '\\' + s : s; }).join('');
 const kop = (id) => (COLORS[id] || COLORS.black).cmyk.map(pdfNum).join(' ');
@@ -101,7 +111,7 @@ async function exportPDF(mode = 'draft') {
           const dpi = print ? (it.mini ? 200 : 300) : it.mini ? Math.min(d.dpi, 200) : d.dpi;
           const r = await renderCrop(it, dpi, panels, print);
           const name = 'Im' + Object.keys(images).length;
-          if (print) images[name] = pdf.addJpeg(r.jpeg, r.w, r.h, 'DeviceRGB');
+          if (print) images[name] = pdf.addJpeg(r.jpeg, r.w, r.h, 'DeviceRGB', r.dict);
           else {
             const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
             images[name] = pdf.addJpeg(jpg, r.w, r.h);

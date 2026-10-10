@@ -103,6 +103,13 @@ ein Druckprofil entgegen (`lichtjahr/printing.py`):
 3. Preflight auf die fertige Datei: PDF/X-Pflichtangaben (bei X-4 samt XMP), PDF- und ICC-Version, nur CMYK, Gesamtfarbauftrag, Beschnitt, Schriften, Transparenz, Bildauflösung
 4. Ablage in `Export/`, Antwort mit Pfad und Prüfbericht
 
+**Großer Farbraum:** Zu jedem Foto schreibt die Oberfläche einen Eintrag `/LJSource` ins Bildobjekt (Asset-ID, Matrix
+von Zielpixel zu Fotopixel, Hintergrund und halbtransparente Flächen). Hat das Original ein anderes RGB-Profil als sRGB
+(Display P3, Adobe RGB …), rendert der Dienst den Ausschnitt mit Pillow aus dem Original, mischt die Flächen im Farbraum
+des Fotos und rechnet von diesem Profil direkt nach CMYK um; der Bericht nennt, wie viele Fotos das waren. Sonst gilt die
+sRGB-Fassung der Oberfläche. Der Eintrag wird in jedem Fall aus dem Druck-PDF entfernt. Vorschaubilder behalten das
+Profil des Fotos: Browser zeigen die Farben richtig, und die Druckansicht rechnet vom echten Farbraum aus.
+
 Druckprofile: mitgeliefert unter `lichtjahr/icc/` (basICColor, zlib-Lizenz), eigene ICC-Dateien über
 `POST /api/printers` (landen im Datenordner unter `printers/`). Das Profil muss ein CMYK-Ausgabeprofil sein;
 Profile der ICC-Version 4 gehen nur mit PDF/X-4. Die Druckbedingung (z. B. FOGRA51) wird aus Beschreibung oder Messdaten erkannt.
@@ -195,7 +202,8 @@ Die Tests decken unter anderem ab:
 - Duplikate beim Hochladen, Aussortieren, Speichern nur erlaubter Felder, Export, Hostnamen-Prüfung
 - Druck-PDF: Farbumrechnung, Merkmale von PDF/X-1a und PDF/X-4, ICC-Version 4 nur mit X-4, Preflight-Befunde, eigene Druckprofile
 - Softproof von Fotos und Farben, Farbumfang-Warnung
+- großer Farbraum: Erkennung, Vorschau mit Profil, Druck und Softproof aus dem Farbraum des Originals (gedrehte und gezoomte Ausschnitte, Flächen)
 
 ## Ausblick
 
-- Fotos in großem Farbraum (Display P3) mit Profil prüfen statt auf sRGB zu begrenzen.
+- HEIC (iPhone) direkt lesen, ohne vorherige Umwandlung in JPEG.

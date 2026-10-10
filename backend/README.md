@@ -103,6 +103,13 @@ CMYK) and a print profile (`lichtjahr/printing.py`):
 3. Preflight on the finished file: PDF/X required entries (for X-4 including XMP), PDF and ICC version, CMYK only, total ink coverage, bleed, fonts, transparency, image resolution
 4. Saved to `Export/`, response with path and check report
 
+**Wide color:** For each photo the app writes a `/LJSource` entry into the image dictionary (asset ID, matrix from
+target pixel to photo pixel, background and semi-transparent panels). If the original carries an RGB profile other than
+sRGB (Display P3, Adobe RGB …), the service renders the crop from the original with Pillow, blends the panels in the
+photo's own color space and converts from that profile straight to CMYK; the report names how many photos that were.
+Otherwise the app's sRGB rendering is used. The entry is removed from the print PDF either way. Thumbnails keep the
+photo's profile, so browsers show the colors correctly and the soft proof starts from the real color space.
+
 Print profiles: bundled under `lichtjahr/icc/` (basICColor, zlib license); your own ICC files via
 `POST /api/printers` (stored in the data folder under `printers/`). The profile must be a CMYK output
 profile; ICC version 4 profiles only work with PDF/X-4. The printing condition (e.g. FOGRA51) is detected from the description or the
@@ -197,7 +204,8 @@ Among other things, the tests cover:
 - duplicates on upload, setting photos aside, saving only permitted fields, export, host name check
 - Print PDF: color conversion, PDF/X-1a and PDF/X-4 properties, ICC version 4 only with X-4, preflight findings, custom print profiles
 - soft proof of photos and colors, gamut warning
+- wide color: detection, thumbnails with profile, print and soft proof from the original color space (rotated and zoomed crops, panels)
 
 ## Outlook
 
-- Profile-aware check of photos in a wide color space (Display P3) instead of clipping to sRGB.
+- Reading HEIC directly (iPhone), without converting to JPEG first.

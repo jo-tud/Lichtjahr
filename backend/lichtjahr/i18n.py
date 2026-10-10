@@ -140,6 +140,8 @@ EN = {
     "Beschnitt mindestens {bleed} mm an allen Seiten": "Bleed of at least {bleed} mm on all sides",
     "Schriften vollständig eingebettet": "Fonts fully embedded",
     "Keine Transparenz": "No transparency",
+    "1 Foto mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "1 photo with a wide color space ({names}) converted straight from the original",
+    "{n} Fotos mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "{n} photos with a wide color space ({names}) converted straight from the original",
     "Kleinste Bildauflösung {dpi} dpi": "Lowest image resolution {dpi} dpi",
     # Befehlszeile
     "Hinweis: Der Dienst ist im Netz erreichbar ({host}). Zugriff nur mit Schlüssel.": "Note: the service is reachable on the network ({host}). Access only with the key.",

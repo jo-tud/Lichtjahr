@@ -56,9 +56,9 @@ class PDFWriter {
       this.fontIds[key] = fo;
     }
   }
-  addJpeg(bytes, w, h, cs = 'DeviceCMYK') {
+  addJpeg(bytes, w, h, cs = 'DeviceCMYK', extra = '') {
     const id = this.alloc();
-    this.obj(id, `/Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /${cs} /BitsPerComponent 8 /Filter /DCTDecode`, bytes);
+    this.obj(id, `/Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /${cs} /BitsPerComponent 8 /Filter /DCTDecode${extra ? ' ' + extra : ''}`, bytes);
     return id;
   }
   async addPage({ media, trim, bleed, content, images, alphas }) {

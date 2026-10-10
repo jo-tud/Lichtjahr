@@ -59,7 +59,7 @@ function setSaveState(text) { const s = $('#saveState'); if (s) s.textContent = 
 const usable = (a) => a.widthPx > 0 && a.heightPx > 0;
 const baseName = (p) => p.split('/').pop();
 function assetUrls(a) {
-  const q = (size) => `api/${PP(`/assets/${a.id}/thumb`)}?size=${size}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+  const q = (size) => `api/${PP(`/assets/${a.id}/thumb`)}?size=${size}&v=${a.contentHash.slice(0, 12)}c${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
   RT.thumb[a.id] = q(360); RT.prev[a.id] = q(1600);
 }
 // Was die Datei vorgibt (Ordner, Größe, Datum); Bildtext und Favorit pflegt die Oberfläche
