@@ -17,6 +17,7 @@ dependencies = [
   "python-multipart>=0.0.9",
   "pikepdf>=8.0",
   "httpx>=0.27",
+  "opencv-python-headless>=4.8",   # Gesichter finden (YuNet); fehlt es, ist nur diese Funktion aus
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ lichtjahr = "lichtjahr.cli:main"
 include = ["lichtjahr*"]
 
 [tool.setuptools.package-data]
-lichtjahr = ["icc/*.icc", "icc/*.md", "icc/*.txt"]
+lichtjahr = ["icc/*.icc", "icc/*.md", "icc/*.txt", "models/*.onnx", "models/*.md", "models/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

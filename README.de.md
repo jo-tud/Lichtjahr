@@ -80,7 +80,9 @@ Bildausschnitt: Foto unter dem Rahmen schieben, zoomen, „Füllen“ oder „Ga
 
 „Platz automatisch finden“ analysiert das Foto: Wo ist wenig Detail, wo ist die Helligkeit
 gleichmäßig? Dort landet das Kalendarium, in passender Form (Leiste, Spalte, Raster), mit lesbarer
-Schriftfarbe und bei Bedarf einer Fläche dahinter – für eine Seite oder alle Monate auf einmal.
+Schriftfarbe und bei Bedarf einer Fläche dahinter – für eine Seite oder alle Monate auf einmal. Mit dem lokalen
+Dienst weiß es auch, wo **Gesichter** sind: Das Kalendarium verdeckt keinen Kopf, automatische Ausschnitte
+behalten alle im Bild, und die Prüfliste meldet Gesichter, die am Rand angeschnitten sind.
 
 </td>
 <td><img src="docs/images/de/platz.webp" alt="Analyse der ruhigen Bildbereiche mit vorgeschlagener Position"></td>
@@ -289,6 +291,7 @@ arbeitet sie wie bisher nur im Browser.
 | `src/a9_place.js` | Bildanalyse für „Platz automatisch finden“ |
 | `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
 | `src/b2_print.js` | Druck-PDF über den lokalen Dienst: Druckprofil, Export, Prüfbericht |
+| `src/b3_faces.js` | Gesichter vom Dienst: Ausschnitt um Gesichter, Kalendarium meidet Köpfe, Hinweise |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
 | `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |
@@ -313,7 +316,9 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Englische Oberfläche, eigene Spracheinstellung für den gedruckten Kalender
 - [x] Softproof am Bildschirm mit Farbumfang-Warnung, PDF/X-4
 - [x] Großer Farbraum (Display P3, Adobe RGB) direkt aus dem Original gedruckt
-- [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
+- [x] Gesichter: automatische Ausschnitte behalten sie im Bild, das Kalendarium meidet sie, angeschnittene werden gemeldet
+- [ ] Fotos für den Druck optimieren (automatisch und von Hand)
+- [ ] Wer ist wie oft auf den Fotos
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -327,6 +332,7 @@ gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md) 
 - **Code:** [MIT-Lizenz](LICENSE)
 - **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
 - **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
+- **Gesichtserkennung:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) von Shiqi Yu, MIT-Lizenz ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); findet Gesichter, erkennt aber keine Personen. Die Testfotos in `backend/tests/data/` sind gemeinfreie NASA-Porträts.
 - **ICC-Druckprofile:** `ISOcoated_v2_300_bas.icc` und `PSO_Uncoated_ISO12647_bas.icc` von basICColor GmbH, zlib/libpng-Lizenz ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
 - **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf (jeweils eigene freie Lizenzen)
 - **Beispielbilder:** werden beim Start im Browser gezeichnet; es sind keine echten Fotos enthalten.

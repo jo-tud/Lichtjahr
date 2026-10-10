@@ -406,8 +406,12 @@ function checks() {
       if (dpi < DPI_BAD) { tiny++; out.push(['bad', _t('{page}: Foto mit nur {dpi} dpi wird unscharf', { page: pageLabel(k), dpi: Math.round(dpi) }), k]); }
       else if (dpi < DPI_WARN) { low++; out.push(['warn', _t('{page}: Foto mit {dpi} dpi ist knapp', { page: pageLabel(k), dpi: Math.round(dpi) }), k]); }
     }
+    const faces = pageFaces(p);
+    const cut = faces.filter(f => f.shown > .1 && f.shown < .9).length;
+    if (cut) out.push(['warn', cut === 1 ? _t('{page}: Ein Gesicht ist am Rand angeschnitten', { page: pageLabel(k) }) : _t('{page}: {n} Gesichter sind am Rand angeschnitten', { page: pageLabel(k), n: cut }), k]);
     for (const it of items) if (it.t === 'block') {
       const cal = it.kind === 'cal', page = pageLabel(k);
+      if (faceCover(faces, it) > .3) out.push(['warn', cal ? _t('{page}: Kalendarium verdeckt ein Gesicht', { page }) : _t('{page}: Titel verdeckt ein Gesicht', { page }), k, cal ? { act: 'placepage', label: _t('Neu platzieren') } : undefined]);
       if (unreadable(p, it, items)) out.push(['bad', cal ? _t('{page}: Kalendarium ist auf dem Papier kaum lesbar (Schrift wie Hintergrund)', { page }) : _t('{page}: Titel ist auf dem Papier kaum lesbar (Schrift wie Hintergrund)', { page }), k]);
       if (viewOf(k).part === 'upper' ? it.y + it.h > d.h - zone : it.y < zone) out.push(['warn', cal ? _t('{page}: Kalendarium ragt in die Bindung', { page }) : _t('{page}: Titel ragt in die Bindung', { page }), k]);
       else if (it.x < 4 || it.y < 4 || it.x + it.w > d.w - 4 || it.y + it.h > d.h - 4) out.push(['warn', cal ? _t('{page}: Kalendarium liegt sehr nah am Schnitt', { page }) : _t('{page}: Titel liegt sehr nah am Schnitt', { page }), k]);
@@ -452,7 +456,7 @@ function renderPrint() {
   $('#v-print').innerHTML = `<div class="print">
     <div style="display:grid;gap:16px;min-width:0">
       <section class="card"><header><h2>${_t('Prüfung')}</h2><p>${bad ? _t('{errors}, {notes}.', { errors: errorsN, notes: notesN }) : warn ? _t('Keine Fehler, {notes}.', { notes: notesN }) : _t('Keine Probleme gefunden.')} ${_t('Die Prüfung ersetzt nicht die Vorgaben der Druckerei.')}</p></header>
-        ${list.some(c => c[3]) ? `<div class="row"><button class="btn small primary" data-act="autodesign">${_t('Leere Rahmen überall füllen')}</button></div>` : ''}
+        ${list.some(c => c[3] && c[3].act === 'fixpage') ? `<div class="row"><button class="btn small primary" data-act="autodesign">${_t('Leere Rahmen überall füllen')}</button></div>` : ''}
         <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k, fix]) => `<li><span class="dot ${lvl}"></span><span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}${fix ? ` <button class="btn small fixbtn" data-act="${fix.act}" data-v="${k}">${fix.label}</button>` : ''}</span></li>`).join('') : `<li><span class="dot"></span>${_t('Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.')}</li>`}
         ${list.length > 40 ? `<li><span></span>${_t('… und {n} weitere', { n: list.length - 40 })}</li>` : ''}</ul></section>
       ${SVC.pid ? printCard() : ''}

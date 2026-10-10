@@ -196,4 +196,13 @@ Object.assign(EN, {
   'Druckansicht an: Fotos und Farben so, wie sie mit „{profile}“ gedruckt aussehen.': 'Print preview on: photos and colors as they will look printed with “{profile}”.',
   'Farben so zeigen, wie sie mit dem Druckprofil gedruckt aussehen (Softproof)': 'Show colors the way they will look printed with the print profile (soft proof)',
   'Druckansicht': 'Print preview',
+  // Gesichter
+  'Gesicht am Rand angeschnitten': 'Face cut off at the edge',
+  '{page}: Ein Gesicht ist am Rand angeschnitten': '{page}: A face is cut off at the edge',
+  '{page}: {n} Gesichter sind am Rand angeschnitten': '{page}: {n} faces are cut off at the edge',
+  '{page}: Kalendarium verdeckt ein Gesicht': '{page}: The calendar grid covers a face',
+  '{page}: Titel verdeckt ein Gesicht': '{page}: The title covers a face',
+  'Neu platzieren': 'Place again',
+  'Gesichter werden gesucht …': 'Looking for faces …',
+  '{page}: Kalendarium neu platziert.': '{page}: Calendar grid placed again.',
 });

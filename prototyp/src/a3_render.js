@@ -455,6 +455,11 @@ function svgPage(p, o = {}) {
         over += `<g pointer-events="none"><circle cx="${vis.x + vis.w - 6}" cy="${vis.y + 6}" r="${r}" fill="${d < 150 ? '#c0392b' : '#d68910'}"/><text x="${vis.x + vis.w - 6}" y="${vis.y + 7.4}" font-size="4" font-weight="600" fill="#fff" text-anchor="middle">!</text></g>`;
       }
     }
+    // Angeschnittene Gesichter: gestrichelter Rahmen um das Gesicht
+    for (const f of pageFaces(p)) if (f.shown > .1 && f.shown < .9) {
+      const r = intersect(f, f.vis);
+      over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="${Math.min(r.w, r.h) * .2}" fill="none" stroke="#d68910" stroke-width=".5" stroke-dasharray="1.5 1" pointer-events="none"><title>${esc(_t('Gesicht am Rand angeschnitten'))}</title></rect>`;
+    }
     if (o.showBleed) {
       over += `<path d="M${-b} ${-b}h${W + 2 * b}v${H + 2 * b}h${-(W + 2 * b)}zM0 0v${H}h${W}v${-H}z" fill-rule="evenodd" fill="#ffffff" fill-opacity="0.55" pointer-events="none"/>`;
       over += `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="#c2185b" stroke-width="0.35" stroke-dasharray="2 1.5" pointer-events="none"/>`;

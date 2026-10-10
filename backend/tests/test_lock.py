@@ -49,8 +49,8 @@ def _try(root, sid, start, results):
 
 @pytest.mark.parametrize("round_", range(5))
 def test_concurrent_acquire_has_exactly_one_winner(tmp_path, round_):
-    ctx = mp.get_context("fork")
-    results, start = ctx.Queue(), time.time() + 0.3
+    ctx = mp.get_context("forkserver")      # nicht „fork“: der Testprozess hat Threads (OpenCV, Testclient)
+    results, start = ctx.Queue(), time.time() + 2
     procs = [ctx.Process(target=_try, args=(str(tmp_path), f"s{i}", start, results)) for i in range(6)]
     for p in procs:
         p.start()
@@ -73,8 +73,8 @@ def _takeover(root, sid, start, results):
 def test_concurrent_takeover_of_expired_lock_has_one_winner(tmp_path):
     ProjectLock(LocalStorage(str(tmp_path)), lease=0.01).acquire("alt", "alt")
     time.sleep(0.05)
-    ctx = mp.get_context("fork")
-    results, start = ctx.Queue(), time.time() + 0.3
+    ctx = mp.get_context("forkserver")      # nicht „fork“: der Testprozess hat Threads (OpenCV, Testclient)
+    results, start = ctx.Queue(), time.time() + 2
     procs = [ctx.Process(target=_takeover, args=(str(tmp_path), f"s{i}", start, results)) for i in range(6)]
     for p in procs:
         p.start()

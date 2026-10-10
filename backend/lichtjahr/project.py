@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
+from . import faces as facedet
 from .lock import ProjectLock
 from .media import date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
 from .i18n import _t
@@ -417,6 +418,21 @@ class Project:
                     out.write(data)
                 os.replace(tmp, target)
         return path
+
+    def faces(self, asset: Asset) -> list[dict]:
+        """Gesichter im Foto (Bruchteile des Fotos), zwischengespeichert nach Prüfsumme und Detektor-Version."""
+        path = os.path.join(self.cache_dir, "faces", asset.contentHash[:2], f"{asset.contentHash}_{facedet.VERSION}.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        with open(self.thumbnail(asset, facedet.SIZE), "rb") as fh:
+            found = facedet.detect(fh.read())
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(found, fh)
+        os.replace(tmp, path)
+        return found
 
     # -- Übersicht --------------------------------------------------------------------------
     def summary(self) -> dict:

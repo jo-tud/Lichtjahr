@@ -265,6 +265,7 @@ const ACTIONS = {
   delbd: (el) => { S.doc.birthdays = S.doc.birthdays.filter(b => b.id !== el.dataset.v); commit(); renderProject(); },
   bdmode: (el) => { S.doc.cal.bd = el.dataset.v; commit(); renderProject(); },
   placehere: () => placeHere(),
+  placepage: (el) => placePage(el.dataset.v),
   placeall: () => placeAll(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
@@ -322,6 +323,7 @@ function autoFill(key, used = null) {
     cand.sort((a, b) => score(b, r) - score(a, r));
     const ph = cand.shift(); used.add(ph.id);
     Object.assign(slotOf(p, r.i), { photo: ph.id, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }); n++;
+    applyFaces(p, r.i);                                              // Gesichter im Ausschnitt halten (wenn schon bekannt)
   }
   return n;
 }
@@ -431,6 +433,11 @@ function layoutFor(photos, m) {
 async function autoDesign() {
   const keys = pageKeys().filter(k => S.pages[k] && S.pages[k].layout !== 'index' && S.pages[k].layout !== 'blank');
   if (!Object.keys(S.photos).length) { toast(_t('Zuerst Fotos hinzufügen, dann gestaltet die App den Kalender.')); setView('photos'); return; }
+  if (facesReady()) {                                               // Gesichter vorher kennen, dann sitzen die Ausschnitte gleich
+    const fb = busy(_t('Kalender wird gestaltet'), _t('Gesichter werden gesucht …'));
+    if (FACES.loading) await FACES.loading;
+    await loadFaces(Object.keys(S.photos), fb); fb.close();
+  }
   const used = new Set(Object.keys(usage()));
   let pages = 0, photos = 0;
   for (const k of keys) {

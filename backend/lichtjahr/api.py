@@ -18,10 +18,11 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
+from . import faces as facedet
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
@@ -66,6 +67,10 @@ class MoveRequest(BaseModel):
 class ProofColors(BaseModel):
     colors: dict[str, list[float]]
     paper: bool = True
+
+
+class FacesRequest(BaseModel):
+    ids: list[str] = Field(default_factory=list, max_length=500)
 
 
 class SaveRequest(BaseModel):
@@ -364,6 +369,23 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable",
                                                                      "ETag": f'"{a.contentHash}_{size}"'})
+
+    @app.post("/api/projects/{project_id}/faces")
+    def faces(project_id: str, req: FacesRequest):
+        """Gesichter (Position, nicht Person) für die angefragten Fotos. ``available`` ist falsch ohne OpenCV."""
+        p = get_project(project_id)
+        if not facedet.available():
+            return {"available": False, "faces": {}}
+        man, _ = p.load()
+        out = {}
+        for aid in dict.fromkeys(req.ids):
+            a = man.asset(aid)
+            if a and a.status != "missing":
+                try:
+                    out[aid] = p.faces(a)
+                except Exception:                              # ein unlesbares Foto hält die anderen nicht auf
+                    out[aid] = []
+        return {"available": True, "faces": out}
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/proof")
     def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False):

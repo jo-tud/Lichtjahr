@@ -80,7 +80,9 @@ photo under the frame, zoom, "Fill" or "Show whole".
 
 "Find a spot automatically" analyzes the photo: where is there little detail, where is the brightness even?
 That is where the calendar grid goes, in a fitting shape (strip, column, grid), with a legible text color
-and a backdrop if needed – for one page or all months at once.
+and a backdrop if needed – for one page or all months at once. With the local service it also knows where the
+**faces** are: the calendar grid never covers a head, automatic crops keep everyone in the picture, and the
+check list points out faces cut off at the edge.
 
 </td>
 <td><img src="docs/images/platz.webp" alt="Analysis of calm image areas with the suggested position"></td>
@@ -288,6 +290,7 @@ GitHub Pages), it works in the browser only, as before.
 | `src/a9_place.js` | Image analysis for "Find a spot automatically" |
 | `src/b1_service.js` | Connection to the local service: project selection, lock, saving, sync, upload |
 | `src/b2_print.js` | Print PDF via the local service: print profile, export, check report |
+| `src/b3_faces.js` | Faces from the service: crop around faces, keep the calendar grid off heads, warnings |
 | `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |
 | `src/schoolholidays.js` | School holidays 2025–2028 for each German state |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), reduced to Windows-1252; created with `tools/mkfont.py` |
@@ -312,7 +315,9 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] English user interface, with a separate language setting for the printed calendar
 - [x] On-screen soft proof with gamut warning, PDF/X-4
 - [x] Wide color (Display P3, Adobe RGB) printed straight from the original
-- [ ] Take faces into account when cropping automatically
+- [x] Faces: automatic crops keep them in the picture, the calendar grid avoids them, cut-off faces are flagged
+- [ ] Optimize photos for print (automatic and manual)
+- [ ] Who appears how often in the photos
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -326,6 +331,7 @@ tested and reviewed is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Code:** [MIT License](LICENSE)
 - **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
 - **School holidays:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The extract in `prototyp/src/schoolholidays.js` is also licensed under the ODbL. No guarantee of accuracy.
+- **Face detection:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) by Shiqi Yu, MIT license ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); it finds faces, it does not recognize people. Test photos in `backend/tests/data/` are NASA portraits in the public domain.
 - **ICC print profiles:** `ISOcoated_v2_300_bas.icc` and `PSO_Uncoated_ISO12647_bas.icc` by basICColor GmbH, zlib/libpng license ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
 - **Service libraries:** FastAPI, Pillow with LittleCMS, pikepdf/qpdf (each under its own free license)
 - **Sample pictures:** drawn in the browser at startup; no real photos are included.
