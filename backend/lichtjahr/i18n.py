@@ -142,6 +142,7 @@ EN = {
     "Beschnitt mindestens {bleed} mm an allen Seiten": "Bleed of at least {bleed} mm on all sides",
     "Schriften vollständig eingebettet": "Fonts fully embedded",
     "Keine Transparenz": "No transparency",
+    "Für den Druck angepasst: Mitteltöne {mid} % heller, Tiefen geöffnet, geschärft": "Adapted for print: midtones {mid}% lighter, shadows opened up, sharpened",
     "1 Foto mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "1 photo with a wide color space ({names}) converted straight from the original",
     "{n} Fotos mit großem Farbraum ({names}) direkt aus dem Original umgerechnet": "{n} photos with a wide color space ({names}) converted straight from the original",
     "Kleinste Bildauflösung {dpi} dpi": "Lowest image resolution {dpi} dpi",

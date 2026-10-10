@@ -103,6 +103,8 @@ ein Druckprofil entgegen (`lichtjahr/printing.py`):
 3. Preflight auf die fertige Datei: PDF/X-Pflichtangaben (bei X-4 samt XMP), PDF- und ICC-Version, nur CMYK, Gesamtfarbauftrag, Beschnitt, Schriften, Transparenz, Bildauflösung
 4. Ablage in `Export/`, Antwort mit Pfad und Prüfbericht
 
+**Rezepte und Druckausgleich:** Die Oberfläche rechnet die Anpassungen eines Fotos in eine 3×3-Farbmatrix und eine Tonkurve um; die Vorschau wendet sie als SVG-Filter an, die Oberfläche auf die gesendeten Pixel, und der Dienst (numpy) dieselben Zahlen auf Fotos aus dem Original und in der Druckansicht. Mit dem Formularfeld `tune=true` kommt die Kurve des Druckausgleichs dazu, und der Dienst schärft auf der Helligkeit (`UnsharpMask`, Stärke aus dem Profil).
+
 **Großer Farbraum:** Zu jedem Foto schreibt die Oberfläche einen Eintrag `/LJSource` ins Bildobjekt (Asset-ID, Matrix
 von Zielpixel zu Fotopixel, Hintergrund und halbtransparente Flächen). Hat das Original ein anderes RGB-Profil als sRGB
 (Display P3, Adobe RGB …), rendert der Dienst den Ausschnitt mit Pillow aus dem Original, mischt die Flächen im Farbraum
@@ -184,7 +186,8 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | GET | `/api/projects/{id}/assets/{aid}/original` | Originaldatei |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Monat wechseln / ausdrücklich kopieren |
 | POST | `/api/projects/{id}/export/print` | Druck-PDF (`standard=x1a` oder `x4`) mit Farbprofil und Prüfbericht |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur) |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur); `adj` ist das kompilierte Rezept des Fotos (`m0,…,m8;l0,…,l64`), `tune` nimmt den Druckausgleich dazu |
+| GET | `/api/printers/{id}/tune` | Druckausgleich für das Profil: Tonkurve (65 Stützstellen), Stärke, Schärfung; abgeleitet aus dem Schwarzpunkt des Profils |
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
 | GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |

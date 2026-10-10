@@ -4,7 +4,15 @@
    schreibt PDF/X-1a oder PDF/X-4 und prüft das Ergebnis. Dazu die Druckansicht (Softproof): Editor,
    Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit dem Druckprofil gedruckt aussehen.
    Nur verfügbar, wenn die App vom Dienst kommt. */
-const PRN = { list: [], loaded: false, result: null };
+const PRN = { list: [], loaded: false, result: null, tune: {} };
+// Druckausgleich (Papier leuchtet nicht, weniger Kontrast): Kurve und Schärfung je Profil vom Dienst
+const tuneOn = () => S.doc.printTune !== false;
+async function loadTune(pr) {
+  if (!pr || PRN.tune[pr.id]) return PRN.tune[pr && pr.id];
+  try { PRN.tune[pr.id] = await api(`printers/${encodeURIComponent(pr.id)}/tune`); } catch (e) { PRN.tune[pr.id] = null; }
+  return PRN.tune[pr.id];
+}
+const printTuneLut = () => { const pr = printerOf(), t = pr && tuneOn() && PRN.tune[pr.id]; return t ? t.lut : null; };
 
 async function loadPrinters() {
   try { PRN.list = await api('printers'); } catch (e) { PRN.list = []; }
@@ -26,7 +34,8 @@ function proofUrl(id, small) {
   const pr = printerOf(), ph = S.photos[id];
   const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
   if (!pr || !a) return null;
-  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+  const adj = compileAdjust(adjOf(id)), aq = adj ? '&adj=' + encodeURIComponent(adj.m.map(v => +v.toFixed(4)).join(',') + ';' + adj.lut.map(v => +v.toFixed(4)).join(',')) : '';
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
 }
 // Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
 async function loadProofColors() {
@@ -71,6 +80,8 @@ function printCard() {
       <option value="x1a" ${pdfxOf(pr) === 'x1a' ? 'selected' : ''} ${pr.iccVersion >= 4 ? 'disabled' : ''}>PDF/X-1a:2001</option>
       <option value="x4" ${pdfxOf(pr) === 'x4' ? 'selected' : ''}>PDF/X-4</option></select>
       <span class="hint">${pr.iccVersion >= 4 ? _t('Das Profil hat ICC-Version 4, dafür ist PDF/X-4 nötig.') : pdfxOf(pr) === 'x4' ? _t('Neuerer Standard mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4. Am besten vorher fragen, ob die Druckerei ihn annimmt.') : _t('Wird von fast allen Druckereien angenommen.')}</span></div>
+    <div class="field proof-opts"><span class="lbl">${_t('Für den Druck')}</span>
+      <label class="check"><input type="checkbox" data-act-change="printtune" ${tuneOn() ? 'checked' : ''}><span>${_t('Fotos an Papier und Druck anpassen')}<span class="hint">${tuneText(pr)}</span></span></label></div>
     <div class="field proof-opts"><span class="lbl">${_t('Am Bildschirm prüfen')}</span>
       <label class="check"><input type="checkbox" data-act-change="proof" ${ui.proof ? 'checked' : ''}><span>${_t('Druckansicht (Softproof)')}<span class="hint">${_t('Editor, Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit diesem Profil gedruckt aussehen.')}</span></span></label>
       <label class="check"><input type="checkbox" data-act-change="proofpaper" ${ui.proofPaper !== false ? 'checked' : ''}><span>${_t('Papierweiß simulieren')}<span class="hint">${_t('Weiß erscheint im Ton des Papiers, Kontraste etwas flacher, wie auf dem fertigen Blatt.')}</span></span></label>
@@ -81,6 +92,13 @@ function printCard() {
   </section>`;
 }
 
+// Erklärung zum Druckausgleich, mit den Werten des Profils, sobald sie da sind
+function tuneText(pr) {
+  const t = pr && PRN.tune[pr.id];
+  if (pr && t === undefined) loadTune(pr).then(() => { if (ui.view === 'print') renderPrint(); });
+  const base = _t('Papier leuchtet nicht wie ein Bildschirm. Darum werden Mitteltöne etwas heller, Tiefen geöffnet und die Fotos für den Druck geschärft, passend zum Profil. Die Druckansicht zeigt das Ergebnis; eine automatische Bildkorrektur der Druckerei dann besser ausschalten.');
+  return t ? `${base} ${_t('Für dieses Profil: Mitteltöne {mid} % heller.', { mid: t.midtones })}` : base;
+}
 function reportHtml(res) {
   const r = res.report, mb = fmt1(res.size / 1048576);
   const href = `api/${PP(`/export/${encodeURIComponent(res.name)}`)}${SVC.token ? '?token=' + encodeURIComponent(SVC.token) : ''}`;
@@ -103,6 +121,7 @@ async function printExport(blob, name, bar) {
     const fd = new FormData();
     fd.append('file', blob, name); fd.append('printer', pr.id); fd.append('title', _tc('Familienkalender {year}', { year: S.doc.year }));
     fd.append('standard', pdfxOf(pr));
+    fd.append('tune', tuneOn() ? 'true' : 'false');
     const r = await serial(() => api(PP('/export/print'), { method: 'POST', form: fd }));
     PRN.result = { ...r, name };
     bar.close();
@@ -156,6 +175,7 @@ CHANGE_ACTIONS.printer = (el) => {
   if (proofOn()) setProof({}); else renderPrint();
 };
 CHANGE_ACTIONS.pdfx = (el) => { S.doc.pdfx = el.value; PRN.result = null; commit(); renderPrint(); };
+CHANGE_ACTIONS.printtune = (el) => { S.doc.printTune = el.checked; PRN.result = null; commit(); renderPrint(); };
 CHANGE_ACTIONS.proof = (el) => setProof({ proof: el.checked });
 CHANGE_ACTIONS.proofpaper = (el) => setProof({ proofPaper: el.checked });
 CHANGE_ACTIONS.proofgamut = (el) => setProof({ proofGamut: el.checked });

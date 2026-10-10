@@ -135,6 +135,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
 - **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
 - **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
+- **Bild verbessern:** Helligkeit, Kontrast, Wärme und Farbe je Foto, direkt unter dem Bild; *Original* gedrückt halten zum Vergleichen. Die Originale bleiben unverändert; dasselbe Rezept gilt für Vorschau, Druckansicht und PDF.
 - **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
 - **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
 
@@ -234,6 +235,8 @@ dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
 - Formate, die der Dienst nicht lesen kann (HEIC, RAW), vorher in JPEG umwandeln; Fotos ohne Farbprofil gelten als sRGB.
 - Die Druckansicht ist nur so genau wie der Bildschirm. Auf einem unkalibrierten Laptop zeigt sie die Richtung (stumpfer, dunkler, Papierton), nicht den exakten Farbton.
 
+**Für den Druck angepasst:** Papier leuchtet nicht wie ein Bildschirm und hat weniger Kontrast. Mit *Fotos an Papier und Druck anpassen* (standardmäßig an) hebt der Dienst die Mitteltöne leicht an, öffnet die Tiefen und schärft die Fotos für den Druck. Wie stark, hängt vom Druckprofil ab: auf Naturpapier mit seinem helleren Schwarz mehr als auf gestrichenem. Hintergrund und Flächen bleiben unverändert, die Druckansicht zeigt das Ergebnis. Eine automatische Bildkorrektur der Druckerei dann ausschalten, damit nichts doppelt korrigiert wird.
+
 **Druckansicht am Bildschirm (Softproof):** Unter *Am Bildschirm prüfen* zeigen Gestaltung und Wandansicht die Fotos so,
 wie sie aus der Druckmaschine kommen: mit dem Druckprofil umgerechnet und zurück auf den Bildschirm, auf Wunsch samt
 Papierweiß. Leuchtendes Blau, Neonfarben und tiefe Schatten verlieren genau dort an Kraft, wo sie es auch im Druck tun.
@@ -292,6 +295,7 @@ arbeitet sie wie bisher nur im Browser.
 | `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
 | `src/b2_print.js` | Druck-PDF über den lokalen Dienst: Druckprofil, Export, Prüfbericht |
 | `src/b3_faces.js` | Gesichter vom Dienst: Ausschnitt um Gesichter, Kalendarium meidet Köpfe, Hinweise |
+| `src/b4_adjust.js` | Bilder verbessern: Rezepte als Farbmatrix und Tonkurve, SVG-Filter, Pixel |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
 | `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |

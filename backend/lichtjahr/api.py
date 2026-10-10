@@ -8,6 +8,7 @@ nicht, antwortet der Dienst mit 409 und dem aktuellen Stand, statt Änderungen z
 from __future__ import annotations
 
 import getpass
+import hashlib
 import mimetypes
 import os
 import secrets
@@ -26,7 +27,8 @@ from . import faces as facedet
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
-from .printing import STANDARDS, PrinterRegistry, PrintError, make_print_pdf, proof_colors, proof_image
+from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
+                       print_tune, proof_colors, proof_image)
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
@@ -295,7 +297,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.post("/api/projects/{project_id}/export/print")
     async def print_export(project_id: str, file: UploadFile = File(...), printer: str = Form(...),
-                           title: str = Form(default="Kalender"), standard: str = Form(default="x1a"),
+                           title: str = Form(default="Kalender"), standard: str = Form(default="x1a"), tune: bool = Form(default=False),
                            session: str | None = Depends(session_header)):
         """Druck-PDF: Fotos mit dem Farbprofil der Druckerei nach CMYK, PDF/X-1a oder PDF/X-4, Preflight; Ablage in Export/."""
         p = get_project(project_id)
@@ -310,7 +312,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         def original(asset_id: str) -> bytes | None:          # für Fotos mit eigenem Farbraum (Display P3 …)
             a = man.asset(asset_id)
             return p.storage.read(a.path)[0] if a else None
-        pdf, report = await run_in_threadpool(lambda: make_print_pdf(data, profile, title, standard=standard, original=original))
+        pdf, report = await run_in_threadpool(lambda: make_print_pdf(data, profile, title, standard=standard, original=original, tune=tune))
         path = p.save_export(session, file.filename or "Kalender-Druck.pdf", pdf)
         return {"path": path, "size": len(pdf), "report": report}
 
@@ -335,6 +337,11 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         if len(data) > 20_000_000:
             raise HTTPException(400, _t("Die Datei ist zu groß für ein ICC-Profil."))
         return printers.add(data, name, tac=tac, bleed=bleed, intent=intent).public()
+
+    @app.get("/api/printers/{printer_id}/tune")
+    def printer_tune(printer_id: str):
+        """Druckausgleich für dieses Profil (Tonkurve, Stärke, Schärfung); die Oberfläche rechnet die Kurve ein."""
+        return print_tune(printers.get(printer_id))
 
     @app.post("/api/printers/{printer_id}/proof-colors")
     def printer_proof_colors(printer_id: str, req: ProofColors):
@@ -392,13 +399,17 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return {"available": True, "faces": out}
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/proof")
-    def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False):
+    def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False,
+              adj: str = "", tune: bool = False):
         """Softproof: Vorschaubild so, wie es mit dem Druckprofil gedruckt aussieht (zwischengespeichert)."""
         p = get_project(project_id)
         a = asset_or_404(p, asset_id)
         profile = printers.get(printer)
         size = max(64, min(2400, size))
-        key = f"v2_{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{int(os.path.getmtime(profile.path))}"
+        m, lut = parse_adjust(adj)
+        lut = compose_lut(lut, print_tune(profile)["lut"] if tune else None)
+        tag = hashlib.sha1(f"{m};{lut}".encode()).hexdigest()[:10] if (m or lut) else "0"
+        key = f"v3_{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{tag}_{int(os.path.getmtime(profile.path))}"
         path = os.path.join(p.cache_dir, "proof", a.contentHash[:2], key + ".jpg")
         if not os.path.exists(path):
             try:
@@ -406,6 +417,9 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             except NotFound:
                 raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
             with Image.open(src) as im:
+                im.load()
+                if m or lut:                                   # Rezept des Fotos und Druckausgleich wie im Druck-PDF
+                    im = apply_adjust(im, m, lut)
                 out = proof_image(im, profile, paper=paper, gamut=gamut)
             os.makedirs(os.path.dirname(path), exist_ok=True)
             tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"

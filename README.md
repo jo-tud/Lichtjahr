@@ -135,6 +135,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
 - **Binding:** Wire binding and hanger cut-out as guideline values or with measurements from the print shop's data sheet.
 - **Photo spacing:** 0–5 mm, for all pages or per page.
+- **Enhance photo:** Brightness, contrast, warmth and color per photo, right below the picture; press and hold *Original* to compare. The originals stay untouched; the same recipe drives the preview, the soft proof and the PDF.
 - **Undo/redo** with a jump to the changed page; the history survives a reload.
 - **On the wall:** The calendar hangs on a wall and its pages turn over the wire binding – by click, swipe or arrow keys.
 
@@ -234,6 +235,8 @@ redistribute the ECI and Adobe profiles, but embedding them in the PDF is allowe
 - Photos in formats the service can't read (HEIC, RAW) need converting to JPEG first; photos without a color profile count as sRGB.
 - The soft proof is only as accurate as your screen. On an uncalibrated laptop it shows the direction (duller, darker, paper tint), not the exact shade.
 
+**Adapted for print:** Paper doesn't glow like a screen and has less contrast. With *Adapt photos to paper and print* (on by default) the service lifts the midtones slightly, opens up the shadows and sharpens the photos for print. How much depends on the print profile: more on uncoated paper with its lighter black than on coated paper. Background and panels stay untouched, and the print preview shows the result. Switch off any automatic image correction at the print shop so nothing gets corrected twice.
+
 **Print preview on screen (soft proof):** Under *Check on screen*, the editor and the wall view show the photos as they
 will come out of the press: converted with the print profile and back to the screen, optionally including the paper
 white. Bright blues, neon colors and deep shadows lose punch exactly where they will in print. A gray hatching marks
@@ -291,6 +294,7 @@ GitHub Pages), it works in the browser only, as before.
 | `src/b1_service.js` | Connection to the local service: project selection, lock, saving, sync, upload |
 | `src/b2_print.js` | Print PDF via the local service: print profile, export, check report |
 | `src/b3_faces.js` | Faces from the service: crop around faces, keep the calendar grid off heads, warnings |
+| `src/b4_adjust.js` | Enhance photos: recipes compiled to color matrix and tone curve, SVG filter, pixels |
 | `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |
 | `src/schoolholidays.js` | School holidays 2025–2028 for each German state |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), reduced to Windows-1252; created with `tools/mkfont.py` |

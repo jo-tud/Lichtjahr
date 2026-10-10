@@ -395,6 +395,28 @@ a.btn.primary { color: var(--accent-ink); }
 .caldetails > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 0; }
 .caldetails[open] > summary { margin-bottom: 6px; }
 .caldetails .field { margin-bottom: 10px; }
+
+/* ----- Bild verbessern (Leiste unter dem Bild) ----- */
+.framebar.tuning { display: grid; gap: 10px; align-items: stretch; overflow: visible; }
+.tune-head { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.tune-head b { font-size: 13px; white-space: nowrap; }
+.tune-head .sp { flex: 1; }
+.tune-sliders { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 18px; }
+.adj { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.adj span { display: flex; justify-content: space-between; gap: 6px; }
+.adj output { font-family: var(--font-mono); color: var(--ink); }
+/* Regler mit Null in der Mitte: Spur mit Mittelmarke statt Füllung von links */
+.adj input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; margin: 0; }
+.adj input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, transparent calc(50% - 1px), var(--muted) calc(50% - 1px), var(--muted) calc(50% + 1px), transparent calc(50% + 1px)), var(--line); }
+.adj input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, transparent calc(50% - 1px), var(--muted) calc(50% - 1px), var(--muted) calc(50% + 1px), transparent calc(50% + 1px)), var(--line); }
+.adj input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--accent); }
+.adj input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.adj input[type=range]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 980px) {
+  .framebar.tuning { overflow: visible; flex-wrap: wrap; }
+  .tune-sliders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 14px; }
+  .tune-head b { display: none; }
+}
 </style>
 <header class="bar">
   <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Lichtjahr</span></div>
@@ -1074,6 +1096,10 @@ Object.assign(EN, {
   'Gesichter werden gesucht …': 'Looking for faces …',
   '{page}: Kalendarium neu platziert.': '{page}: Calendar grid placed again.',
   'Nextcloud sperrt gerade kurz, nächster Versuch gleich …': 'Nextcloud is briefly locked, trying again shortly …',
+  'Für den Druck': 'For print',
+  'Fotos an Papier und Druck anpassen': 'Adapt photos to paper and print',
+  'Papier leuchtet nicht wie ein Bildschirm. Darum werden Mitteltöne etwas heller, Tiefen geöffnet und die Fotos für den Druck geschärft, passend zum Profil. Die Druckansicht zeigt das Ergebnis; eine automatische Bildkorrektur der Druckerei dann besser ausschalten.': 'Paper doesn’t glow like a screen. So midtones get a little lighter, shadows are opened up and the photos are sharpened for print, matched to the profile. The print preview shows the result; better switch off any automatic image correction at the print shop then.',
+  'Für dieses Profil: Mitteltöne {mid} % heller.': 'For this profile: midtones {mid}% lighter.',
 });
 // Englische Texte für die Ansichten (a4_ui.js): Projekt, Fotos, Gestalten, Prüfung, PDF, Leuchttisch
 Object.assign(EN, {
@@ -1453,6 +1479,15 @@ Object.assign(EN, {
   'Passend': 'Fitted',
   'Ganze Seitenbreite': 'Full page width',
   'Gilt für alle Monate. Abstände, Mindestgrößen und gleich breite Ziffern regelt die App, damit es immer ordentlich aussieht.': 'Applies to all months. The app takes care of spacing, minimum sizes and equal-width figures, so it always looks tidy.',
+  'Helligkeit': 'Brightness',
+  'Kontrast': 'Contrast',
+  'Wärme': 'Warmth',
+  'Farbe': 'Color',
+  'Gedrückt halten zeigt das Original': 'Press and hold to see the original',
+  'Original': 'Original',
+  'Zurücksetzen': 'Reset',
+  'Bild verbessert ✓': 'Photo enhanced ✓',
+  'Bild verbessern': 'Enhance photo',
 });
 /* ---------- CMYK-JPEG-Encoder (Baseline, 4 Kanäle, ohne Unterabtastung) ---------- */
 const JPEG = (() => {
@@ -2821,6 +2856,15 @@ function svgPage(p, o = {}) {
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
   const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  // Bildanpassung als SVG-Filter; in der Druckansicht steckt sie schon im Bild vom Dienst, beim Vergleichen ist sie aus
+  const fdone = new Set();
+  const adjFilter = (pid) => {
+    if (ui.adjCompare || (proofOn() && proofUrl(pid, false))) return '';
+    const c = compileAdjust(adjOf(pid)); if (!c) return '';
+    const fid = `${id}${adjFilterId(c)}`;
+    if (!fdone.has(fid)) { fdone.add(fid); defs.push(adjFilterDef(c, fid)); }
+    return ` filter="url(#${fid})"`;
+  };
   let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {
@@ -2829,8 +2873,8 @@ function svgPage(p, o = {}) {
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
-        const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
+        const cid = clipRect(it.clip), pl = it.place, flt = adjFilter(it.photo);
+        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"${flt}/></g>`;
       }
       case 'empty': {
         const r = it.clip;
@@ -3208,8 +3252,20 @@ const dpiPill = (ph, r, sl) => {
   const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < DPI_BAD ? 'bad' : d < DPI_WARN ? 'warn' : 'ok';
   return `<span class="pill ${cls}" id="dpiPill">${d < DPI_BAD ? _t('{d} dpi · zu klein', { d }) : d < DPI_WARN ? _t('{d} dpi · knapp', { d }) : `${d} dpi`}</span>`;
 };
+// Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
+const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
+function tuneBar(ph) {
+  const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {};
+  return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b><span class="sp"></span>
+      <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
+      <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
+      <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
+    <div class="tune-sliders">${ADJ_SLIDERS().map(([k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`).join('')}</div>`;
+}
+const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
+  fb.classList.remove('tuning');
   if (ui.swapFrom != null) { fb.innerHTML = `<span>${_t('Tippe auf den Rahmen, mit dem getauscht werden soll.')}</span><button class="btn small" data-act="swapcancel">${_t('Abbrechen')}</button>`; return; }
   if (ui.sel == null || p.layout === 'index') {
     fb.innerHTML = `<span class="hint">${p.layout === 'index' ? _t('Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.') : ui.armed ? _t('Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.') : (coarse() ? _t('Rahmen antippen wählt ihn aus. Doppelt tippen bearbeitet den Bildausschnitt. Lange drücken und ziehen verschiebt einen ausgewählten Rahmen oder tauscht Fotos.') : _t('Foto in einen Rahmen ziehen. Rahmen anklicken wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick bearbeitet den Bildausschnitt. Ein Foto auf einen anderen Rahmen ziehen tauscht die beiden.'))}</span>`;
@@ -3217,11 +3273,13 @@ function renderFrameBar() {
   }
   const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
   if (!r) { fb.innerHTML = ''; return; }
-  const crop = ui.crop === ui.sel && ph;
+  const crop = ui.crop === ui.sel && ph, tune = ui.tune === ui.sel && ph && !crop;
   let h = '';
+  if (tune) { fb.classList.add('tuning'); fb.innerHTML = tuneBar(ph); return; }
   if (ph) {
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b>${dpiPill(ph, r, sl)}</div>
-      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>`;
+      <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>
+      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}`;
     if (crop) h += `<div class="range"><span class="small muted">${_t('Zoom')}</span><input type="range" id="zm" aria-label="${_t('Zoom')}" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <div class="range"><span class="small muted">${_t('Drehen')}</span><input type="range" id="rt" aria-label="${_t('Foto drehen')}" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
       <button class="btn small" data-act="rot90" title="${_t('Um 90° drehen')}">↻ 90°</button>
@@ -3582,6 +3640,11 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = fmt1(sl.border) + ' mm';
     renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
+  if (act === 'adj') {
+    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
+    renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+  }
   if (act === 'pagegap') {
     curPage().gap = parseFloat(el.value);
     el.parentElement.querySelector('output').textContent = fmt1(curPage().gap) + ' mm';
@@ -3745,7 +3808,9 @@ const ACTIONS = {
     }
     exportPDF();
   },
-  crop: () => setCrop(ui.crop == null ? ui.sel : null),
+  crop: () => { ui.tune = null; setCrop(ui.crop == null ? ui.sel : null); },
+  tune: () => { ui.crop = null; ui.tune = ui.tune == null ? ui.sel : null; renderEditor(); renderFrameBar(); },
+  adjreset: (el) => { setAdjust(el.dataset.v, Object.fromEntries(ADJ_KEYS.map(k => [k, 0]))); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
@@ -3983,6 +4048,14 @@ async function autoDesign() {
       : _t('{n} Fotos auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.', { n: photos }));
   toast(msg, 6000, { label: _t('Rückgängig'), fn: undo });
 }
+
+// Vergleichen: solange gedrückt, das Bild ohne Anpassung zeigen
+const compareOff = () => { if (ui.adjCompare) { ui.adjCompare = false; renderEditor(); } };
+document.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-hold="compare"]')) { ui.adjCompare = true; renderEditor(); } });
+document.addEventListener('pointerup', compareOff);
+document.addEventListener('pointercancel', compareOff);
+document.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('[data-hold="compare"]') && !ui.adjCompare) { ui.adjCompare = true; renderEditor(); } });
+document.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') compareOff(); });
 /* ---------- Bedienung im Seiteneditor ---------- */
 function svgPoint(svg, e) {
   const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
@@ -4011,7 +4084,7 @@ function liveImage(svg, key) {
   }
 }
 function selectSlot(i) {
-  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null;
+  ui.sel = i; ui.selBlock = null; if (ui.crop !== i) ui.crop = null; if (ui.tune !== i) ui.tune = null;
   renderEditor(); renderFrameBar();
 }
 function setCrop(i) {
@@ -4425,12 +4498,22 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   // Für den Dienst: welches Foto, welcher Ausschnitt (Zielpixel → Fotopixel). Hat das Original einen größeren
   // Farbraum als sRGB (Display P3 …), rendert der Dienst den Ausschnitt selbst daraus.
   const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h] } : null;
-  if (ph.demo) drawScene(x, ph.w, ph.h, ph.demo.seed, ph.demo.m);
+  // Bildanpassung des Fotos und (nur Druck-PDF) der Druckausgleich des Profils: auf eigener Ebene, damit
+  // Hintergrund und Flächen unverändert bleiben
+  const adj = compileAdjust(adjOf(ph.id)), tl = rgb ? printTuneLut() : null;
+  const full = adj || tl ? { m: adj ? adj.m : [1, 0, 0, 0, 1, 0, 0, 0, 1], lut: adj ? (tl ? composeLut(adj.lut, tl) : adj.lut) : tl } : null;
+  let tx = x, pc = null;
+  if (full) { pc = document.createElement('canvas'); pc.width = ow; pc.height = oh; tx = pc.getContext('2d', { willReadFrequently: true }); tx.imageSmoothingQuality = 'high'; tx.setTransform(x.getTransform()); }
+  if (ph.demo) drawScene(tx, ph.w, ph.h, ph.demo.seed, ph.demo.m);
   else {
     const bmp = await sourceFor(ph);
-    if (bmp) x.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
+    if (bmp) tx.drawImage(srcOf(bmp), 0, 0, ph.w, ph.h);   // auch die Vorschau als Notlösung landet so richtig
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
+  if (pc) {
+    const id = tx.getImageData(0, 0, ow, oh); applyAdjustPixels(id.data, full); tx.putImageData(id, 0, 0);
+    x.drawImage(pc, 0, 0); pc.width = pc.height = 0;
+  }
   const pans = [];
   for (const pn of panels) {
     const r = intersect(pn, clip); if (!r) continue;
@@ -4444,7 +4527,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
     const out = { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
     if (src && src.asset) {
       const m = src.m, n = (v) => String(+v.toFixed(6));   // genauer als pdfNum: Fehler wächst mit der Fotobreite
-      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}] >>`;
+      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''} >>`;
     }
     return out;
   }
@@ -4470,6 +4553,7 @@ let lastPdf = null;
 // der sie mit dem Farbprofil der Druckerei umrechnet, ein PDF/X-1a schreibt und es prüft.
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
+  if (print && tuneOn()) await loadTune(printerOf());
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
   const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;
@@ -5364,7 +5448,15 @@ Object.assign(ACTIONS, {
    schreibt PDF/X-1a oder PDF/X-4 und prüft das Ergebnis. Dazu die Druckansicht (Softproof): Editor,
    Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit dem Druckprofil gedruckt aussehen.
    Nur verfügbar, wenn die App vom Dienst kommt. */
-const PRN = { list: [], loaded: false, result: null };
+const PRN = { list: [], loaded: false, result: null, tune: {} };
+// Druckausgleich (Papier leuchtet nicht, weniger Kontrast): Kurve und Schärfung je Profil vom Dienst
+const tuneOn = () => S.doc.printTune !== false;
+async function loadTune(pr) {
+  if (!pr || PRN.tune[pr.id]) return PRN.tune[pr && pr.id];
+  try { PRN.tune[pr.id] = await api(`printers/${encodeURIComponent(pr.id)}/tune`); } catch (e) { PRN.tune[pr.id] = null; }
+  return PRN.tune[pr.id];
+}
+const printTuneLut = () => { const pr = printerOf(), t = pr && tuneOn() && PRN.tune[pr.id]; return t ? t.lut : null; };
 
 async function loadPrinters() {
   try { PRN.list = await api('printers'); } catch (e) { PRN.list = []; }
@@ -5386,7 +5478,8 @@ function proofUrl(id, small) {
   const pr = printerOf(), ph = S.photos[id];
   const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
   if (!pr || !a) return null;
-  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+  const adj = compileAdjust(adjOf(id)), aq = adj ? '&adj=' + encodeURIComponent(adj.m.map(v => +v.toFixed(4)).join(',') + ';' + adj.lut.map(v => +v.toFixed(4)).join(',')) : '';
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
 }
 // Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
 async function loadProofColors() {
@@ -5431,6 +5524,8 @@ function printCard() {
       <option value="x1a" ${pdfxOf(pr) === 'x1a' ? 'selected' : ''} ${pr.iccVersion >= 4 ? 'disabled' : ''}>PDF/X-1a:2001</option>
       <option value="x4" ${pdfxOf(pr) === 'x4' ? 'selected' : ''}>PDF/X-4</option></select>
       <span class="hint">${pr.iccVersion >= 4 ? _t('Das Profil hat ICC-Version 4, dafür ist PDF/X-4 nötig.') : pdfxOf(pr) === 'x4' ? _t('Neuerer Standard mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4. Am besten vorher fragen, ob die Druckerei ihn annimmt.') : _t('Wird von fast allen Druckereien angenommen.')}</span></div>
+    <div class="field proof-opts"><span class="lbl">${_t('Für den Druck')}</span>
+      <label class="check"><input type="checkbox" data-act-change="printtune" ${tuneOn() ? 'checked' : ''}><span>${_t('Fotos an Papier und Druck anpassen')}<span class="hint">${tuneText(pr)}</span></span></label></div>
     <div class="field proof-opts"><span class="lbl">${_t('Am Bildschirm prüfen')}</span>
       <label class="check"><input type="checkbox" data-act-change="proof" ${ui.proof ? 'checked' : ''}><span>${_t('Druckansicht (Softproof)')}<span class="hint">${_t('Editor, Leuchttisch und Wand zeigen Fotos und Farben so, wie sie mit diesem Profil gedruckt aussehen.')}</span></span></label>
       <label class="check"><input type="checkbox" data-act-change="proofpaper" ${ui.proofPaper !== false ? 'checked' : ''}><span>${_t('Papierweiß simulieren')}<span class="hint">${_t('Weiß erscheint im Ton des Papiers, Kontraste etwas flacher, wie auf dem fertigen Blatt.')}</span></span></label>
@@ -5441,6 +5536,13 @@ function printCard() {
   </section>`;
 }
 
+// Erklärung zum Druckausgleich, mit den Werten des Profils, sobald sie da sind
+function tuneText(pr) {
+  const t = pr && PRN.tune[pr.id];
+  if (pr && t === undefined) loadTune(pr).then(() => { if (ui.view === 'print') renderPrint(); });
+  const base = _t('Papier leuchtet nicht wie ein Bildschirm. Darum werden Mitteltöne etwas heller, Tiefen geöffnet und die Fotos für den Druck geschärft, passend zum Profil. Die Druckansicht zeigt das Ergebnis; eine automatische Bildkorrektur der Druckerei dann besser ausschalten.');
+  return t ? `${base} ${_t('Für dieses Profil: Mitteltöne {mid} % heller.', { mid: t.midtones })}` : base;
+}
 function reportHtml(res) {
   const r = res.report, mb = fmt1(res.size / 1048576);
   const href = `api/${PP(`/export/${encodeURIComponent(res.name)}`)}${SVC.token ? '?token=' + encodeURIComponent(SVC.token) : ''}`;
@@ -5463,6 +5565,7 @@ async function printExport(blob, name, bar) {
     const fd = new FormData();
     fd.append('file', blob, name); fd.append('printer', pr.id); fd.append('title', _tc('Familienkalender {year}', { year: S.doc.year }));
     fd.append('standard', pdfxOf(pr));
+    fd.append('tune', tuneOn() ? 'true' : 'false');
     const r = await serial(() => api(PP('/export/print'), { method: 'POST', form: fd }));
     PRN.result = { ...r, name };
     bar.close();
@@ -5516,6 +5619,7 @@ CHANGE_ACTIONS.printer = (el) => {
   if (proofOn()) setProof({}); else renderPrint();
 };
 CHANGE_ACTIONS.pdfx = (el) => { S.doc.pdfx = el.value; PRN.result = null; commit(); renderPrint(); };
+CHANGE_ACTIONS.printtune = (el) => { S.doc.printTune = el.checked; PRN.result = null; commit(); renderPrint(); };
 CHANGE_ACTIONS.proof = (el) => setProof({ proof: el.checked });
 CHANGE_ACTIONS.proofpaper = (el) => setProof({ proofPaper: el.checked });
 CHANGE_ACTIONS.proofgamut = (el) => setProof({ proofGamut: el.checked });
@@ -5649,6 +5753,85 @@ function faceCover(faces, r) {
   let s = 0;
   for (const f of faces) if (f.shown > .5) s += overlap(f.head, r) / (f.head.w * f.head.h) * Math.min(1, f.h / 12);
   return s;
+}
+/* ---------- Bilder verbessern ----------
+   Je Foto ein Rezept (S.doc.adjust[id]); die Originale bleiben unverändert. Aus dem Rezept wird genau EINE
+   kompilierte Form berechnet, und nur diese wenden alle an:
+     m:   3×3-Farbmatrix (Weißabgleich, Sättigung) auf sRGB-Werte 0–1, danach
+     lut: Tonkurve mit 65 Stützstellen (Belichtung, Kontrast, Tiefen, Lichter), linear dazwischen.
+   Die Vorschau im Editor als SVG-Filter (feColorMatrix + feComponentTransfer, rechnet genauso), der PDF-Entwurf
+   und das Druck-PDF in der Oberfläche auf den Pixeln, der Dienst mit numpy (Fotos aus dem Original, Druckansicht).
+   So sieht der Druck aus wie die Vorschau. Die Druckanpassung (Ausgleich für Papier, Schärfung) kommt vom
+   Dienst, weil sie vom Druckprofil abhängt. */
+const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation'];
+const ADJ_NODES = 65;
+const adjOf = (id) => { const r = S.doc.adjust && S.doc.adjust[id]; return r && ADJ_KEYS.some(k => r[k]) ? r : null; };
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// Tonkurve als Funktion; alle Regler −1 … +1
+function toneCurve(r) {
+  const e = r.exposure || 0, c = r.contrast || 0, sh = r.shadows || 0, hl = r.highlights || 0, g = Math.pow(2, -.75 * e);
+  return (v) => {
+    let x = Math.pow(v, g);
+    x = c >= 0 ? x + c * .7 * (x * x * (3 - 2 * x) - x) : .5 + (x - .5) * (1 + .45 * c);
+    x = clamp01(x);
+    x += sh * .9 * x * (1 - x) * (1 - x);                    // Tiefen: wirkt vor allem im unteren Drittel
+    x += hl * .9 * x * x * (1 - x);                          // Lichter: vor allem im oberen Drittel
+    return clamp01(x);
+  };
+}
+function compileAdjust(r) {
+  if (!r) return null;
+  const w = r.warmth || 0, t = r.tint || 0, k = 1 + .5 * (r.saturation || 0), L = [.2126, .7152, .0722];
+  const gain = [1 + .07 * w + .02 * t, 1 - .045 * t, 1 - .07 * w + .02 * t];
+  const m = [];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m.push(((1 - k) * L[j] + (i === j ? k : 0)) * gain[j]);
+  const f = toneCurve(r), lut = [];
+  for (let i = 0; i < ADJ_NODES; i++) lut.push(f(i / (ADJ_NODES - 1)));
+  return { m, lut };
+}
+// Zwei Kurven hintereinander (erst a, dann b) als eine Kurve mit gleichen Stützstellen
+function lutAt(lut, v) {
+  const n = lut.length - 1, x = clamp01(v) * n, i = Math.min(n - 1, Math.floor(x));
+  return lut[i] + (x - i) * (lut[i + 1] - lut[i]);
+}
+const composeLut = (a, b) => a.map(v => lutAt(b, v));
+const adjKey = (c) => c ? c.m.map(v => v.toFixed(4)).join(',') + ';' + c.lut.map(v => v.toFixed(4)).join(',') : '';
+
+// SVG-Filter für die Vorschau; gleiche Rezepte teilen sich einen Filter
+const ADJ_FILTERS = new Map();
+function adjFilterId(c) {
+  const key = adjKey(c);
+  if (!ADJ_FILTERS.has(key)) ADJ_FILTERS.set(key, 'adj' + ADJ_FILTERS.size);
+  return ADJ_FILTERS.get(key);
+}
+function adjFilterDef(c, id) {
+  const m = c.m.map(v => +v.toFixed(5)), lut = c.lut.map(v => +v.toFixed(5)).join(' ');
+  return `<filter id="${id}" color-interpolation-filters="sRGB" x="0" y="0" width="1" height="1"><feColorMatrix type="matrix" values="${m[0]} ${m[1]} ${m[2]} 0 0 ${m[3]} ${m[4]} ${m[5]} 0 0 ${m[6]} ${m[7]} ${m[8]} 0 0 0 0 0 1 0"/>` +
+    `<feComponentTransfer><feFuncR type="table" tableValues="${lut}"/><feFuncG type="table" tableValues="${lut}"/><feFuncB type="table" tableValues="${lut}"/></feComponentTransfer></filter>`;
+}
+
+// Auf Pixel anwenden (ImageData.data, RGBA 0–255); Alpha bleibt
+function applyAdjustPixels(data, c) {
+  const m = c.m, N = 4096, T = new Uint8ClampedArray(N + 1);
+  for (let i = 0; i <= N; i++) T[i] = Math.round(lutAt(c.lut, i / N) * 255);
+  const s = N / 255;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    data[i] = T[Math.round(clamp01((m[0] * r + m[1] * g + m[2] * b) / 255) * N)];
+    data[i + 1] = T[Math.round(clamp01((m[3] * r + m[4] * g + m[5] * b) / 255) * N)];
+    data[i + 2] = T[Math.round(clamp01((m[6] * r + m[7] * g + m[8] * b) / 255) * N)];
+  }
+  return data;
+}
+// Ein Wert pro Kanal für die Vorschau-Kacheln und Tests
+const adjustRGB = (rgb, c) => [0, 1, 2].map(i => Math.round(lutAt(c.lut, clamp01((c.m[i * 3] * rgb[0] + c.m[i * 3 + 1] * rgb[1] + c.m[i * 3 + 2] * rgb[2]) / 255)) * 255));
+
+function setAdjust(id, patch) {
+  S.doc.adjust ||= {};
+  const r = { ...(S.doc.adjust[id] || {}), ...patch };
+  for (const k of ADJ_KEYS) if (!r[k]) delete r[k];
+  if (Object.keys(r).length) S.doc.adjust[id] = r; else delete S.doc.adjust[id];
 }
 /* ---------- An der Wand: den fertigen Kalender aufgehängt durchblättern ---------- */
 // Eine Ansicht ist, was beim Aufhängen zu sehen ist: unten die Hauptseite, bei „aufgeklappt“ oben die Rückseite des vorigen Blatts.
