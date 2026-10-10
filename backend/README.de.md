@@ -107,6 +107,30 @@ Druckprofile: mitgeliefert unter `lichtjahr/icc/` (basICColor, zlib-Lizenz), eig
 `POST /api/printers` (landen im Datenordner unter `printers/`). Das Profil muss ein CMYK-Ausgabeprofil der
 ICC-Version 2 sein; die Druckbedingung (z. B. FOGRA51) wird aus Beschreibung oder Messdaten erkannt.
 
+## Nextcloud und andere WebDAV-Server
+
+`lichtjahr/storage/webdav.py` bietet dieselbe Speicher-Schnittstelle wie der lokale Ordner. Die beiden atomaren
+Grundoperationen, auf denen Sperre und Manifest beruhen, wertet **der Server** aus, damit sie auch zwischen
+Rechnern halten:
+
+| Operation | WebDAV-Anfrage |
+|---|---|
+| exklusiv anlegen | `PUT` mit `If-None-Match: *` (412, wenn es die Datei gibt) |
+| ersetzen, wenn unverändert | `PUT` mit `If-Match: <ETag>` (412, wenn sie sich geändert hat) |
+| verschieben / kopieren, nie überschreiben | `MOVE` / `COPY` mit `Overwrite: F` |
+| auflisten | `PROPFIND`, Ebene für Ebene (Nextcloud erlaubt kein `Depth: infinity`) |
+
+Der Server muss bei jeder Änderung ein neues ETag vergeben und bedingte Anfragen auswerten; Nextcloud und
+ownCloud tun das. Projekte werden mit `url`, `username` und `password` statt `path` angelegt oder geöffnet
+(`POST /api/projects`, `POST /api/projects/open`). Der Dienst prüft die Anmeldung und legt die Zugangsdaten in
+`credentials.json` im Datenordner ab (Rechte 0600). Sie stehen nie in `lichtjahr.json`, `projects.json` oder in
+einer Antwort der Schnittstelle; „Projekt vergessen“ entfernt sie wieder. Unverschlüsseltes `http://` geht nur
+für Adressen im eigenen Netz. Vorschaubilder liegen im lokalen Cache, jedes Foto wird je Änderung einmal geladen.
+
+Die Tests lassen die gesamte Projekt-Testreihe zusätzlich gegen einen WsgiDAV-Server laufen (`tests/davserver.py`,
+mit inhaltsbasierten ETags und nacheinander bearbeiteten Anfragen wie bei Nextcloud), einschließlich eines
+Wettlaufs von sechs Clients um die Sperre. Gegen eine echte Nextcloud sind sie noch nicht gelaufen.
+
 ## Grundsätze
 
 - **Originale bleiben unangetastet.** Fotos werden nie verändert oder überschrieben. Verschieben ändert nur
@@ -171,5 +195,4 @@ Die Tests decken unter anderem ab:
 
 ## Ausblick
 
-- Nextcloud über WebDAV als zweiter Speicherort mit derselben Schnittstelle (Sperre am gemeinsamen Endpunkt mit ETag-Prüfung).
 - PDF/X-4 und Softproof.

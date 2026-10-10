@@ -110,6 +110,29 @@ measurement data.
 
 This is checked by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 
+## Nextcloud and other WebDAV servers
+
+`lichtjahr/storage/webdav.py` implements the same storage interface as the local folder. The two atomic
+primitives the lock and the manifest rely on are evaluated **by the server**, so they hold across computers:
+
+| Operation | WebDAV request |
+|---|---|
+| create exclusively | `PUT` with `If-None-Match: *` (412 if the file exists) |
+| replace if unchanged | `PUT` with `If-Match: <ETag>` (412 if it changed) |
+| move / copy, never overwrite | `MOVE` / `COPY` with `Overwrite: F` |
+| list | `PROPFIND`, level by level (Nextcloud doesn't allow `Depth: infinity`) |
+
+The server must issue a new ETag for every change and evaluate conditional requests; Nextcloud and ownCloud
+do. Create or open a project with `url`, `username` and `password` instead of `path`
+(`POST /api/projects`, `POST /api/projects/open`). The service checks the login and stores the credentials in
+`credentials.json` in its data folder (mode 0600). They never appear in `lichtjahr.json`, `projects.json` or
+any API response; forgetting a project removes them again. Plain `http://` is only accepted for addresses on
+your own network. Thumbnails are cached locally, so every photo is downloaded once per change.
+
+The tests run the complete project test suite against a WsgiDAV server as well (`tests/davserver.py`, with
+content-based ETags and serialized requests, like Nextcloud), including a race of six clients for the lock.
+They have not been run against a real Nextcloud instance yet.
+
 ## Principles
 
 - **Originals stay untouched.** Photos are never modified or overwritten. Moving only changes the path; if
@@ -174,5 +197,4 @@ Among other things, the tests cover:
 
 ## Outlook
 
-- Nextcloud via WebDAV as a second storage location with the same API (lock at the shared endpoint with ETag checks).
 - PDF/X-4 and soft proofing.

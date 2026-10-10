@@ -16,6 +16,7 @@ ausdrücklich. Vorschaubilder liegen im lokalen Cache, nicht im Projektordner.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import posixpath
@@ -31,6 +32,7 @@ from .schema import (EXPORT_DIR, MANIFEST, META_DIR, MONTH_NAMES, NO_MONTH_DIRS,
 from .storage import AlreadyExists, Conflict, NotFound, Storage
 
 JOURNAL = f"{META_DIR}/journal.jsonl"
+THUMB_SIZES = (360, 1600)          # Vorschau in der Fotoübersicht und im Editor
 
 
 class ProjectError(Exception):
@@ -396,15 +398,23 @@ class Project:
     def thumbnail(self, asset: Asset, size: int) -> str:
         """Pfad zur Vorschau im lokalen Cache; wird bei Bedarf erzeugt. Schlüssel ist die Prüfsumme."""
         size = max(64, min(2400, size))
-        path = os.path.join(self.cache_dir, "thumbs", asset.contentHash[:2], f"{asset.contentHash}_{size}.jpg")
+        cached = lambda s: os.path.join(self.cache_dir, "thumbs", asset.contentHash[:2], f"{asset.contentHash}_{s}.jpg")  # noqa: E731
+        path = cached(size)
         if not os.path.exists(path):
             os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Original nur einmal lesen und gleich auch die üblichen Größen der App erzeugen
+            # (wichtig bei WebDAV, wo jedes Lesen ein Download ist)
             with self.storage.open_read(asset.path) as fh:
-                data = make_thumbnail(fh, size)
-            tmp = path + ".tmp"
-            with open(tmp, "wb") as out:
-                out.write(data)
-            os.replace(tmp, path)
+                original = fh.read()
+            for s in sorted({size, *THUMB_SIZES}):
+                target = cached(s)
+                if s != size and os.path.exists(target):
+                    continue
+                data = make_thumbnail(io.BytesIO(original), s)
+                tmp = target + ".tmp"
+                with open(tmp, "wb") as out:
+                    out.write(data)
+                os.replace(tmp, target)
         return path
 
     # -- Übersicht --------------------------------------------------------------------------
@@ -417,7 +427,8 @@ class Project:
         lock, _ = self.lock.read()
         return {
             "id": man.id, "title": man.title, "calendarYear": man.calendarYear, "sourceYear": man.sourceYear,
-            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe(), "display": _display(self.storage.describe()),
+            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe(),
+                        "display": self.storage.display() if hasattr(self.storage, "display") else _display(self.storage.describe()),
                         "folders": folders(man.language)},
             "photos": sum(not a.excluded for a in man.assets), "perMonth": dict(zip(MONTH_NAMES[lang_of(man.language)], per_month)),
             "language": lang_of(man.language),

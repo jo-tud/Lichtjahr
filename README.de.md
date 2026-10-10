@@ -123,7 +123,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 
 ### Alle Funktionen im Überblick
 
-- **Projektordner:** Mit dem lokalen Dienst ist der Kalender ein Ordner mit `Fotos/01 Januar` bis `12 Dezember`. Fotos legst du dort hinein, wann und womit du willst; die App gleicht automatisch ab. Monat wechseln verschiebt die Datei, gespeichert wird von selbst, das PDF landet in `Export/`. Bearbeiten kann immer ein Fenster, weitere sehen zu.
+- **Projektordner:** Mit dem lokalen Dienst ist der Kalender ein Ordner mit `Fotos/01 Januar` bis `12 Dezember`. Fotos legst du dort hinein, wann und womit du willst; die App gleicht automatisch ab. Monat wechseln verschiebt die Datei, gespeichert wird von selbst, das PDF landet in `Export/`. Bearbeiten kann immer ein Fenster, weitere sehen zu. Der Ordner kann auf dem Rechner liegen oder direkt in deiner [Nextcloud](#in-deiner-nextcloud).
 - **Formate:** 29,7 × 29,7 cm, DIN A3 quer und hoch, A4 quer, 30 × 30 cm, 21 × 21 cm oder eigene Maße. Formatwechsel auch später; die Seiten passen sich an.
 - **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
@@ -182,9 +182,21 @@ Kalender-2027/
 └── .lichtjahr/           Sperre, Journal, interne Daten
 ```
 
-Der Ordner ist das Projekt: Er lässt sich kopieren, sichern und mit Nextcloud, Syncthing oder einem
-Netzlaufwerk teilen. Fotos werden über ihren SHA-256-Hash wiedererkannt, auch wenn sie umbenannt oder
-verschoben wurden.
+Der Ordner ist das Projekt: Er lässt sich kopieren, sichern und mit Syncthing oder einem Netzlaufwerk
+teilen. Fotos werden über ihren SHA-256-Hash wiedererkannt, auch wenn sie umbenannt oder verschoben wurden.
+
+### In deiner Nextcloud
+
+Der Projektordner kann auch direkt in der **Nextcloud** liegen (oder auf einem anderen WebDAV-Server). Im
+Projektwähler *Nextcloud / WebDAV* wählen und die WebDAV-Adresse des Ordners, den Benutzernamen und ein
+**App-Passwort** eintragen (Nextcloud → Einstellungen → Sicherheit; jederzeit widerrufbar). Dann kann die
+ganze Familie Fotos mit der Nextcloud-App vom Handy in die Monatsordner legen, und der Kalender übernimmt sie.
+
+- Die Bearbeitungssperre hält auch zwischen Geräten, weil Nextcloud sie auf dem Server prüft (bedingte Anfragen mit ETags).
+- Das App-Passwort bleibt auf dem Rechner, auf dem der Dienst läuft (`credentials.json`, nur für dich lesbar), nie im
+  Projekt, in der Projektliste oder im Browser.
+- Ein mit dem Nextcloud-Desktop-Client synchronisierter Ordner geht auch, dann ist die Sperre aber nur so verlässlich
+  wie der Abgleich; die direkte WebDAV-Verbindung ist sicherer, wenn mehrere bearbeiten.
 
 ## Druck-PDF und Farbmanagement
 
@@ -249,7 +261,7 @@ arbeitet sie wie bisher nur im Browser.
 | [`prototyp/`](prototyp) | Die Oberfläche: Vanilla JavaScript ohne Framework und ohne Build-Abhängigkeiten. Seiten werden in Millimetern beschrieben und daraus als SVG (Editor) und als PDF (Export) gezeichnet. Eigener CMYK-JPEG-Encoder und PDF-Writer. |
 | [`backend/`](backend) | Der lokale Dienst: Python, FastAPI, Pillow. Speicher-Adapter mit atomaren Operationen, Projektsperre mit Lease, Manifest mit Revision und ETag, Journal für Dateiverschiebungen. |
 | [`docs/`](docs) | UX-Prüfung und die Bilder für dieses README. |
-| [`tools/`](tools) | `screenshots.cjs` und `screenshots-dienst.cjs` erzeugen die Bilder in `docs/images/` (Englisch) und `docs/images/de/` (Deutsch), `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser, `i18n-check.cjs` findet fehlende englische Übersetzungen. |
+| [`tools/`](tools) | `screenshots.cjs` und `screenshots-dienst.cjs` erzeugen die Bilder in `docs/images/` (Englisch) und `docs/images/de/` (Deutsch), `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser, `i18n-check.cjs` findet fehlende englische Übersetzungen im Browser, `i18n-keys.cjs` prüft sie in der CI. |
 
 <details>
 <summary>Dateien des Prototyps</summary>
@@ -288,7 +300,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Lokaler Dienst mit Projektordner, Sperre und Journal
 - [x] UX-Prüfung durch unabhängige Agenten ([Ergebnis](docs/UX-PRUEFUNG.md))
 - [x] Oberfläche an den lokalen Dienst angebunden (Projektwahl, Abgleich, Monatsordner als Quelle, Export in den Ordner)
-- [ ] Nextcloud/WebDAV als zweiter Speicher-Adapter
+- [x] Nextcloud/WebDAV als zweiter Speicherort (Sperre auf dem Server geprüft, App-Passwort nur lokal)
 - [x] Druck-PDF im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X-1a, Druckprofile, Preflight
 - [x] Englische Oberfläche, eigene Spracheinstellung für den gedruckten Kalender
 - [ ] Softproof am Bildschirm, PDF/X-4

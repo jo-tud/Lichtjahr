@@ -391,7 +391,7 @@ function serviceCard() {
   const state = SVC.readOnly ? _t('<b>Nur ansehen</b>, das Projekt ist woanders geöffnet.') : _t('Du bearbeitest das Projekt ({device}). Andere Fenster können es so lange nur ansehen.', { device: esc(deviceName()) });
   const missing = !i.missing ? '' : ' ' + (i.missing === 1 ? _t('<b>1 Foto fehlt</b> im Ordner.') : _t('<b>{n} Fotos fehlen</b> im Ordner.', { n: i.missing }));
   return `<section class="card svc-card"><header><h2>${_t('Projektordner')}</h2><p>${esc(i.title || _t('Kalender'))} ${esc(String(S.doc.year))}</p></header>
-    <div class="svc-path" title="${esc(loc)}">${ICON_FOLDER}<code>${esc(shown)}</code></div>
+    <div class="svc-path" title="${esc(loc)}">${i.storage && i.storage.kind === 'webdav' ? ICON_CLOUD : ICON_FOLDER}<code>${esc(shown)}</code></div>
     <p class="hint">${_t('Fotos liegen in {first} bis {last}. Neue Dateien in diesen Ordnern übernimmt der Abgleich; die Gestaltung steht in {json}, PDFs landen in {export}.',
       { first: code(`${fo.photos}/${fo.months[0]}`), last: code(`${fo.photos}/${fo.months[11]}`), json: code('lichtjahr.json'), export: code(fo.export + '/') })}</p>
     <p class="hint">${state}${missing}</p>
@@ -400,6 +400,7 @@ function serviceCard() {
 }
 // Lange Pfade in der Mitte kürzen: Anfang und der aussagekräftige Schluss bleiben sichtbar
 const shortPath = (p, n = 44) => p.length <= n ? p : p.slice(0, 12) + '…' + p.slice(-(n - 13));
+const ICON_CLOUD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .4-8 6 6 0 0 0-11.6-1.5A4.5 4.5 0 0 0 7 18.5z"/></svg>';
 const ICON_FOLDER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>';
 function showServiceError(msg) {
   const el = document.createElement('div'); el.className = 'picker';
@@ -412,7 +413,7 @@ function projectPicker(list, error = '') {
   return new Promise((resolve) => {
     const el = document.createElement('div'); el.className = 'picker'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
     const year = new Date().getFullYear() + 1;
-    let tab = list.length ? 'list' : 'new', msg = error;
+    let tab = list.length ? 'list' : 'new', msg = error, where = 'local';   // where: dieser Rechner oder WebDAV
     const vals = {};                          // Eingaben bleiben beim Wechsel von Reiter oder Sprache erhalten
     const val = (k, def) => esc(k in vals ? vals[k] : def);
     const draw = () => {
@@ -420,17 +421,18 @@ function projectPicker(list, error = '') {
       el.innerHTML = `<div class="picker-box">
         <div class="picker-brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Lichtjahr</div>
         <h1>${list.length ? _t('Welcher Kalender?') : _t('Dein erster Kalender')}</h1>
-        <p class="hint">${_t('Ein Projekt ist ein Ordner auf diesem Rechner, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.')}</p>
+        <p class="hint">${_t('Ein Projekt ist ein Ordner auf diesem Rechner oder in deiner Nextcloud, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.')}</p>
         ${list.length ? `<div class="seg picker-tabs">${[['list', _t('Zuletzt')], ['new', _t('Neu anlegen')], ['open', _t('Öffnen')]].map(([v, l]) => `<button aria-pressed="${tab === v}" data-tab="${v}">${l}</button>`).join('')}</div>` : ''}
         ${msg ? `<p class="picker-err" role="alert">${esc(msg)}</p>` : ''}
         ${tab === 'list' ? `<div class="picker-list">${list.map(p => `<button class="picker-item" data-pid="${esc(p.id)}"><b>${esc(p.title)} ${esc(String(p.calendarYear))}</b><span title="${esc(p.storage && p.storage.location || '')}">${esc(shortPath(p.storage && (p.storage.display || p.storage.location) || '', 60))}</span></button>`).join('')}</div>` : ''}
+        ${tab !== 'list' ? `<div class="seg picker-where">${[['local', _t('Dieser Rechner')], ['dav', _t('Nextcloud / WebDAV')]].map(([v, l]) => `<button aria-pressed="${where === v}" data-where="${v}">${l}</button>`).join('')}</div>` : ''}
         ${tab === 'new' ? `<form class="picker-form" data-form="new">
-          <div class="field"><label for="pk-path">${_t('Ordner')}</label><input type="text" id="pk-path" name="path" required value="${val('new:path', _t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Wird angelegt, falls es ihn noch nicht gibt. {tilde} ist dein Benutzerordner.', { tilde: '<code>~</code>' })}</span></div>
+          ${where === 'local' ? `<div class="field"><label for="pk-path">${_t('Ordner')}</label><input type="text" id="pk-path" name="path" required value="${val('new:path', _t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Wird angelegt, falls es ihn noch nicht gibt. {tilde} ist dein Benutzerordner.', { tilde: '<code>~</code>' })}</span></div>` : davFields('new', val, year)}
           <div class="row"><div class="field" style="flex:1"><label for="pk-title">${_t('Titel')}</label><input type="text" id="pk-title" name="title" value="${val('new:title', _t('Familienkalender'))}"></div>
           <div class="field" style="width:110px"><label for="pk-year">${_t('Kalenderjahr')}</label><input id="pk-year" name="year" type="number" min="2000" max="2100" value="${val('new:year', year)}"></div></div>
           <button class="btn primary" type="submit">${_t('Projekt anlegen')}</button></form>` : ''}
         ${tab === 'open' ? `<form class="picker-form" data-form="open">
-          <div class="field"><label for="pk-open">${_t('Ordner mit {file}', { file: '<code>lichtjahr.json</code>' })}</label><input type="text" id="pk-open" name="path" required value="${val('open:path', '')}" placeholder="${esc(_t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Auch ein Ordner, den ihr über Nextcloud, Syncthing oder ein Netzlaufwerk teilt.')}</span></div>
+          ${where === 'local' ? `<div class="field"><label for="pk-open">${_t('Ordner mit {file}', { file: '<code>lichtjahr.json</code>' })}</label><input type="text" id="pk-open" name="path" required value="${val('open:path', '')}" placeholder="${esc(_t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Auch ein Ordner, den ihr über Syncthing oder ein Netzlaufwerk teilt.')}</span></div>` : davFields('open', val, year)}
           <button class="btn primary" type="submit">${_t('Öffnen')}</button></form>` : ''}
         <div class="picker-foot">${SVC.pid ? `<button class="btn" data-cancel>${_t('Abbrechen')}</button>` : ''}<button class="linkish" data-browser>${_t('Ohne Projektordner im Browser ausprobieren')}</button>${langButton('linkish')}</div>
       </div>`;
@@ -442,7 +444,7 @@ function projectPicker(list, error = '') {
       try { const s = await fn(); await openProject(s.id); finish('open'); }
       catch (e) { msg = e.message; el.classList.remove('working'); draw(); }
     };
-    el.addEventListener('input', (e) => { const fm = e.target.closest('form'); if (fm && e.target.name) vals[fm.dataset.form + ':' + e.target.name] = e.target.value; });
+    el.addEventListener('input', (e) => { const fm = e.target.closest('form'); if (fm && e.target.name && e.target.name !== 'password') vals[fm.dataset.form + ':' + e.target.name] = e.target.value; });
     el.addEventListener('click', (e) => {
       // Sprache hier selbst umschalten und neu zeichnen; der allgemeine Klick-Handler (data-act) soll nicht noch einmal laufen
       const lg = e.target.closest('[data-act="lang"]');
@@ -453,6 +455,7 @@ function projectPicker(list, error = '') {
         return;
       }
       const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; msg = ''; draw(); return; }
+      const w = e.target.closest('[data-where]'); if (w) { where = w.dataset.where; msg = ''; draw(); return; }
       const it = e.target.closest('[data-pid]'); if (it) { tryOpen(async () => ({ id: it.dataset.pid })); return; }
       if (e.target.closest('[data-browser]')) finish('browser');
       if (e.target.closest('[data-cancel]')) finish('cancel');
@@ -460,14 +463,28 @@ function projectPicker(list, error = '') {
     el.addEventListener('submit', (e) => {
       e.preventDefault();
       const fd = new FormData(e.target), kind = e.target.dataset.form, path = String(fd.get('path') || '').trim();
-      if (!path) return;
+      // Ort: lokaler Ordner oder WebDAV-Ordner mit Zugangsdaten (die der Dienst nur auf diesem Rechner ablegt)
+      const loc = where === 'dav'
+        ? { url: String(fd.get('url') || '').trim(), username: String(fd.get('username') || '').trim(), password: String(fd.get('password') || '') }
+        : { path };
+      if (!(loc.url || loc.path)) return;
       // language: Sprache der Ordnernamen im neuen Projekt (Fotos/01 Januar oder Photos/01 January)
-      if (kind === 'new') tryOpen(() => api('projects', { method: 'POST', body: { path, title: String(fd.get('title') || '').trim() || _t('Familienkalender'), calendarYear: +fd.get('year') || year, language: LANG } }));
-      else tryOpen(() => api('projects/open', { method: 'POST', body: { path } }));
+      if (kind === 'new') tryOpen(() => api('projects', { method: 'POST', body: { ...loc, title: String(fd.get('title') || '').trim() || _t('Familienkalender'), calendarYear: +fd.get('year') || year, language: LANG } }));
+      else tryOpen(() => api('projects/open', { method: 'POST', body: loc }));
     });
     draw();
     document.body.appendChild(el);
   });
+}
+
+// Eingaben für einen Ordner in Nextcloud oder auf einem anderen WebDAV-Server
+function davFields(form, val, year) {
+  const ex = _t('https://cloud.example.org/remote.php/dav/files/NAME/Kalender-{year}', { year });
+  return `<div class="field"><label for="pk-url-${form}">${_t('WebDAV-Adresse des Projektordners')}</label><input type="url" id="pk-url-${form}" name="url" required value="${val(form + ':url', '')}" placeholder="${esc(ex)}" spellcheck="false" autocomplete="off">
+      <span class="hint">${_t('In Nextcloud steht die WebDAV-Adresse unter Dateien → Einstellungen (unten links). Den Ordnernamen hinten anhängen; ein neuer Ordner wird angelegt.')}</span></div>
+    <div class="row"><div class="field" style="flex:1"><label for="pk-user-${form}">${_t('Benutzername')}</label><input type="text" id="pk-user-${form}" name="username" required value="${val(form + ':username', '')}" autocomplete="off" spellcheck="false"></div>
+    <div class="field" style="flex:1"><label for="pk-pass-${form}">${_t('App-Passwort')}</label><input type="password" id="pk-pass-${form}" name="password" required autocomplete="off"></div></div>
+    <p class="hint">${_t('Ein App-Passwort legst du in Nextcloud unter Einstellungen → Sicherheit an; du kannst es jederzeit widerrufen. Der Dienst speichert es nur auf diesem Rechner, nie im Projekt oder im Browser.')}</p>`;
 }
 
 /* ----- Ereignisse ----- */

@@ -10,7 +10,7 @@ from lichtjahr.schema import MONTHS, month_dir
 
 
 def test_new_project_has_empty_month_folders(project):
-    root = project.storage.root
+    root = project.fs_root
     for m in range(12):
         assert os.path.isdir(os.path.join(root, *month_dir(m).split("/")))
     assert os.path.isdir(os.path.join(root, "Fotos", "Ohne Monat"))
@@ -21,7 +21,7 @@ def test_new_project_has_empty_month_folders(project):
 
 
 def test_scan_assigns_months_by_folder_and_suggests_from_exif(project, session):
-    root = project.storage.root
+    root = project.fs_root
     put(root, "Fotos/03 März/a.jpg", photo_bytes(date="2026:09:01 10:00:00"))
     put(root, "Fotos/2026-07 Urlaub/b.jpg", photo_bytes())
     put(root, "Fotos/Ohne Monat/c.jpg", photo_bytes(date="2026:11:04 10:00:00"))
@@ -38,7 +38,7 @@ def test_scan_assigns_months_by_folder_and_suggests_from_exif(project, session):
 
 
 def test_rescan_detects_new_moved_changed_missing(project, session):
-    root = project.storage.root
+    root = project.fs_root
     put(root, "Fotos/01 Januar/a.jpg", photo_bytes(color=(1, 2, 3)))
     put(root, "Fotos/01 Januar/b.jpg", photo_bytes(color=(4, 5, 6)))
     put(root, "Fotos/01 Januar/c.jpg", photo_bytes(color=(7, 8, 9)))
@@ -71,7 +71,7 @@ def test_saving_needs_lock_and_current_revision(project, session):
 
 
 def test_move_to_month_keeps_bytes_and_avoids_collisions(project, session):
-    root = project.storage.root
+    root = project.fs_root
     data = photo_bytes(color=(10, 20, 30))
     put(root, "Fotos/01 Januar/foto.jpg", data)
     put(root, "Fotos/03 März/foto.jpg", photo_bytes(color=(99, 99, 99)))
@@ -85,7 +85,7 @@ def test_move_to_month_keeps_bytes_and_avoids_collisions(project, session):
 
 
 def test_interrupted_move_is_completed_on_recovery(project, session, monkeypatch):
-    root = project.storage.root
+    root = project.fs_root
     put(root, "Fotos/01 Januar/x.jpg", photo_bytes())
     project.scan(session)
     a = project.load()[0].assets[0]
@@ -103,7 +103,7 @@ def test_interrupted_move_is_completed_on_recovery(project, session, monkeypatch
 
 
 def test_explicit_copy_gets_own_id(project, session):
-    put(project.storage.root, "Fotos/01 Januar/x.jpg", photo_bytes())
+    put(project.fs_root, "Fotos/01 Januar/x.jpg", photo_bytes())
     project.scan(session)
     a = project.load()[0].assets[0]
     c = project.copy_to_month(session, a.id, 11)
@@ -124,7 +124,7 @@ def test_upload_of_same_photo_creates_no_second_file(project, session):
     a2, dup2 = project.add_file(session, "see-kopie.jpg", photo_bytes(), 2)     # gleiche Bytes
     assert not dup1 and dup2 and a2.id == a1.id and not a2.excluded            # wieder aufgenommen
     assert len(project.load()[0].assets) == 1
-    assert not os.path.exists(os.path.join(project.storage.root, "Fotos", "03 März", "see-kopie.jpg"))
+    assert not os.path.exists(os.path.join(project.fs_root, "Fotos", "03 März", "see-kopie.jpg"))
 
 
 def test_save_state_applies_editor_and_photo_metadata_in_one_revision(project, session):
@@ -145,7 +145,7 @@ def test_save_state_applies_editor_and_photo_metadata_in_one_revision(project, s
 def test_export_lands_in_export_folder_and_replaces_the_draft(project, session):
     assert project.save_export(session, "../../Kalender.pdf", b"%PDF-1") == "Export/Kalender.pdf"
     project.save_export(session, "Kalender.pdf", b"%PDF-2")
-    with open(os.path.join(project.storage.root, "Export", "Kalender.pdf"), "rb") as fh:
+    with open(os.path.join(project.fs_root, "Export", "Kalender.pdf"), "rb") as fh:
         assert fh.read() == b"%PDF-2"
     with pytest.raises(ProjectError):
         project.save_export(session, "skript.sh", b"#!")
@@ -154,7 +154,7 @@ def test_export_lands_in_export_folder_and_replaces_the_draft(project, session):
 
 
 def test_thumbnail_respects_exif_orientation_and_is_cached(project, session):
-    put(project.storage.root, "Fotos/01 Januar/hoch.jpg", photo_bytes(w=600, h=400, orientation=6))
+    put(project.fs_root, "Fotos/01 Januar/hoch.jpg", photo_bytes(w=600, h=400, orientation=6))
     project.scan(session)
     a = project.load()[0].assets[0]
     assert (a.widthPx, a.heightPx) == (400, 600)                            # wie angezeigt
@@ -170,6 +170,8 @@ def test_month_names_match_folders():
 
 
 def test_summary_shows_home_as_tilde(project, monkeypatch, tmp_path):
+    if project.storage.kind != "local":
+        pytest.skip("nur für lokale Ordner")
     monkeypatch.setenv("HOME", str(tmp_path))
     s = project.summary()["storage"]
     assert s["location"] == project.storage.root and s["display"] == "~/Kalender"
