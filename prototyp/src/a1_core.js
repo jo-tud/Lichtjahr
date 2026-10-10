@@ -340,6 +340,7 @@ const DB = {
 };
 let saveTimer = null;
 function scheduleSave() {
+  if (SVC.on) { scheduleServiceSave(); return; }      // Projektordner über den lokalen Dienst
   clearTimeout(saveTimer);
   const s = $('#saveState'); if (s) s.textContent = 'Ungespeichert …';
   saveTimer = setTimeout(async () => {

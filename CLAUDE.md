@@ -27,6 +27,8 @@
 - Vor einem Push im Browser testen (Playwright mit Chromium ist in der Cloud-Umgebung vorhanden),
   Desktop und Handy-Größe, und das exportierte PDF rendern.
 - Wenn sich das Aussehen deutlich ändert: `node tools/screenshots.cjs` erneuert die Bilder im README.
+- Anbindung an den Dienst in `src/b1_service.js` (nur aktiv, wenn die Seite vom Dienst kommt). Nach Änderungen
+  an Dienst oder Anbindung `node tools/e2e-dienst.cjs` laufen lassen (startet den Dienst mit Testfotos).
 
 ## Open Source
 - Code unter MIT; Jost unter OFL; Schulferien-Daten (OpenHolidays API) unter ODbL – Quellenangabe in App,

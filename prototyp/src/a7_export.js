@@ -6,6 +6,7 @@ async function sourceFor(ph) {
   if (srcCache.id === ph.id) return srcCache.bmp;
   if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close();
   let blob = RT.file[ph.id];
+  if (!blob && SVC.pid) blob = await serviceOriginal(ph);
   if (!blob) { const rec = await DB.get('blobs', blobId(ph)); blob = rec && (rec.file || rec.prev); }
   srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
@@ -112,10 +113,11 @@ async function exportPDF() {
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
     const name = `Familienkalender-${d.year}-Entwurf.pdf`;
     const blob = pdf.finish(`Familienkalender ${d.year}`);
-    lastPdf = { blob, name };
+    lastPdf = { blob, name, path: null };
+    if (SVC.pid) { bar.update(1, 'Wird im Projektordner abgelegt …'); lastPdf.path = await serviceExport(blob, name); }
     bar.close();
     showPdfResult();
-    await savePdf();
+    if (!lastPdf.path) await savePdf();
   } catch (err) {
     bar.close(); console.error(err);
     toast('Das PDF konnte nicht erstellt werden: ' + (err && err.message || err), 8000);
@@ -123,8 +125,9 @@ async function exportPDF() {
 }
 function showPdfResult() {
   const o = $('#exportOut'); if (!o || !lastPdf) return;
-  o.innerHTML = `<div class="done-box"><b>Geschafft: dein Kalender ${S.doc.year} ist fertig.</b><span class="muted small">${lastPdf.name} · ${fmt1(lastPdf.blob.size / 1048576)} MB</span>
-    <div class="row"><button class="btn small" data-act="savepdf">Erneut speichern</button><button class="btn small primary" data-act="wall">An der Wand ansehen</button></div></div>`;
+  const where = lastPdf.path ? `Im Projektordner: ${lastPdf.path}` : lastPdf.name;
+  o.innerHTML = `<div class="done-box"><b>Geschafft: dein Kalender ${S.doc.year} ist fertig.</b><span class="muted small">${esc(where)} · ${fmt1(lastPdf.blob.size / 1048576)} MB</span>
+    <div class="row"><button class="btn small" data-act="savepdf">${lastPdf.path ? 'Zusätzlich herunterladen' : 'Erneut speichern'}</button><button class="btn small primary" data-act="wall">An der Wand ansehen</button></div></div>`;
   celebrate();
 }
 // Kleiner Moment der Freude nach dem Export: Papierschnipsel in den Druckfarben
@@ -216,11 +219,21 @@ async function init() {
     setView('photos'); importFiles(files);
   });
   await DB.open();
-  const had = await loadSaved();
+  // Vom lokalen Dienst ausgeliefert? Dann im Projektordner arbeiten (außer ausdrücklich ?browser=1)
+  let svc = null;
+  if (!new URLSearchParams(location.search).has('browser') && await detectService()) {
+    SVC.on = true; serviceEvents();
+    svc = await serviceStart();
+    if (svc === 'stop') return;
+    if (svc === 'browser') SVC.on = false;
+  }
+  const had = SVC.on ? true : await loadSaved();
   ensurePages();
-  if (!had) { await setupDemo(); ui.view = 'design'; }
+  if (SVC.on) { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } if (!Object.keys(S.photos).length) ui.view = 'photos'; }
+  else if (!had) { await setupDemo(); ui.view = 'design'; }
   else { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } }
-  hist.last = snap(); scheduleSave(); updateUndo();
+  if (!SVC.on) { hist.last = snap(); scheduleSave(); }
+  updateUndo();
   if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(`Willkommen zurück. Weiter bei ${pageLabel(pg)}.`), 600); } } catch (e) { /* egal */ } }
   if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalJost'), document.fonts.load('600 16px CalJost')]); } catch (e) { /* egal */ } }
   const hv = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (hv) ui.view = hv;   // Direktlink auf einen Schritt

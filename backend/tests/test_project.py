@@ -111,11 +111,46 @@ def test_explicit_copy_gets_own_id(project, session):
 
 
 def test_upload_never_overwrites_and_rejects_unknown_types(project, session):
-    a1 = project.add_file(session, "urlaub.jpg", photo_bytes(), 6)
-    a2 = project.add_file(session, "urlaub.jpg", photo_bytes(color=(1, 1, 1)), 6)
+    a1, _ = project.add_file(session, "urlaub.jpg", photo_bytes(), 6)
+    a2, _ = project.add_file(session, "urlaub.jpg", photo_bytes(color=(1, 1, 1)), 6)
     assert a1.path == "Fotos/07 Juli/urlaub.jpg" and a2.path == "Fotos/07 Juli/urlaub (2).jpg"
     with pytest.raises(ProjectError):
         project.add_file(session, "liste.pdf", b"%PDF", 1)
+
+
+def test_upload_of_same_photo_creates_no_second_file(project, session):
+    a1, dup1 = project.add_file(session, "see.jpg", photo_bytes(), 6)
+    project.save_state(session, {}, assets={a1.id: {"excluded": True}})
+    a2, dup2 = project.add_file(session, "see-kopie.jpg", photo_bytes(), 2)     # gleiche Bytes
+    assert not dup1 and dup2 and a2.id == a1.id and not a2.excluded            # wieder aufgenommen
+    assert len(project.load()[0].assets) == 1
+    assert not os.path.exists(os.path.join(project.storage.root, "Fotos", "03 März", "see-kopie.jpg"))
+
+
+def test_save_state_applies_editor_and_photo_metadata_in_one_revision(project, session):
+    a, _ = project.add_file(session, "see.jpg", photo_bytes(), 6)
+    rev = project.load()[0].revision
+    project.save_state(session, {"doc": {"year": 2028}}, calendar_year=2028, format={"id": "a3l", "widthMm": 420, "heightMm": 297, "evil": 1},
+                       assets={a.id: {"caption": "Am See", "favorite": True, "path": "/etc/passwd", "excluded": "ja"}, "gibtsnicht": {"caption": "x"}})
+    man = project.load()[0]
+    b = man.asset(a.id)
+    assert man.revision == rev + 1 and man.editor == {"doc": {"year": 2028}} and man.calendarYear == 2028
+    assert man.format.id == "a3l" and man.format.widthMm == 420
+    assert b.caption == "Am See" and b.favorite and b.path == a.path and b.excluded is False   # nur erlaubte Felder und Typen
+    assert project.summary()["photos"] == 1
+    project.save_state(session, man.editor, assets={a.id: {"excluded": True}})
+    assert project.summary()["photos"] == 0 and project.summary()["perMonth"]["Juli"] == 0
+
+
+def test_export_lands_in_export_folder_and_replaces_the_draft(project, session):
+    assert project.save_export(session, "../../Kalender.pdf", b"%PDF-1") == "Export/Kalender.pdf"
+    project.save_export(session, "Kalender.pdf", b"%PDF-2")
+    with open(os.path.join(project.storage.root, "Export", "Kalender.pdf"), "rb") as fh:
+        assert fh.read() == b"%PDF-2"
+    with pytest.raises(ProjectError):
+        project.save_export(session, "skript.sh", b"#!")
+    with pytest.raises(LockLost):
+        project.save_export("fremd", "Kalender.pdf", b"%PDF")
 
 
 def test_thumbnail_respects_exif_orientation_and_is_cached(project, session):
@@ -132,3 +167,9 @@ def test_thumbnail_respects_exif_orientation_and_is_cached(project, session):
 
 def test_month_names_match_folders():
     assert month_dir(2) == "Fotos/03 März" and len(MONTHS) == 12
+
+
+def test_summary_shows_home_as_tilde(project, monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    s = project.summary()["storage"]
+    assert s["location"] == project.storage.root and s["display"] == "~/Kalender"

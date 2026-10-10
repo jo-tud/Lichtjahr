@@ -41,7 +41,8 @@ Lichtjahr ist für genau diesen einen Ablauf gebaut:
 3. **An der Wand ansehen** – den fertigen Kalender durchblättern, bevor er in Druck geht.
 4. **PDF erzeugen** – mit Beschnitt, CMYK-Bildern, eingebetteter Schrift und ohne Transparenz.
 
-Die Fotos bleiben bei dir. Es gibt kein Konto und keinen Server, den man dafür braucht.
+Die Fotos bleiben bei dir: in einem ganz normalen Ordner auf deinem Rechner, mit einem Unterordner je
+Monat. Es gibt kein Konto und keine Cloud, die man dafür braucht.
 
 ## Was Lichtjahr kann
 
@@ -120,6 +121,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 
 ### Alle Funktionen im Überblick
 
+- **Projektordner:** Mit dem lokalen Dienst ist der Kalender ein Ordner mit `Fotos/01 Januar` bis `12 Dezember`. Fotos legst du dort hinein, wann und womit du willst; die App gleicht automatisch ab. Monat wechseln verschiebt die Datei, gespeichert wird von selbst, das PDF landet in `Export/`. Bearbeiten kann immer ein Fenster, weitere sehen zu.
 - **Formate:** 29,7 × 29,7 cm, DIN A3 quer und hoch, A4 quer, 30 × 30 cm, 21 × 21 cm oder eigene Maße. Formatwechsel auch später; die Seiten passen sich an.
 - **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
@@ -139,10 +141,10 @@ Eigene Fotos bleiben im Browser (IndexedDB) und werden nirgendwohin hochgeladen.
 
 Ohne Internet geht es genauso: Repository klonen und `prototyp/dist/index.html` im Browser öffnen.
 
-### Mit Projektordner (lokaler Dienst)
+### Mit Projektordner (empfohlen)
 
-Der lokale Dienst arbeitet direkt in einem Ordner auf deinem Rechner: Monatsordner, Vorschaubilder,
-Bearbeitungssperre, sichere Dateiverschiebungen. Voraussetzung ist Python 3.11 oder neuer.
+Für den echten Kalender läuft auf deinem Rechner ein kleiner Dienst, der die App ausliefert und direkt in
+einem Ordner arbeitet. Voraussetzung ist Python 3.11 oder neuer.
 
 ```sh
 git clone https://github.com/jo-tud/Lichtjahr.git
@@ -150,16 +152,17 @@ cd Lichtjahr/backend
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 
-lichtjahr init ~/Bilder/Kalender-2027 --year 2027   # legt die Monatsordner an
 lichtjahr serve                                      # → http://localhost:8470/
 ```
 
-Danach Fotos in die Monatsordner legen, auch nach und nach und mit anderen Programmen. Mehr dazu,
-inklusive Zugriff vom Handy im Heimnetz, steht in [`backend/README.md`](backend/README.md).
+Beim ersten Öffnen legst du den Projektordner an, zum Beispiel `~/Bilder/Kalender-2027`. Danach Fotos in
+die Monatsordner legen, auch nach und nach, von mehreren Leuten und mit anderen Programmen; beim Öffnen
+der App sind sie da.
 
-> [!NOTE]
-> Die Oberfläche speichert im Moment noch im Browser. Die Anbindung an den Projektordner ist der
-> nächste Schritt der [Roadmap](#roadmap).
+<img src="docs/images/projekt.webp" alt="Projektwahl beim Start und Projektordner-Karte" width="720">
+
+Vom Handy im Heimnetz geht es mit `lichtjahr serve --host 0.0.0.0`; der Dienst zeigt dann eine Adresse mit
+Zugriffsschlüssel. Mehr dazu in [`backend/README.md`](backend/README.md).
 
 ## Projektordner
 
@@ -198,26 +201,28 @@ Farbumrechnung durch die Druckerei. Echtes Farbmanagement kommt mit dem Export i
 
 ```mermaid
 flowchart LR
-  subgraph Browser
+  subgraph Browser["Browser (Desktop oder Handy)"]
     UI["Oberfläche<br/>prototyp/ – eine HTML-Datei"]
-    IDB[("IndexedDB")]
+    IDB[("IndexedDB<br/>nur ohne Dienst")]
   end
   subgraph Rechner["Eigener Rechner"]
     API["Lokaler Dienst<br/>backend/ – FastAPI"]
-    DIR[("Projektordner<br/>Fotos/01 Januar …")]
+    DIR[("Projektordner<br/>Fotos/01 Januar …<br/>lichtjahr.json<br/>Export/")]
   end
-  UI -- heute --> IDB
-  UI -. nächster Schritt .-> API
+  UI -- "HTTP: Sperre, Speichern,<br/>Fotos, Abgleich" --> API
+  UI -. ohne Dienst .-> IDB
   API --> DIR
-  UI -- Export --> PDF["PDF-Entwurf<br/>CMYK, Beschnitt"]
 ```
+
+Die Oberfläche erkennt beim Start, ob sie vom Dienst ausgeliefert wird. Ohne Dienst (Datei, GitHub Pages)
+arbeitet sie wie bisher nur im Browser.
 
 | Ordner | Inhalt |
 |---|---|
 | [`prototyp/`](prototyp) | Die Oberfläche: Vanilla JavaScript ohne Framework und ohne Build-Abhängigkeiten. Seiten werden in Millimetern beschrieben und daraus als SVG (Editor) und als PDF (Export) gezeichnet. Eigener CMYK-JPEG-Encoder und PDF-Writer. |
 | [`backend/`](backend) | Der lokale Dienst: Python, FastAPI, Pillow. Speicher-Adapter mit atomaren Operationen, Projektsperre mit Lease, Manifest mit Revision und ETag, Journal für Dateiverschiebungen. |
 | [`docs/`](docs) | UX-Prüfung und die Bilder für dieses README. |
-| [`tools/`](tools) | `screenshots.cjs` erzeugt die Bilder in `docs/images/` aus dem gebauten Prototyp. |
+| [`tools/`](tools) | `screenshots.cjs` erzeugt die Bilder in `docs/images/`, `e2e-dienst.cjs` testet Oberfläche und Dienst zusammen im Browser. |
 
 <details>
 <summary>Dateien des Prototyps</summary>
@@ -234,6 +239,7 @@ flowchart LR
 | `src/a7_export.js` | PDF-Export und Start |
 | `src/a8_wall.js` | Ansicht „An der Wand“ |
 | `src/a9_place.js` | Bildanalyse für „Platz automatisch finden“ |
+| `src/b1_service.js` | Anbindung an den lokalen Dienst: Projektwahl, Sperre, Speichern, Abgleich, Hochladen |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
 | `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |
@@ -252,7 +258,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Klickbarer Prototyp mit Gestaltung, Register, Wandansicht und PDF-Entwurf
 - [x] Lokaler Dienst mit Projektordner, Sperre und Journal
 - [x] UX-Prüfung durch unabhängige Agenten ([Ergebnis](docs/UX-PRUEFUNG.md))
-- [ ] Oberfläche an den lokalen Dienst anbinden (Projekt öffnen, Abgleich, Monatsordner als Quelle)
+- [x] Oberfläche an den lokalen Dienst angebunden (Projektwahl, Abgleich, Monatsordner als Quelle, Export in den Ordner)
 - [ ] Nextcloud/WebDAV als zweiter Speicher-Adapter
 - [ ] Export im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X, Druckereiprofile, Preflight
 - [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
@@ -280,6 +286,6 @@ pages with free frames, let the calendar grid find a calm spot in each photo, fl
 on a virtual wall and export a CMYK PDF with bleed for the print shop.
 
 - **Try it:** [jo-tud.github.io/Lichtjahr](https://jo-tud.github.io/Lichtjahr/) – runs entirely in the browser, your photos never leave it. Or open `prototyp/dist/index.html` locally.
-- **Local service:** `backend/` is a small FastAPI service that works directly in a project folder with one subfolder per month (`pip install -e backend && lichtjahr serve`).
+- **Local service (recommended):** `backend/` is a small FastAPI service that serves the app and works directly in a project folder with one subfolder per month: drop photos into the folders, the app picks them up; edits are saved to `lichtjahr.json`, PDFs go to `Export/` (`pip install -e backend && lichtjahr serve`).
 - **Status:** working prototype, German UI. The PDF is a solid draft (CMYK images, bleed, embedded font, no transparency) but not yet colour-managed (no ICC profile, no PDF/X).
 - **Licence:** MIT for the code; Jost font under OFL 1.1; school holiday data from OpenHolidays API under ODbL 1.0.

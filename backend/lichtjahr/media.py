@@ -80,8 +80,8 @@ def inspect(fh) -> dict:
 def make_thumbnail(src_fh, max_px: int, quality: int = 85) -> bytes:
     """JPEG-Vorschau mit korrekter Ausrichtung; das Original bleibt unverändert."""
     with Image.open(src_fh) as im:
+        im.draft("RGB", (max_px, max_px))         # JPEG schon beim Dekodieren verkleinern (schnell)
         im = ImageOps.exif_transpose(im)
-        im.draft("RGB", (max_px, max_px))
         im = im.convert("RGB")
         im.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
         out = io.BytesIO()

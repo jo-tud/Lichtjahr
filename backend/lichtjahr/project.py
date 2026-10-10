@@ -15,6 +15,7 @@ ausdrücklich. Vorschaubilder liegen im lokalen Cache, nicht im Projektordner.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import posixpath
@@ -25,7 +26,7 @@ from pydantic import ValidationError
 from .lock import ProjectLock
 from .media import date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
 from .schema import (EXPORT_DIR, MANIFEST, META_DIR, MONTHS, NO_MONTH_DIR, PHOTO_DIR, SCHEMA_VERSION,
-                     Asset, Manifest, month_dir, now_iso)
+                     Asset, Format, Manifest, month_dir, now_iso)
 from .storage import AlreadyExists, Conflict, NotFound, Storage
 
 JOURNAL = f"{META_DIR}/journal.jsonl"
@@ -70,6 +71,14 @@ def unique_name(storage: Storage, folder: str, name: str) -> str:
     while storage.exists(candidate):
         candidate, n = f"{folder}/{base} ({n}){ext}", n + 1
     return candidate
+
+
+def _display(location: str) -> str:
+    """Pfad zum Anzeigen: Benutzerordner als ``~`` (kürzer und ohne Benutzernamen)."""
+    home = os.path.expanduser("~")
+    if home not in ("", "/") and (location == home or location.startswith(home + os.sep)):
+        return "~" + location[len(home):]
+    return location
 
 
 class Project:
@@ -211,11 +220,24 @@ class Project:
         return info
 
     # -- Hochladen, Verschieben, Kopieren ---------------------------------------------------
-    def add_file(self, session: str | None, name: str, data: bytes, month: int | None) -> Asset:
-        """Speichert ein hochgeladenes Foto im Ordner des Monats, ohne etwas zu überschreiben."""
+    def add_file(self, session: str | None, name: str, data: bytes, month: int | None) -> tuple[Asset, bool]:
+        """Speichert ein hochgeladenes Foto im Ordner des Monats, ohne etwas zu überschreiben.
+        Liegt dasselbe Foto (gleiche Prüfsumme) schon im Projekt, entsteht keine zweite Datei; ein
+        aussortiertes wird wieder aufgenommen. Rückgabe: (Asset, war schon vorhanden)."""
         self.lock.check(session)
         if not is_photo(name):
             raise ProjectError(f"{name}: kein unterstütztes Bildformat (JPEG, PNG, WebP, TIFF, GIF).")
+        digest = hashlib.sha256(data).hexdigest()
+        man, _ = self.load()
+        twin = next((a for a in man.assets if a.contentHash == digest and a.status != "missing"), None)
+        if twin:
+            if twin.excluded:
+                def include(m: Manifest) -> None:
+                    a = m.asset(twin.id)
+                    if a:
+                        a.excluded = False
+                man = self.update(session, include)
+            return man.asset(twin.id) or twin, True  # type: ignore[return-value]
         safe = posixpath.basename(name.replace("\\", "/")).strip() or "foto.jpg"
         folder = month_dir(month)
         while True:
@@ -234,7 +256,7 @@ class Project:
             holder["a"] = a
 
         self.update(session, apply)
-        return holder["a"]
+        return holder["a"], False
 
     def _journal(self, entry: dict) -> None:
         line = json.dumps({**entry, "time": now_iso()}, ensure_ascii=False) + "\n"
@@ -329,6 +351,43 @@ class Project:
                 notes.append(f"Unklarer Stand, bitte prüfen: {e['src']} / {e['dst']}")
         return notes
 
+    # -- Gestaltungsstand und Export --------------------------------------------------------
+    def save_state(self, session: str | None, editor: dict, *, calendar_year: int | None = None,
+                   format: dict | None = None, assets: dict[str, dict] | None = None) -> Manifest:
+        """Speichert den Gestaltungsstand des Editors zusammen mit Bildtexten, Favoriten und dem
+        Aussortieren von Fotos in einem Schritt (eine Revision)."""
+        allowed = {"caption": str, "favorite": bool, "rating": int, "excluded": bool}
+
+        def apply(man: Manifest) -> None:
+            man.editor = editor
+            if calendar_year:
+                man.calendarYear = calendar_year
+            if format:
+                try:
+                    man.format = Format.model_validate({**man.format.model_dump(), **{k: v for k, v in format.items() if k in Format.model_fields}})
+                except ValidationError as e:
+                    raise ProjectError(f"Ungültiges Format: {e}") from e
+            for aid, meta in (assets or {}).items():
+                a = man.asset(aid)
+                if not a:
+                    continue
+                for k, v in meta.items():
+                    if k in allowed and isinstance(v, allowed[k]):
+                        setattr(a, k, v)
+
+        return self.update(session, apply)
+
+    def save_export(self, session: str | None, name: str, data: bytes) -> str:
+        """Legt ein PDF in ``Export/`` ab. Ein gleichnamiger Entwurf wird ersetzt (atomar)."""
+        self.lock.check(session)
+        safe = posixpath.basename(name.replace("\\", "/")).strip()
+        if not safe.lower().endswith(".pdf") or safe.startswith("."):
+            raise ProjectError("Export: nur PDF-Dateien.")
+        path = f"{EXPORT_DIR}/{safe}"
+        self.storage.makedirs(EXPORT_DIR)
+        self.storage.replace(path, data, if_match=None)
+        return path
+
     # -- Vorschaubilder ---------------------------------------------------------------------
     def thumbnail(self, asset: Asset, size: int) -> str:
         """Pfad zur Vorschau im lokalen Cache; wird bei Bedarf erzeugt. Schlüssel ist die Prüfsumme."""
@@ -349,13 +408,13 @@ class Project:
         man, _ = self.load()
         per_month = [0] * 12
         for a in man.assets:
-            if a.month is not None and a.status != "missing":
+            if a.month is not None and a.status != "missing" and not a.excluded:
                 per_month[a.month] += 1
         lock, _ = self.lock.read()
         return {
             "id": man.id, "title": man.title, "calendarYear": man.calendarYear, "sourceYear": man.sourceYear,
-            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe()},
-            "photos": len(man.assets), "perMonth": dict(zip(MONTHS, per_month)),
-            "missing": sum(a.status == "missing" for a in man.assets),
+            "format": man.format.model_dump(), "revision": man.revision, "storage": {"kind": self.storage.kind, "location": self.storage.describe(), "display": _display(self.storage.describe())},
+            "photos": sum(not a.excluded for a in man.assets), "perMonth": dict(zip(MONTHS, per_month)),
+            "missing": sum(a.status == "missing" and not a.excluded for a in man.assets),
             "lock": lock.public() if lock else None,
         }

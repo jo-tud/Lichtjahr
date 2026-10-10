@@ -37,7 +37,8 @@ function renderAll() {
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
   $('#banner').hidden = !(S.demo && ui.banner);
   // Höhe von Kopfleiste und Hinweis, damit der Editor genau in den Bildschirm passt
-  document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight)) + 'px');
+  const sb = $('#svcBanner');
+  document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight) + (sb && !sb.hidden ? sb.offsetHeight : 0)) + 'px');
   if (ui.view === 'project') renderProject();
   if (ui.view === 'photos') renderPhotos();
   if (ui.view === 'design') renderDesign();
@@ -55,6 +56,7 @@ function renderProject() {
   const extras = (d.extraSheets || []).map(x => ({ ...x, label: x.month != null ? `${MONTHS[x.month]}, weiteres Motiv` : 'Freies Blatt', afterLabel: pageLabel(sheetList().find(s => s.id === x.after)?.front || x.after) }));
   $('#v-project').innerHTML = `<div class="project">
     <div class="cards">
+      ${SVC.pid ? serviceCard() : ''}
       <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden. Ein Wechsel ist auch später möglich, die Seiten passen sich an.</p></header>
         <div class="formats">${FORMATS.map(f => {
           const w = f.w || d.w, h = f.h || d.h, s = 34 / Math.max(w, h);
@@ -107,9 +109,9 @@ function renderProject() {
         ${range('bl', 'doc.bleed', d.bleed, 0, 5, .5, ' mm', 'Beschnittzugabe')}
         <p class="hint">Die meisten Druckereien verlangen 3 mm Beschnitt. Bilder am Rand laufen bis in den Beschnitt.</p>
       </section>
-      <section class="card"><header><h2>Projekt</h2><p>Alles wird nur in diesem Browser gespeichert.</p></header>
+      ${SVC.pid ? '' : `<section class="card"><header><h2>Projekt</h2><p>Alles wird nur in diesem Browser gespeichert. Mit dem lokalen Dienst arbeitest du stattdessen in einem Ordner mit Monatsordnern (siehe README).</p></header>
         <div class="row"><button class="btn" data-act="newdemo">Beispielprojekt neu laden</button><button class="btn danger" data-act="reset">Leeres Projekt beginnen</button></div>
-      </section>
+      </section>`}
     </div>
     <aside class="card preview"><header><h2>Vorschau</h2><p>${esc(pageLabel(ui.page))} · ${fmt1(d.w / 10)} × ${fmt1(d.h / 10)} cm</p></header>
       <div class="prev-svg">${svgPage(curPage(), { mode: 'proof', showBind: true })}</div>
@@ -124,7 +126,7 @@ function photoThumb(ph, u, extra = '') {
   const lo = ph.w * ph.h < 4e6;
   return `<button class="thumb ${ui.photoSel.has(ph.id) ? 'sel' : ''} ${ui.armed === ph.id ? 'armed' : ''}" data-photo="${ph.id}" ${extra} title="${esc(ph.name)}${ph.caption ? ' – ' + esc(ph.caption) : ''}">
     <img src="${RT.thumb[ph.id] || ''}" alt="" loading="lazy">
-    ${ph.fav ? '<span class="b fav">★</span>' : ''}${lo ? '<span class="b lo" title="Geringe Auflösung">klein</span>' : ''}
+    ${ph.fav ? '<span class="b fav">★</span>' : ''}${ph.missing ? '<span class="b lo" title="Die Datei fehlt im Projektordner">fehlt</span>' : lo ? '<span class="b lo" title="Geringe Auflösung">klein</span>' : ''}
     ${pages ? `<span class="b use">${pages.map(pageShort).join(', ')}</span>` : ''}</button>`;
 }
 function renderPhotos() {
@@ -133,7 +135,7 @@ function renderPhotos() {
   for (const ph of all) byM[ph.month < 0 ? 12 : ph.month].push(ph);
   byM.forEach(l => l.sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.name.localeCompare(b.name)));
   const bucket = (m, list) => `<section class="bucket ${m === 12 ? 'unassigned' : ''}" data-bucket="${m === 12 ? -1 : m}">
-      <h3>${m === 12 ? 'Noch keinem Monat zugeordnet' : MONTHS[m]} <span class="muted">${list.length} Fotos${m < 12 ? ' · ' + list.filter(p => u[p.id]).length + ' verwendet' : ''}</span></h3>
+      <h3>${m === 12 ? 'Noch keinem Monat zugeordnet' : MONTHS[m]} <span class="muted">${plural(list.length, 'Foto', 'Fotos')}${m < 12 ? ' · ' + list.filter(p => u[p.id]).length + ' verwendet' : ''}</span>${m === 12 && list.some(p => p.suggested != null) ? ` <button class="btn small" data-act="svcsuggest">${plural(list.filter(p => p.suggested != null).length, 'Foto', 'Fotos')} nach Aufnahmedatum einsortieren</button>` : ''}</h3>
       <div class="thumbs">${list.map(ph => photoThumb(ph, u)).join('') || '<p class="empty-note">Fotos hierher ziehen</p>'}</div></section>`;
   const sel = [...ui.photoSel].filter(id => S.photos[id]);
   const focus = S.photos[ui.photoFocus] && ui.photoSel.has(ui.photoFocus) ? S.photos[ui.photoFocus] : null;
@@ -142,6 +144,7 @@ function renderPhotos() {
       <button class="btn primary" data-act="addfiles">Fotos hinzufügen</button>
       <button class="btn" data-act="adddir">Ordner hinzufügen</button>
       ${S.demo ? '<button class="btn" data-act="cleardemo">Beispielbilder entfernen</button>' : ''}
+      ${SVC.pid ? `<button class="btn" data-act="svcscan" title="Neue, verschobene und fehlende Dateien in den Monatsordnern übernehmen">Ordner abgleichen</button>${excludedCount() ? `<button class="btn" data-act="svcrestore">${plural(excludedCount(), 'aussortiertes', 'aussortierte')} zurückholen</button>` : ''}` : ''}
       <span class="grow"></span>
       <span class="muted small">${all.length} Fotos · ${byM[12].length} ohne Monat</span>
     </div>
@@ -150,7 +153,7 @@ function renderPhotos() {
       <p class="hint">${ui.importErrors.some(n => /\.hei[cf]$/i.test(n)) ? 'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen. In Safari klappt der Import meist direkt. ' : ''}Andere Dateien sind vermutlich beschädigt oder keine Fotos.</p>
       <div class="row"><button class="btn small" data-act="clearerr">Verstanden</button></div></section>` : ''}
     ${all.length && pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo])) ? `<section class="card cta"><div><h2>Fotos auf die Seiten bringen</h2><p class="hint">Die App wählt für leere Seiten ein Layout, setzt Fotos ihres Monats ein und platziert die Kalendarien an ruhigen Stellen. Alles bleibt danach frei änderbar.</p></div><button class="btn primary" data-act="autodesign">Kalender automatisch gestalten</button></section>` : ''}
-    <div class="dropzone" id="dropzone"><span>Fotos oder ganze Ordner hierher ziehen. Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.</span></div>
+    <div class="dropzone" id="dropzone"><span>Fotos oder ganze Ordner hierher ziehen${SVC.pid ? ', sie werden in die Monatsordner des Projekts kopiert' : ''}. Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.${SVC.pid ? ' Du kannst Dateien auch direkt in die Monatsordner legen und dann abgleichen.' : ''}</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
         <dl><dt>Datei</dt><dd>${esc(focus.name)}</dd><dt>Aufnahme</dt><dd>${focus.date ? new Date(focus.date).toLocaleDateString('de-DE') : 'unbekannt'}</dd>
@@ -386,6 +389,7 @@ function checks() {
     const e = items.filter(i => i.t === 'empty').length;
     if (e) { empty += e; out.push(['bad', `${pageLabel(k)}: ${e === 1 ? 'ein leerer Rahmen' : e + ' leere Rahmen'} (druckt weiß)`, k, { act: 'fixpage', label: 'Füllen' }]); }
     for (const it of items) if (it.t === 'img') {
+      if (S.photos[it.photo].missing) { out.push(['bad', `${pageLabel(k)}: Foto „${S.photos[it.photo].name}“ fehlt im Projektordner (verschoben oder gelöscht?)`, k]); continue; }
       const dpi = dpiOf(S.photos[it.photo], it.place);
       if (dpi < DPI_BAD) { tiny++; out.push(['bad', `${pageLabel(k)}: Foto mit nur ${Math.round(dpi)} dpi wird unscharf`, k]); }
       else if (dpi < DPI_WARN) { low++; out.push(['warn', `${pageLabel(k)}: Foto mit ${Math.round(dpi)} dpi ist knapp`, k]); }

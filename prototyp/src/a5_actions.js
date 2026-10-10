@@ -192,7 +192,7 @@ const ACTIONS = {
   delphotos: async () => {
     const ids = [...ui.photoSel], u = usage(), used = ids.filter(id => u[id]);
     const ok = await ask({ title: `${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} aus dem Projekt entfernen?`,
-      text: (used.length ? `${used.length} davon ${used.length > 1 ? 'stehen' : 'steht'} auf Kalenderseiten (${[...new Set(used.flatMap(id => u[id]))].map(pageLabel).join(', ')}) und ${used.length > 1 ? 'werden' : 'wird'} dort herausgenommen. ` : '') + 'Die Dateien auf deinem Rechner bleiben unberührt. Rückgängig ist möglich.',
+      text: (used.length ? `${used.length} davon ${used.length > 1 ? 'stehen' : 'steht'} auf Kalenderseiten (${[...new Set(used.flatMap(id => u[id]))].map(pageLabel).join(', ')}) und ${used.length > 1 ? 'werden' : 'wird'} dort herausgenommen. ` : '') + 'Die Dateien auf deinem Rechner bleiben unberührt' + (SVC.pid ? ' und lassen sich unter „Fotos“ wieder zurückholen.' : '. Rückgängig ist möglich.'),
       buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
     if (!ok) return;
     for (const id of ids) delete S.photos[id];
