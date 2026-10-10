@@ -351,10 +351,10 @@ async function serviceImportOne(file, month) {
   S.photos[a.id] = photoFromAsset(a, S.photos[a.id]);
   return dup ? 'dup' : 'ok';
 }
-async function serviceOriginal(ph) {
+async function serviceOriginal(ph, fx = '') {
   const id = SVC.assets[ph.id] ? ph.id : ph.copyOf;
   if (!id) return null;
-  const r = await fetch(`api/${PP(`/assets/${id}/original`)}`, { headers: SVC.token ? { Authorization: 'Bearer ' + SVC.token } : {} });
+  const r = await fetch(`api/${PP(`/assets/${id}/original`)}${fx ? '?fx=' + fx : ''}`, { headers: SVC.token ? { Authorization: 'Bearer ' + SVC.token } : {} });
   return r.ok ? r.blob() : null;
 }
 async function serviceExport(blob, name) {

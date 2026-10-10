@@ -3,12 +3,13 @@ const MAXPX = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 16e6 : 36e6;
 const srcCache = { id: null, bmp: null };
 async function sourceFor(ph) {
   if (ph.demo) return null;
-  if (srcCache.id === ph.id) return srcCache.bmp;
+  const fx = fxOf(ph.id, false), key = ph.id + '|' + fx;          // mit Gegenlicht/Rauschen: Original vom Dienst bearbeitet
+  if (srcCache.id === key) return srcCache.bmp;
   if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close();
-  let blob = RT.file[ph.id];
-  if (!blob && SVC.pid) blob = await serviceOriginal(ph);
+  let blob = fx ? null : RT.file[ph.id];
+  if (!blob && SVC.pid) blob = await serviceOriginal(ph, fx);
   if (!blob) { const rec = await DB.get('blobs', blobId(ph)); blob = rec && (rec.file || rec.prev); }
-  srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
+  srcCache.id = key; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
 // Rahmeninhalt in Druckauflösung rendern: Foto mit Zoom, Verschiebung und Drehung wie im Editor.
@@ -29,7 +30,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   x.scale(pl.w / ph.w, pl.h / ph.h); x.translate(-pl.cx * ph.w, -pl.cy * ph.h);
   // Für den Dienst: welches Foto, welcher Ausschnitt (Zielpixel → Fotopixel). Hat das Original einen größeren
   // Farbraum als sRGB (Display P3 …), rendert der Dienst den Ausschnitt selbst daraus.
-  const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h] } : null;
+  const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h], fx: fxOf(ph.id, false) } : null;
   // Bildanpassung des Fotos und (nur Druck-PDF) der Druckausgleich des Profils: auf eigener Ebene, damit
   // Hintergrund und Flächen unverändert bleiben
   const adj = compileAdjust(adjOf(ph.id)), tl = rgb ? printTuneLut() : null;
@@ -59,7 +60,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
     const out = { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
     if (src && src.asset) {
       const m = src.m, n = (v) => String(+v.toFixed(6));   // genauer als pdfNum: Fehler wächst mit der Fotobreite
-      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''} >>`;
+      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''}${src.fx ? ` /FX (${src.fx})` : ''} >>`;
     }
     return out;
   }

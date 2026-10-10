@@ -23,8 +23,9 @@ import re
 
 from PIL import Image
 
-VERSION = "d1"                      # ändert sich, wenn sich das Ergebnis ändert (Zwischenspeicher)
+VERSION = "d2"                      # ändert sich, wenn sich das Ergebnis ändert (Zwischenspeicher)
 PROXY = 1600                        # Kantenlänge, auf der die Helligkeitskarte entsteht
+ANALYZE = 800                       # Kantenlänge für die Analyse (Gegenlicht ja oder nein)
 GUIDE_MAX = 2400                    # bis zu dieser Größe kantentreu übertragen, darüber glatt hochrechnen
 EVS = (-1.0, 0.0, 1.0, 2.0, 3.0)    # künstliche Belichtungsreihe in Blenden
 COARSEST = 32                       # gröbste Stufe der Pyramide in Pixeln: so bleibt die Wirkung örtlich
@@ -236,17 +237,20 @@ def analyze(full: Image.Image, proxy: Image.Image) -> dict:
     ycc_noise = noise_sigma(y)
     chroma = _chroma_noise(full_a)
     p = np.asarray(proxy.convert("RGB"), dtype=np.float32) / 255.0
+    long = max(p.shape[:2])
+    if long > ANALYZE:                                   # zum Entscheiden reicht eine kleinere Fassung (schnell)
+        k = ANALYZE / long
+        p = _resize(p, max(1, round(p.shape[1] * k)), max(1, round(p.shape[0] * k)))
     py = _luma(p)
     dark = py < 0.22
     bright = py > 0.85
-    lg = _log_gain(_proxy(p))
-    if lg.shape != py.shape:
-        lg = _resize(lg, py.shape[1], py.shape[0])
+    lg = _log_gain(p)
     lift = float(lg[dark].mean()) if dark.mean() > 0.005 else 0.0
     dark_share, bright_share = float(dark.mean()), float(bright.mean())
     # Gegenlicht: nennenswerte dunkle Flächen, die die Fusion deutlich anheben würde, neben hellen Flächen
-    backlit = dark_share >= 0.08 and bright_share >= 0.03 and lift >= 0.55
-    fusion = round(min(0.8, 0.4 + 0.35 * (lift - 0.55)), 2) if backlit else 0.0
+    # (bewusst streng: dunkle Kleidung neben etwas Himmel ist noch kein Gegenlicht, Fehlalarme kosten Vertrauen)
+    backlit = dark_share >= 0.08 and bright_share >= 0.05 and lift >= 0.75
+    fusion = round(min(0.8, 0.45 + 0.4 * (lift - 0.75)), 2) if backlit else 0.0
     # Rauschen: ab etwa 2,5 (Helligkeit) bzw. 1,5 (Farbe, halbe Größe) auf 0–255 sichtbar, vor allem nach dem Aufhellen
     level = max(ycc_noise / 2.5, chroma / 1.5)
     denoise_s = round(min(0.9, 0.3 + 0.25 * (level - 1.0)), 2) if level >= 1.0 else 0.0

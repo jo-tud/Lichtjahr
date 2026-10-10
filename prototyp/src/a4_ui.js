@@ -243,6 +243,15 @@ const dpiPill = (ph, r, sl) => {
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
 const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')]];
+// Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
+const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
+function detailSliders(ph) {
+  if (!detailOn()) return '';
+  refreshQuality([ph.id], () => { if (ui.tune != null) renderFrameBar(); });
+  const r = adjOf(ph.id) || {}, q = qualityOf(ph.id) || {};
+  const show = DETAIL_SLIDERS().filter(([k]) => ui.adjMore || q[k] || r[k]);
+  return show.map(([k, l]) => { const v = r[k] || 0; return `<label class="adj strength"><span>${l}<output>${Math.round(v * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${v}" data-act-input="adjdetail" data-act-change="adjdetail" data-k="${k}" data-photo="${ph.id}"></label>`; }).join('');
+}
 const LOOK_NAMES = () => [['', _t('Ohne Look')], ['vivid', _t('Lebendig')], ['warm', _t('Warm')], ['soft', _t('Sanft')], ['film', _t('Film')], ['bw', _t('Schwarzweiß')], ['bwstrong', _t('S/W kräftig')]];
 // Kachel: das eigene Foto mit diesem Look (und allem anderen, was schon eingestellt ist)
 function lookThumb(ph, look) {
@@ -253,15 +262,15 @@ const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adj
 function tuneBar(ph) {
   const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {}, auto = !!r.auto;
   return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b>
-      <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(_t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
+      <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(detailOn() ? _t('Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter') : _t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
       <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button>
       <button class="linkbtn" data-act="matchmonths">${_t('Monate angleichen')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
     <div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
-    <div class="tune-sliders">${r.look ? `<label class="adj strength"><span>${_t('Stärke des Looks')}<output>${Math.round((r.lookAmt ?? 1) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.lookAmt ?? 1}" data-act-input="adjlookamt" data-photo="${ph.id}"></label>` : ''}${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(x => adjSlider(ph, r, x)).join('')}${ui.adjMore ? ADJ_MORE().map(x => adjSlider(ph, r, x)).join('') : ''}
-      <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
+    <div class="tune-sliders">${r.look ? `<label class="adj strength"><span>${_t('Stärke des Looks')}<output>${Math.round((r.lookAmt ?? 1) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.lookAmt ?? 1}" data-act-input="adjlookamt" data-photo="${ph.id}"></label>` : ''}${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(x => adjSlider(ph, r, x)).join('')}${ui.adjMore ? ADJ_MORE().map(x => adjSlider(ph, r, x)).join('') : ''}${detailSliders(ph)}
+      <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : detailOn() ? _t('Lichter, Tiefen, Gegenlicht …') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 // Hinweis in der Fotoübersicht, wenn es Serien fast gleicher Fotos gibt (im Hintergrund gesucht)
@@ -485,6 +494,7 @@ function checks() {
   refreshMonthTones(() => { if (ui.view === 'print' && outlierMonths().length) renderPrint(); });
   for (const o of outlierMonths()) out.push(['warn', o.darker ? _t('{page} ist deutlich dunkler als die anderen Monate', { page: pageLabel(o.key) }) : _t('{page} ist deutlich heller als die anderen Monate', { page: pageLabel(o.key) }), o.key, { act: 'matchmonths', label: _t('Angleichen') }]);
   out.push(...peopleChecks());
+  out.push(...detailChecks());
   if (d.index) {
     const mode = indexMode();
     if (mode === 'photos') {

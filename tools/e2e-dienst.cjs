@@ -1,8 +1,8 @@
 // Ende-zu-Ende-Test: Oberfläche + lokaler Dienst im echten Browser.
 // Startet den Dienst mit einem frischen Datenordner, legt Testfotos in die Monatsordner und spielt die
 // wichtigsten Abläufe durch: Projekt anlegen, Abgleich, Gestalten, Monat wechseln (Datei wandert, auch bei
-// Rückgängig), Kopie, Aussortieren, zweites Fenster „Nur ansehen“, Hochladen mit Duplikat, Sperrverlust mit
-// gesichertem Stand, PDF in Export/.
+// Rückgängig), Kopie, Aussortieren, zweites Fenster „Nur ansehen“, Hochladen mit Duplikat, Gegenlicht und
+// Rauschen (Prüfliste, Ausgleich, Vorschau vom Dienst), Sperrverlust mit gesichertem Stand, PDF in Export/.
 // Aufruf:  node tools/e2e-dienst.cjs   (braucht Playwright mit Chromium, Python 3.11+ mit Pillow und FastAPI)
 const path = require('path');
 const fs = require('fs');
@@ -37,6 +37,18 @@ for m in range(12):
             d.ellipse([x - r, y - r, x + r, y + r], fill=(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
         ex = Image.Exif(); date = f"2026:{m + 1:02d}:{10 + i:02d} 12:00:00"; ex[0x0132] = date; ex.get_ifd(0x8769)[0x9003] = date
         icc = {"icc_profile": rgb_profile("Display P3")} if (m, i) == (2, 0) else {}   # ein iPhone-Foto mit großem Farbraum
+        if (m, i) == (3, 0):                           # Gegenlicht: dunkles Motiv vor hellem Himmel
+            im = Image.new("RGB", (w, h), (236, 240, 248)); d = ImageDraw.Draw(im)
+            d.ellipse([w * .3, h * .25, w * .7, h * 1.1], fill=(42, 36, 32))
+            for _ in range(60):
+                x, y, r = random.randint(int(w * .35), int(w * .65)), random.randint(int(h * .35), h), random.randint(10, 50)
+                c = random.randint(25, 70); d.ellipse([x - r, y - r, x + r, y + r], fill=(c + 10, c, c - 5))
+        if (m, i) == (5, 0):                           # dunkles Handyfoto mit kräftigem Rauschen
+            import numpy as np
+            rng = np.random.default_rng(5)
+            a = np.asarray(im, np.float32) * .45 + rng.normal(0, 14, (h, w, 3))
+            a += np.asarray(Image.fromarray(rng.normal(128, 30, (h // 4, w // 4, 3)).clip(0, 255).astype("uint8")).resize((w, h)), np.float32) - 128
+            im = Image.fromarray(a.clip(0, 255).astype("uint8"))
         im.save(os.path.join(out, f"m{m + 1:02d}_{i + 1}.jpg"), "JPEG", quality=85, exif=ex.tobytes(), **icc)
 `, dir, path.join(__dirname, '..', 'backend', 'tests')]);
 }
@@ -132,6 +144,21 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await B.setInputFiles('#fileIn', [path.join(TMP, 'fotos', 'm05_2.jpg')]);
     await B.waitForFunction(() => /schon da/.test(document.querySelector('#toast').textContent));
     assert.deepEqual(fs.readdirSync(path.join(K, 'Fotos', '05 Mai')).sort(), ['m05_1.jpg', 'm05_2.jpg', 'm05_3.jpg']);
+
+    step('Gegenlicht und Rauschen: Prüfliste meldet beides, Ausgleich wirkt, Vorschau kommt bearbeitet vom Dienst');
+    const backId = await B.evaluate(() => Object.values(S.photos).find(p => p.name === 'm04_1.jpg').id);
+    const noisyId = await B.evaluate(() => Object.values(S.photos).find(p => p.name === 'm06_1.jpg').id);
+    await B.evaluate(([a, b]) => { for (const [k, id] of [['m4', a], ['m6', b]]) { const sl = S.pages[k].slots[0]; if (sl.photo !== id) { sl.photo = id; } } commit(); setView('print'); }, [backId, noisyId]);
+    await B.waitForFunction(() => /Gegenlicht/.test(document.querySelector('.checks').textContent) && /verrauscht/.test(document.querySelector('.checks').textContent), null, { timeout: 90000 });
+    await B.click('[data-act="fixbacklight"]');
+    await B.waitForFunction((id) => (S.doc.adjust[id] || {}).fusion > 0, backId);
+    await B.click('[data-act="fixnoise"]');
+    await B.waitForFunction((id) => (S.doc.adjust[id] || {}).denoise > 0, noisyId);
+    await waitFor(async () => { const M = await manifest(); return ((M.editor.doc.adjust || {})[backId] || {}).fusion > 0; });
+    const href = await B.evaluate(() => { ui.page = 'm4'; setView('design'); return [...document.querySelectorAll('#canvasWrap image')].map(i => i.getAttribute('href')).find(h => h.includes('fx=')); });
+    assert.ok(href && /fx=f0\.\d\dn0\.00/.test(href), 'Vorschau ohne Gegenlicht-Ausgleich: ' + href);
+    const lifted = await fetch(BASE + href.replace(/^\/?/, '')); assert.equal(lifted.status, 200);
+    assert.ok(!/Gegenlicht/.test(await B.evaluate(() => checks().map(c => c[1]).join(' '))));
 
     step('PDF-Entwurf landet in Export/');
     await B.evaluate(async () => { S.doc.dpi = 100; await exportPDF(); });

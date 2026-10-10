@@ -2,6 +2,15 @@
 
 All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Photos
+- Backlight: with the local service, exposure fusion lifts a dark subject in front of a bright sky, while the sky
+  stays white. Preview, soft proof, Draft PDF and Print PDF show the same result.
+- Noise reduction for dark phone photos: color noise firmly, luminance noise gently.
+- The service measures noise and backlight; the check list names photos that need it, with a one-click fix, and
+  *Auto* includes the suggestion (and no longer darkens backlit photos). Two sliders under *Enhance photo* fine-tune it.
+
 ## [1.0.0] – 2026-10-10
 
 The first release: everything needed for the yearly family photo calendar, from the photo folder to the Print PDF.

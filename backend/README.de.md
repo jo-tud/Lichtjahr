@@ -125,6 +125,8 @@ ein Druckprofil entgegen (`lichtjahr/printing.py`):
 
 **Rezepte und Druckausgleich:** Die Oberfläche rechnet die Anpassungen eines Fotos in eine 3×3-Farbmatrix und eine Tonkurve um; die Vorschau wendet sie als SVG-Filter an, die Oberfläche auf die gesendeten Pixel, und der Dienst (numpy) dieselben Zahlen auf Fotos aus dem Original und in der Druckansicht. Mit dem Formularfeld `tune=true` kommt die Kurve des Druckausgleichs dazu, und der Dienst schärft auf der Helligkeit (`UnsharpMask`, Stärke aus dem Profil).
 
+**Gegenlicht und Rauschen** (`lichtjahr/detail.py`, braucht OpenCV): Beides wirkt örtlich und läuft deshalb im Dienst, vor dem Rezept. Gegenlicht: Fünf künstliche Belichtungen (−1 bis +3 Blenden) des Fotos werden per Belichtungsfusion gemischt (Mertens, die Pyramide endet bei etwa 32 Pixeln, damit die Wirkung örtlich bleibt), immer auf einer Fassung mit 1600 Pixeln; heraus kommt eine Helligkeitskarte, die kantentreu (Guided Filter) auf jede Größe übertragen wird, damit Vorschau und Druck übereinstimmen. Sie hellt vor allem auf: Abdunkeln ist begrenzt, fast weiße Flächen bleiben unberührt, ein heller Himmel wird nicht grau. Rauschen: Stärke nach dem gemessenen Rauschen (Immerkær), Farbrauschen kräftig auf halber Größe, Helligkeitsrauschen behutsam (Non-Local Means). Die Einstellung reist als `fx=f0.40n0.30` an Vorschau, Softproof und Original mit und als `/FX` im Eintrag `/LJSource` des Druck-PDFs. `POST /quality` misst je Foto Rauschen und Gegenlicht und schlägt eine Stärke vor; zwischengespeichert nach Prüfsumme.
+
 **Großer Farbraum:** Zu jedem Foto schreibt die Oberfläche einen Eintrag `/LJSource` ins Bildobjekt (Asset-ID, Matrix
 von Zielpixel zu Fotopixel, Hintergrund und halbtransparente Flächen). Hat das Original ein anderes RGB-Profil als sRGB
 (Display P3, Adobe RGB …), rendert der Dienst den Ausschnitt mit Pillow aus dem Original, mischt die Flächen im Farbraum
@@ -202,11 +204,12 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/projects/{id}/export` | PDF in `Export/` ablegen |
 | POST | `/api/projects/{id}/scan` | Fotoordner abgleichen |
 | GET / POST | `/api/projects/{id}/assets` | Fotos auflisten / hochladen (`month` 0–11; Antwort mit `duplicate`) |
-| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Vorschaubild |
-| GET | `/api/projects/{id}/assets/{aid}/original` | Originaldatei |
+| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360&fx=` | Vorschaubild; mit `fx` (z. B. `f0.6n0.3`) mit Gegenlicht-Fusion und Rauschminderung (zwischengespeichert) |
+| GET | `/api/projects/{id}/assets/{aid}/original?fx=` | Originaldatei; mit `fx` als JPEG in voller Größe mit Gegenlicht-Fusion und Rauschminderung |
+| POST | `/api/projects/{id}/quality` | Rauschen und Gegenlicht der angegebenen Fotos (`{ids: [...]}`) mit vorgeschlagener Stärke (`fusion`, `denoise`, 0 = nicht nötig), je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Monat wechseln / ausdrücklich kopieren |
 | POST | `/api/projects/{id}/export/print` | Druck-PDF (`standard=x1a` oder `x4`) mit Farbprofil und Prüfbericht |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur); `adj` ist das kompilierte Rezept des Fotos (`m0,…,m8;l0,…,l64`), `tune` nimmt den Druckausgleich dazu |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur); `adj` ist das kompilierte Rezept des Fotos (`m0,…,m8;l0,…,l64`), `tune` nimmt den Druckausgleich dazu, `fx` die Einstellung für Gegenlicht und Rauschen |
 | GET | `/api/printers/{id}/tune` | Druckausgleich für das Profil: Tonkurve (65 Stützstellen), Stärke, Schärfung; abgeleitet aus dem Schwarzpunkt des Profils |
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
@@ -235,10 +238,11 @@ Die Tests decken unter anderem ab:
 - Duplikate beim Hochladen, Aussortieren, Speichern nur erlaubter Felder, Export, Hostnamen-Prüfung
 - Druck-PDF: Farbumrechnung, Merkmale von PDF/X-1a und PDF/X-4, ICC-Version 4 nur mit X-4, Preflight-Befunde, eigene Druckprofile
 - Softproof von Fotos und Farben, Farbumfang-Warnung
+- Gegenlicht-Fusion (Motiv heller, Himmel nicht grau, Vorschau wie Druck), Rauschminderung, Analyse schlägt nur vor, wo nötig, `fx` an Vorschau, Softproof, Original und Druck-PDF
 - großer Farbraum: Erkennung, Vorschau mit Profil, Druck und Softproof aus dem Farbraum des Originals (gedrehte und gezoomte Ausschnitte, Flächen)
 
 ## Ausblick
 
-- Belichtungsfusion (Mertens) für starkes Gegenlicht und Farbrauschminderung, wenn Tiefen angehoben werden.
+- Echte Belichtungsreihen (mehrere Aufnahmen mit unterschiedlicher Belichtung) zu einem Foto verschmelzen.
 
 HEIC und TIFF: Mit der Erweiterung `heic` liest der Dienst iPhone-Fotos direkt (Vorschau, Gesichter, Druck aus dem Original samt Display P3). Browser können HEIC und TIFF nicht dekodieren, darum liefert `/original` solche Dateien als JPEG in voller Größe mit dem Farbprofil des Fotos (zwischengespeichert).
