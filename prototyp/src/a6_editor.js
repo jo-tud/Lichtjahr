@@ -39,15 +39,17 @@ const fitReset = { zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' };
 function assignPhoto(slot, id) {
   const p = curPage();
   Object.assign(slotOf(p, slot), { photo: id, ...fitReset });
+  const later = !applyFaces(p, slot);
   ui.sel = slot; ui.armed = null;
   $('#toast').classList.remove('on');
   commit(); renderEditor(); renderFrameBar(); updateThumb(); renderPanelKeepScroll();
+  if (later) applyFacesLater(p.key, slot);
 }
 // Fotos zweier Rahmen tauschen; der Ausschnitt wird neu eingepasst (Rückgängig stellt ihn wieder her)
 function swapSlots(a, b) {
   const p = curPage(), A = slotOf(p, a), B = slotOf(p, b);
   [A.photo, B.photo] = [B.photo, A.photo];
-  Object.assign(A, fitReset); Object.assign(B, fitReset);
+  Object.assign(A, fitReset); Object.assign(B, fitReset); applyFaces(p, a); applyFaces(p, b);
   ui.sel = b; ui.swapFrom = null; ui.crop = null;
   commit(); renderEditor(); renderFrameBar(); updateThumb();
 }

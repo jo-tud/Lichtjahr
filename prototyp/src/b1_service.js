@@ -112,6 +112,7 @@ async function openProject(pid) {
   const man = await api(PP('/manifest'));
   applyManifest(man);
   loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
+  FACES.map = {}; FACES.on = null; prefetchFaces();
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
   const u = new URL(location.href); u.searchParams.set('projekt', pid);
   try { history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* egal */ }
@@ -318,7 +319,9 @@ function serviceScan(manual) {
           S.photos[id] = photoFromAsset(a, S.photos[id]);
         }
         rebaseHistory(o => { for (const id of ids) { const a = byId[id]; if (!a || a.excluded || !usable(a)) continue; o.photos[id] = o.photos[id] ? { ...o.photos[id], ...fileFacts(a) } : photoFromAsset(a); } });
+        for (const id of rep.changed) delete FACES.map[id];
         renderAll();
+        prefetchFaces();
       }
       setSaveState(_t('Im Projektordner gespeichert'));
       const parts = [];

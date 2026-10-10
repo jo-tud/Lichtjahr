@@ -181,6 +181,7 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
 | GET / POST / DELETE | `/api/printers` | Druckprofile auflisten / eigenes ICC-Profil hinzufügen / entfernen |
+| POST | `/api/projects/{id}/faces` | Gesichter in den angegebenen Fotos (`{ids: [...]}`): Rechtecke in Bruchteilen des Fotos, je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
 
 Schreibende Aufrufe brauchen die Kopfzeile `X-Lichtjahr-Session` mit der Sitzung aus dem Sperr-Erwerb.

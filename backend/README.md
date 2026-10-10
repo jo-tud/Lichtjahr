@@ -183,6 +183,7 @@ The running service shows the complete description at `http://localhost:8470/api
 | POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
 | GET / POST / DELETE | `/api/printers` | List print profiles / add your own ICC profile / remove one |
+| POST | `/api/projects/{id}/faces` | Faces in the given photos (`{ids: [...]}`): boxes as fractions of the photo, cached per checksum; `available: false` without OpenCV |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Rescue a draft on this computer (204 if there is none) |
 
 Writing calls need the `X-Lichtjahr-Session` header with the session from acquiring the lock.

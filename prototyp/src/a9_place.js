@@ -45,7 +45,7 @@ function blockSize(p, style) {
   return b ? { w: b.w, h: b.h } : null;
 }
 // Beste Stelle für eine Form; Ergebnis mit Kosten, Position (mm) und mittlerer Helligkeit
-function bestSpot(p, A, k, style) {
+function bestSpot(p, A, k, style, faces = []) {
   const sz = blockSize(p, style); if (!sz) return null;
   const W = S.doc.w, H = S.doc.h, safe = 6, zone = bindZoneDepth() + 2, upper = viewOf(p.key).part === 'upper';
   const yMin = upper ? safe : Math.max(safe, zone), yMax = H - sz.h - (upper ? Math.max(safe, zone) : safe), xMin = safe, xMax = W - sz.w - safe;
@@ -56,7 +56,7 @@ function bestSpot(p, A, k, style) {
     const x0 = Math.floor(xm * k), y0 = Math.floor(ym * k), x1 = Math.min(A.w, Math.ceil((xm + sz.w) * k)), y1 = Math.min(A.h, Math.ceil((ym + sz.h) * k));
     const a = Math.max(1, (x1 - x0) * (y1 - y0)), mL = A.sL(x0, y0, x1, y1) / a, sd = Math.sqrt(Math.max(0, A.sL2(x0, y0, x1, y1) / a - mL * mL)), mG = A.sG(x0, y0, x1, y1) / a;
     const ax = (xm) / Math.max(1, W - sz.w), ay = (ym) / Math.max(1, H - sz.h);
-    const cost = mG * 4 + sd * 1.2 + .04 * Math.hypot(ax - def.ax, ay - def.ay);
+    const cost = mG * 4 + sd * 1.2 + .04 * Math.hypot(ax - def.ax, ay - def.ay) + 1.5 * faceCover(faces, { x: xm, y: ym, w: sz.w, h: sz.h });
     if (!best || cost < best.cost) best = { cost, x: xm, y: ym, ax, ay, mL, sd, mG, style, ...sz };
   }
   return best;
@@ -65,10 +65,12 @@ async function suggestPlacement(key, { tryStyles = true } = {}) {
   const p = S.pages[key], c = calSettings(p);
   if (!p || c.style === 'off' || pageMonth(key) == null) return null;
   const img = await renderSmall(p), A = analyse(img);
+  await loadFaces(visibleSlots(p).map(s => s.photo).filter(Boolean));
+  const faces = pageFaces(p);                                         // Gesichter nie verdecken
   const styles = tryStyles ? ['h', 'v', 'g'] : [c.style];
   let best = null;
   for (const st of styles) {
-    const s = bestSpot(p, A, img.k, st); if (!s) continue;
+    const s = bestSpot(p, A, img.k, st, faces); if (!s) continue;
     if (st !== c.style) s.cost += .03;                              // die gewählte Form leicht bevorzugen
     if (!best || s.cost < best.cost) best = s;
   }
@@ -105,6 +107,11 @@ async function placeHere() {
   toast(panel
     ? (dark ? _t('Ruhige Stelle {where} gefunden, dunkle Schrift mit Fläche dahinter. Rückgängig ist möglich.', { where }) : _t('Ruhige Stelle {where} gefunden, helle Schrift mit Fläche dahinter. Rückgängig ist möglich.', { where }))
     : (dark ? _t('Ruhige Stelle {where} gefunden, dunkle Schrift. Rückgängig ist möglich.', { where }) : _t('Ruhige Stelle {where} gefunden, helle Schrift. Rückgängig ist möglich.', { where })), 5000);
+}
+async function placePage(key) {
+  const p = S.pages[key], s = p && await suggestPlacement(key, { tryStyles: false }); if (!s) return;
+  applyPlacement(p, s); commit(); renderAll();
+  toast(_t('{page}: Kalendarium neu platziert.', { page: pageLabel(key) }), 4000, { label: _t('Rückgängig'), fn: undo });
 }
 async function placeAll() {
   const keys = pageKeys().filter(k => S.pages[k] && pageMonth(k) != null && calSettings(S.pages[k]).style !== 'off');
