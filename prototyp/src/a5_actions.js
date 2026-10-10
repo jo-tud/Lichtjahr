@@ -77,6 +77,7 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
     renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
+  if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
     setAdjust(el.dataset.photo, { lookAmt: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
@@ -103,7 +104,14 @@ document.addEventListener('change', (e) => {
   if (act === 'moveto' && el.value !== '') moveToMonth([...ui.photoSel], +el.value).then(ok => { if (ok) ui.photoSel.clear(); renderPhotos(); });
 });
 
-const CHANGE_ACTIONS = {};   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
+const CHANGE_ACTIONS = {   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
+  // Gegenlicht/Rauschen: erst beim Loslassen, der Dienst rechnet das Vorschaubild neu
+  adjdetail: (el) => {
+    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    commit(); renderEditor(); updateThumb();
+    const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo);
+  },
+};
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
   lang: (el) => setLang(el.dataset.v),
@@ -283,7 +291,9 @@ const ACTIONS = {
     bar.close(); commit(); renderDesign();
     toast(n === 1 ? _t('1 Foto automatisch verbessert. Jedes lässt sich einzeln nachregeln.') : _t('{n} Fotos automatisch verbessert. Jedes lässt sich einzeln nachregeln.', { n }), 6000, { label: _t('Rückgängig'), fn: undo });
   },
-  adjreset: (el) => { setAdjust(el.dataset.v, { ...Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), auto: false }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  adjreset: (el) => { setAdjust(el.dataset.v, { ...Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), ...Object.fromEntries(DETAIL_KEYS.map(k => [k, null])), auto: false }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  fixbacklight: () => { const n = applyDetail('back'); commit(); renderAll(); toast(n === 1 ? _t('1 Foto aufgehellt. Feinabstimmung unter „Bild verbessern“.') : _t('{n} Fotos aufgehellt. Feinabstimmung unter „Bild verbessern“.', { n }), 6000, { label: _t('Rückgängig'), fn: undo }); },
+  fixnoise: () => { const n = applyDetail('noisy'); commit(); renderAll(); toast(n === 1 ? _t('Bei 1 Foto wird das Rauschen gemindert.') : _t('Bei {n} Fotos wird das Rauschen gemindert.', { n }), 6000, { label: _t('Rückgängig'), fn: undo }); },
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },

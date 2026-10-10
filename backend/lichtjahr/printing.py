@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 import pikepdf
 from PIL import Image, ImageChops, ImageCms, ImageFilter, ImageOps
 
+from . import detail
 from .i18n import _t
 from .media import rgb_profile
 
@@ -347,6 +348,7 @@ def _source_spec(xo) -> dict | None:
             "panels": [panels[i:i + 8] for i in range(0, len(panels) - 7, 8)],
             "adjM": [float(v) for v in src.AdjM] if "/AdjM" in src else None,
             "adjL": [float(v) for v in src.AdjL] if "/AdjL" in src else None,
+            "fx": str(src.FX) if "/FX" in src else "",
         }
     except (AttributeError, KeyError, TypeError, ValueError):
         return None
@@ -371,6 +373,9 @@ def render_wide(original: bytes, spec: dict, size: tuple[int, int], tune_lut=Non
         if r > 1:
             im = im.reduce(r)
             a, b, c, d, e, f = a / r, b / r, c / r, d / r, e / r, f / r
+        fx = detail.parse_fx(spec.get("fx"))
+        if fx:                                                # Gegenlicht und Rauschen vor dem Rezept, wie in der Vorschau
+            im = detail.apply(im, fx)
         lut = compose_lut(spec.get("adjL"), tune_lut)         # Rezept des Fotos, dann Druckausgleich
         if spec.get("adjM") is not None or lut is not None:
             im = apply_adjust(im, spec.get("adjM"), lut)      # nur aufs Foto, nicht auf Hintergrund und Flächen

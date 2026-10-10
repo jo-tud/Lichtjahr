@@ -35,7 +35,8 @@ function proofUrl(id, small) {
   const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
   if (!pr || !a) return null;
   const adj = compileAdjust(adjOf(id)), aq = adj ? '&adj=' + encodeURIComponent(adj.m.map(v => +v.toFixed(4)).join(',') + ';' + adj.lut.map(v => +v.toFixed(4)).join(',')) : '';
-  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+  const fx = fxOf(id, false);
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}${fx ? '&fx=' + fx : ''}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
 }
 // Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
 async function loadProofColors() {

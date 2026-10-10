@@ -81,7 +81,7 @@ pytest
   be freely redistributed (see `lichtjahr/icc/README.md`); ECI and Adobe profiles do not belong in the repository.
 - The parity test in `tests/test_adjust.py` runs the app's photo enhancement JavaScript in **Node.js** and compares
   it with numpy; without `node` on the PATH it is skipped.
-- The face tests need OpenCV (installed with the package). The recognition tests download the SFace model (10 MB)
+- The face tests and the backlight/noise tests (`tests/test_detail.py`) need OpenCV (installed with the package). The recognition tests download the SFace model (10 MB)
   on the first run and keep it in `.pytest_cache`; offline, point `LICHTJAHR_SFACE` to the file
   `face_recognition_sface_2021dec_int8.onnx`. Without the model, or if the path is wrong, they are skipped.
 

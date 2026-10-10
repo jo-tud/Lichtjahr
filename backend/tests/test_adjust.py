@@ -141,8 +141,15 @@ const sunset = img(100, 80, (x, y) => y < .75 ? [250 - 40 * y, 140 - 60 * y, 60]
 // dunkler Hintergrund, dunkles Gesicht in der Mitte, helle Lichter (weißer Anzug unten)
 const portrait = img(100, 100, (x, y) => (x > .35 && x < .65 && y > .2 && y < .5) ? [95, 65, 50] : y > .75 ? [245, 245, 240] : [30, 40, 60]);
 const face = [{ x: .35, y: .2, w: .3, h: .3, score: .95 }];
-process.stdout.write(JSON.stringify({ dark: autoRecipe(photoStats(dark)), sunset: autoRecipe(photoStats(sunset)), portrait: autoRecipe(photoStats(portrait, face)) }));"""
+// Gegenlicht: großer heller Himmel, dunkles Motiv in der Mitte
+const backlit = img(100, 100, (x, y) => (x > .3 && x < .7 && y > .3) ? [40, 34, 30] : [236, 240, 248]);
+process.stdout.write(JSON.stringify({ dark: autoRecipe(photoStats(dark)), sunset: autoRecipe(photoStats(sunset)), portrait: autoRecipe(photoStats(portrait, face)),
+  brightScene: autoRecipe(photoStats(backlit)), backlit: autoRecipe(photoStats(backlit), { backlit: true }),
+  detailOnly: compileAdjust({ fusion: .5, denoise: .3 }) }));"""
     r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
     assert r["dark"]["exposure"] > .2 and r["dark"]["wbB"] < 1
     assert "wbR" not in r["sunset"] and "wbB" not in r["sunset"]
     assert r["portrait"].get("exposure", 0) <= .2
+    # Gegenlicht (Vorschlag des Dienstes): nicht abdunkeln, sonst versinkt das Motiv wieder
+    assert r["brightScene"].get("exposure", 0) < 0 and r["backlit"].get("exposure", 0) >= 0
+    assert r["detailOnly"] is None                     # nur Detailbearbeitung: kein Farbfilter in der Vorschau

@@ -486,7 +486,8 @@ function svgPage(p, o = {}) {
   const defs = [], body = [];
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
-  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  // Gegenlicht und Rauschen rechnet der Dienst ins Vorschaubild ein (fx); das Rezept kommt als SVG-Filter dazu
+  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || withFx((small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '', fxOf(pid));
   // Bildanpassung als SVG-Filter; in der Druckansicht steckt sie schon im Bild vom Dienst, beim Vergleichen ist sie aus
   const fdone = new Set();
   const adjFilter = (pid) => {

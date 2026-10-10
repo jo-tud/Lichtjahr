@@ -124,6 +124,8 @@ CMYK) and a print profile (`lichtjahr/printing.py`):
 
 **Photo recipes and print adaptation:** The app compiles each photo's adjustments into a 3×3 color matrix and a tone curve; the preview applies them as an SVG filter, the app applies them to the pixels it sends, and the service (numpy) applies the same numbers to photos rendered from the original and in the soft proof. With the form field `tune=true`, the print adaptation curve is folded in and the service sharpens on luminance (`UnsharpMask`, strength from the profile).
 
+**Backlight and noise** (`lichtjahr/detail.py`, needs OpenCV): both act locally, so they run in the service, before the recipe. Backlight: five synthetic exposures (−1 to +3 stops) of the photo are blended by exposure fusion (Mertens, with the pyramid stopping at about 32 pixels so the effect stays local), always on a 1600-pixel version; the result is a brightness map that is transferred edge-aware (guided filter) to any size, so preview and print match. It mostly brightens: darkening is limited and near-white areas are left alone, so a bright sky does not turn gray. Noise: strength from the measured noise (Immerkær), color noise reduced firmly at half size, luminance gently (non-local means). The setting travels as `fx=f0.40n0.30` on thumbnails, soft proof and the original, and as `/FX` in the `/LJSource` entry of the Print PDF. `POST /quality` measures noise and backlight per photo and suggests a strength; it is cached per checksum.
+
 **Wide color:** For each photo the app writes a `/LJSource` entry into the image dictionary (asset ID, matrix from
 target pixel to photo pixel, background and semi-transparent panels). If the original carries an RGB profile other than
 sRGB (Display P3, Adobe RGB …), the service renders the crop from the original with Pillow, blends the panels in the
@@ -201,11 +203,12 @@ The running service shows the complete description at `http://localhost:8470/api
 | POST | `/api/projects/{id}/export` | Store a PDF in `Export/` |
 | POST | `/api/projects/{id}/scan` | Sync the photo folders |
 | GET / POST | `/api/projects/{id}/assets` | List / upload photos (`month` 0–11; response includes `duplicate`) |
-| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360` | Thumbnail |
-| GET | `/api/projects/{id}/assets/{aid}/original` | Original file |
+| GET | `/api/projects/{id}/assets/{aid}/thumb?size=360&fx=` | Thumbnail; with `fx` (e.g. `f0.6n0.3`) with backlight fusion and noise reduction (cached) |
+| GET | `/api/projects/{id}/assets/{aid}/original?fx=` | Original file; with `fx` as a full-size JPEG with backlight fusion and noise reduction |
+| POST | `/api/projects/{id}/quality` | Noise and backlight of the given photos (`{ids: [...]}`) with a suggested strength (`fusion`, `denoise`, 0 = not needed), cached per checksum; `available: false` without OpenCV |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Change month / copy explicitly |
 | POST | `/api/projects/{id}/export/print` | Print PDF (`standard=x1a` or `x4`) with color profile and check report |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching); `adj` is the photo's compiled recipe (`m0,…,m8;l0,…,l64`), `tune` adds the print adaptation |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching); `adj` is the photo's compiled recipe (`m0,…,m8;l0,…,l64`), `tune` adds the print adaptation, `fx` the backlight/noise setting |
 | GET | `/api/printers/{id}/tune` | Print adaptation for the profile: tone curve (65 points), strength, sharpening; derived from the profile's black point |
 | POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
@@ -234,10 +237,11 @@ Among other things, the tests cover:
 - duplicates on upload, setting photos aside, saving only permitted fields, export, host name check
 - Print PDF: color conversion, PDF/X-1a and PDF/X-4 properties, ICC version 4 only with X-4, preflight findings, custom print profiles
 - soft proof of photos and colors, gamut warning
+- backlight fusion (subject brighter, sky not gray, preview matches print), noise reduction, analysis suggests only where needed, `fx` on thumbnail, proof, original and Print PDF
 - wide color: detection, thumbnails with profile, print and soft proof from the original color space (rotated and zoomed crops, panels)
 
 ## Outlook
 
-- Exposure fusion (Mertens) for strongly backlit photos and color noise reduction tied to lifted shadows.
+- Merge real exposure brackets (several shots with different exposure) into one photo.
 
 HEIC and TIFF: with the `heic` extra the service reads iPhone photos directly (thumbnails, faces, print from the original including Display P3). Browsers can't decode HEIC or TIFF, so `/original` serves such files as a full-size JPEG with the photo's color profile (cached).

@@ -429,7 +429,14 @@ a.btn.primary { color: var(--accent-ink); }
 
 .auto-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
 
-.looks { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.looks { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; min-width: 0; }
+.looks-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 18px; align-items: center; }
+.tune-head .auto-strength { width: 150px; flex: none; }
+@media (max-width: 980px) {
+  .looks-row { grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; }
+  .tune-head { flex-wrap: wrap; row-gap: 6px; }
+  .tune-head .auto-strength { width: 120px; }
+}
 .look { flex: none; display: grid; gap: 3px; justify-items: center; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; }
 .look svg { width: 64px; height: 48px; border-radius: 5px; display: block; }
 .look span { font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -1600,6 +1607,20 @@ Object.assign(EN, {
   'Looks': 'Looks',
   'Stärke des Looks': 'Look strength',
   'Weniger Regler': 'Fewer sliders',
+  'Gegenlicht ausgleichen': 'Fix backlight',
+  'Stärke': 'Strength',
+  'Rauschen mindern': 'Reduce noise',
+  'Lichter, Tiefen, Gegenlicht …': 'Highlights, shadows, backlight …',
+  'Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter': 'Exposure, white balance, contrast, color, backlight and noise automatically, with priority for faces',
+  '1 Foto im Gegenlicht: das Motiv ist zu dunkel': '1 photo is backlit: the subject is too dark',
+  '{n} Fotos im Gegenlicht: das Motiv ist zu dunkel': '{n} photos are backlit: the subject is too dark',
+  'Aufhellen': 'Brighten',
+  '1 Foto ist stark verrauscht': '1 photo is very noisy',
+  '{n} Fotos sind stark verrauscht': '{n} photos are very noisy',
+  '1 Foto aufgehellt. Feinabstimmung unter „Bild verbessern“.': '1 photo brightened. Fine-tune it under “Enhance photo”.',
+  '{n} Fotos aufgehellt. Feinabstimmung unter „Bild verbessern“.': '{n} photos brightened. Fine-tune them under “Enhance photo”.',
+  'Bei 1 Foto wird das Rauschen gemindert.': 'Noise is reduced in 1 photo.',
+  'Bei {n} Fotos wird das Rauschen gemindert.': 'Noise is reduced in {n} photos.',
   'Lichter, Tiefen, Tönung …': 'Highlights, shadows, tint …',
   '{page} ist deutlich dunkler als die anderen Monate': '{page} is noticeably darker than the other months',
   '{page} ist deutlich heller als die anderen Monate': '{page} is noticeably brighter than the other months',
@@ -2979,7 +3000,8 @@ function svgPage(p, o = {}) {
   const defs = [], body = [];
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
-  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  // Gegenlicht und Rauschen rechnet der Dienst ins Vorschaubild ein (fx); das Rezept kommt als SVG-Filter dazu
+  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || withFx((small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '', fxOf(pid));
   // Bildanpassung als SVG-Filter; in der Druckansicht steckt sie schon im Bild vom Dienst, beim Vergleichen ist sie aus
   const fdone = new Set();
   const adjFilter = (pid) => {
@@ -3381,6 +3403,16 @@ const dpiPill = (ph, r, sl) => {
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
 const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')]];
+// Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
+const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
+function detailSliders(ph) {
+  if (!detailOn()) return '';
+  refreshQuality([ph.id], () => { if (ui.tune != null) renderFrameBar(); });
+  const r = adjOf(ph.id) || {}, q = qualityOf(ph.id) || {};
+  // nur unter „mehr Regler“: so ändert das Eintreffen der Messung nichts an der Höhe der Leiste
+  const show = ui.adjMore ? DETAIL_SLIDERS() : [];
+  return show.map(([k, l]) => { const v = r[k] || 0; return `<label class="adj strength"><span>${l}<output>${Math.round(v * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${v}" data-act-input="adjdetail" data-act-change="adjdetail" data-k="${k}" data-photo="${ph.id}"></label>`; }).join('');
+}
 const LOOK_NAMES = () => [['', _t('Ohne Look')], ['vivid', _t('Lebendig')], ['warm', _t('Warm')], ['soft', _t('Sanft')], ['film', _t('Film')], ['bw', _t('Schwarzweiß')], ['bwstrong', _t('S/W kräftig')]];
 // Kachel: das eigene Foto mit diesem Look (und allem anderen, was schon eingestellt ist)
 function lookThumb(ph, look) {
@@ -3388,18 +3420,23 @@ function lookThumb(ph, look) {
   return `<svg viewBox="0 0 64 48" aria-hidden="true">${c ? `<defs>${adjFilterDef(c, fid)}</defs>` : ''}<image href="${RT.thumb[ph.id]}" width="64" height="48" preserveAspectRatio="xMidYMid slice"${c ? ` filter="url(#${fid})"` : ''}/></svg>`;
 }
 const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`;
+// Stärke von Automatik und Look: der Platz ist immer reserviert (unsichtbar, wenn aus), damit ein Klick auf „Auto“
+// oder einen Look die Leiste nicht höher macht und das Bild nicht schrumpft – sonst sieht man den Unterschied nicht
+const strengthSlot = (cls, on, label, val, act, ph) => `<label class="adj strength ${cls}"${on ? '' : ' style="visibility:hidden" aria-hidden="true"'}><span>${label}<output>${Math.round(val * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${val}" data-act-input="${act}" data-photo="${ph.id}"${on ? '' : ' tabindex="-1"'}></label>`;
 function tuneBar(ph) {
   const r = (S.doc.adjust && S.doc.adjust[ph.id]) || {}, auto = !!r.auto;
   return `<div class="tune-head"><img src="${RT.thumb[ph.id]}" alt=""><b>${_t('Bild verbessern')}</b>
-      <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(_t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
+      <button class="btn small auto-btn" data-act="adjauto" data-v="${ph.id}" aria-pressed="${auto}" title="${esc(detailOn() ? _t('Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter') : _t('Belichtung, Weißabgleich, Kontrast und Farbe automatisch, mit Vorrang für Gesichter'))}">✦ ${_t('Auto')}</button>
+      ${strengthSlot('auto-strength', auto, _t('Stärke'), r.strength ?? .7, 'adjstrength', ph)}
       <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button>
       <button class="linkbtn" data-act="matchmonths">${_t('Monate angleichen')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
-    <div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
-    <div class="tune-sliders">${r.look ? `<label class="adj strength"><span>${_t('Stärke des Looks')}<output>${Math.round((r.lookAmt ?? 1) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.lookAmt ?? 1}" data-act-input="adjlookamt" data-photo="${ph.id}"></label>` : ''}${auto ? `<label class="adj strength"><span>${_t('Stärke der Automatik')}<output>${Math.round((r.strength ?? .7) * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${r.strength ?? .7}" data-act-input="adjstrength" data-photo="${ph.id}"></label>` : ''}${ADJ_SLIDERS().map(x => adjSlider(ph, r, x)).join('')}${ui.adjMore ? ADJ_MORE().map(x => adjSlider(ph, r, x)).join('') : ''}
-      <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
+    <div class="looks-row"><div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
+      ${strengthSlot('look-strength', !!r.look, _t('Stärke des Looks'), r.lookAmt ?? 1, 'adjlookamt', ph)}</div>
+    <div class="tune-sliders">${ADJ_SLIDERS().map(x => adjSlider(ph, r, x)).join('')}${ui.adjMore ? ADJ_MORE().map(x => adjSlider(ph, r, x)).join('') : ''}${detailSliders(ph)}
+      <button class="linkbtn adj-more" data-act="adjmore">${ui.adjMore ? _t('Weniger Regler') : detailOn() ? _t('Lichter, Tiefen, Gegenlicht …') : _t('Lichter, Tiefen, Tönung …')}</button></div>`;
 }
 const adjFmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(v) * 100);
 // Hinweis in der Fotoübersicht, wenn es Serien fast gleicher Fotos gibt (im Hintergrund gesucht)
@@ -3623,6 +3660,7 @@ function checks() {
   refreshMonthTones(() => { if (ui.view === 'print' && outlierMonths().length) renderPrint(); });
   for (const o of outlierMonths()) out.push(['warn', o.darker ? _t('{page} ist deutlich dunkler als die anderen Monate', { page: pageLabel(o.key) }) : _t('{page} ist deutlich heller als die anderen Monate', { page: pageLabel(o.key) }), o.key, { act: 'matchmonths', label: _t('Angleichen') }]);
   out.push(...peopleChecks());
+  out.push(...detailChecks());
   if (d.index) {
     const mode = indexMode();
     if (mode === 'photos') {
@@ -3797,6 +3835,7 @@ document.addEventListener('input', (e) => {
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
     renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
+  if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
     setAdjust(el.dataset.photo, { lookAmt: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
@@ -3823,7 +3862,14 @@ document.addEventListener('change', (e) => {
   if (act === 'moveto' && el.value !== '') moveToMonth([...ui.photoSel], +el.value).then(ok => { if (ok) ui.photoSel.clear(); renderPhotos(); });
 });
 
-const CHANGE_ACTIONS = {};   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
+const CHANGE_ACTIONS = {   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
+  // Gegenlicht/Rauschen: erst beim Loslassen, der Dienst rechnet das Vorschaubild neu
+  adjdetail: (el) => {
+    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    commit(); renderEditor(); updateThumb();
+    const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo);
+  },
+};
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
   lang: (el) => setLang(el.dataset.v),
@@ -4003,7 +4049,9 @@ const ACTIONS = {
     bar.close(); commit(); renderDesign();
     toast(n === 1 ? _t('1 Foto automatisch verbessert. Jedes lässt sich einzeln nachregeln.') : _t('{n} Fotos automatisch verbessert. Jedes lässt sich einzeln nachregeln.', { n }), 6000, { label: _t('Rückgängig'), fn: undo });
   },
-  adjreset: (el) => { setAdjust(el.dataset.v, { ...Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), auto: false }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  adjreset: (el) => { setAdjust(el.dataset.v, { ...Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), ...Object.fromEntries(DETAIL_KEYS.map(k => [k, null])), auto: false }); commit(); renderEditor(); renderFrameBar(); updateThumb(); },
+  fixbacklight: () => { const n = applyDetail('back'); commit(); renderAll(); toast(n === 1 ? _t('1 Foto aufgehellt. Feinabstimmung unter „Bild verbessern“.') : _t('{n} Fotos aufgehellt. Feinabstimmung unter „Bild verbessern“.', { n }), 6000, { label: _t('Rückgängig'), fn: undo }); },
+  fixnoise: () => { const n = applyDetail('noisy'); commit(); renderAll(); toast(n === 1 ? _t('Bei 1 Foto wird das Rauschen gemindert.') : _t('Bei {n} Fotos wird das Rauschen gemindert.', { n }), 6000, { label: _t('Rückgängig'), fn: undo }); },
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
@@ -4664,12 +4712,13 @@ const MAXPX = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 16e6 : 36e6;
 const srcCache = { id: null, bmp: null };
 async function sourceFor(ph) {
   if (ph.demo) return null;
-  if (srcCache.id === ph.id) return srcCache.bmp;
+  const fx = fxOf(ph.id, false), key = ph.id + '|' + fx;          // mit Gegenlicht/Rauschen: Original vom Dienst bearbeitet
+  if (srcCache.id === key) return srcCache.bmp;
   if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close();
-  let blob = RT.file[ph.id];
-  if (!blob && SVC.pid) blob = await serviceOriginal(ph);
+  let blob = fx ? null : RT.file[ph.id];
+  if (!blob && SVC.pid) blob = await serviceOriginal(ph, fx);
   if (!blob) { const rec = await DB.get('blobs', blobId(ph)); blob = rec && (rec.file || rec.prev); }
-  srcCache.id = ph.id; srcCache.bmp = blob ? await decodeImage(blob) : null;
+  srcCache.id = key; srcCache.bmp = blob ? await decodeImage(blob) : null;
   return srcCache.bmp;
 }
 // Rahmeninhalt in Druckauflösung rendern: Foto mit Zoom, Verschiebung und Drehung wie im Editor.
@@ -4690,7 +4739,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
   x.scale(pl.w / ph.w, pl.h / ph.h); x.translate(-pl.cx * ph.w, -pl.cy * ph.h);
   // Für den Dienst: welches Foto, welcher Ausschnitt (Zielpixel → Fotopixel). Hat das Original einen größeren
   // Farbraum als sRGB (Display P3 …), rendert der Dienst den Ausschnitt selbst daraus.
-  const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h] } : null;
+  const src = rgb && SVC.pid && !ph.demo ? { asset: SVC.assets[ph.id] ? ph.id : ph.copyOf, m: x.getTransform().inverse(), photo: [ph.w, ph.h], fx: fxOf(ph.id, false) } : null;
   // Bildanpassung des Fotos und (nur Druck-PDF) der Druckausgleich des Profils: auf eigener Ebene, damit
   // Hintergrund und Flächen unverändert bleiben
   const adj = compileAdjust(adjOf(ph.id)), tl = rgb ? printTuneLut() : null;
@@ -4720,7 +4769,7 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
     const out = { w: ow, h: oh, jpeg: new Uint8Array(await blob.arrayBuffer()) };
     if (src && src.asset) {
       const m = src.m, n = (v) => String(+v.toFixed(6));   // genauer als pdfNum: Fehler wächst mit der Fotobreite
-      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''} >>`;
+      out.dict = `/LJSource << /Asset (${src.asset}) /M [${[m.a, m.c, m.e, m.b, m.d, m.f].map(n).join(' ')}] /Photo [${src.photo.join(' ')}] /BG [${hexRGB(cRGBraw(S.doc.bg)).join(' ')}] /Panels [${pans.map(n).join(' ')}]${adj ? ` /AdjM [${adj.m.map(n).join(' ')}] /AdjL [${adj.lut.map(n).join(' ')}]` : ''}${src.fx ? ` /FX (${src.fx})` : ''} >>`;
     }
     return out;
   }
@@ -5461,10 +5510,10 @@ async function serviceImportOne(file, month) {
   S.photos[a.id] = photoFromAsset(a, S.photos[a.id]);
   return dup ? 'dup' : 'ok';
 }
-async function serviceOriginal(ph) {
+async function serviceOriginal(ph, fx = '') {
   const id = SVC.assets[ph.id] ? ph.id : ph.copyOf;
   if (!id) return null;
-  const r = await fetch(`api/${PP(`/assets/${id}/original`)}`, { headers: SVC.token ? { Authorization: 'Bearer ' + SVC.token } : {} });
+  const r = await fetch(`api/${PP(`/assets/${id}/original`)}${fx ? '?fx=' + fx : ''}`, { headers: SVC.token ? { Authorization: 'Bearer ' + SVC.token } : {} });
   return r.ok ? r.blob() : null;
 }
 async function serviceExport(blob, name) {
@@ -5672,7 +5721,8 @@ function proofUrl(id, small) {
   const a = SVC.assets[id] || (ph && ph.copyOf && SVC.assets[ph.copyOf]);
   if (!pr || !a) return null;
   const adj = compileAdjust(adjOf(id)), aq = adj ? '&adj=' + encodeURIComponent(adj.m.map(v => +v.toFixed(4)).join(',') + ';' + adj.lut.map(v => +v.toFixed(4)).join(',')) : '';
-  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
+  const fx = fxOf(id, false);
+  return `api/${PP(`/assets/${a.id}/proof`)}?printer=${encodeURIComponent(pr.id)}&size=${small ? 360 : 1600}&paper=${ui.proofPaper !== false ? 1 : 0}&gamut=${ui.proofGamut ? 1 : 0}${tuneOn() ? '&tune=1' : ''}${aq}${fx ? '&fx=' + fx : ''}&v=${a.contentHash.slice(0, 12)}${SVC.token ? '&token=' + encodeURIComponent(SVC.token) : ''}`;
 }
 // Vektorfarben (Kalendarium, Flächen, Hintergrund) über das Profil; „white“ wird zu Papierweiß
 async function loadProofColors() {
@@ -5955,7 +6005,10 @@ function faceCover(faces, r) {
    Die Vorschau im Editor als SVG-Filter (feColorMatrix + feComponentTransfer, rechnet genauso), der PDF-Entwurf
    und das Druck-PDF in der Oberfläche auf den Pixeln, der Dienst mit numpy (Fotos aus dem Original, Druckansicht).
    So sieht der Druck aus wie die Vorschau. Die Druckanpassung (Ausgleich für Papier, Schärfung) kommt vom
-   Dienst, weil sie vom Druckprofil abhängt. */
+   Dienst, weil sie vom Druckprofil abhängt.
+   Dazu kommt die Detailbearbeitung (DETAIL_KEYS): Gegenlicht ausgleichen und Rauschen mindern wirken örtlich und
+   laufen deshalb im Dienst (detail.py), vor dem Rezept. Die Oberfläche hängt dafür „fx=f0.40n0.30“ an die Adresse
+   von Vorschau, Druckansicht und Original; das Druck-PDF gibt es dem Dienst im Bildobjekt mit. */
 const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation'];
 // Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
 const LOOKS = {
@@ -5967,6 +6020,7 @@ const LOOKS = {
   bwstrong: { mono: 1, contrast: .4, shadows: -.1 },
 };
 const LOOK_KEYS = [...ADJ_KEYS, 'mono', 'fade'];
+const DETAIL_KEYS = ['fusion', 'denoise'];
 const ADJ_NODES = 65;
 // Wirksames Rezept: Automatik (aufgelöste Werte × Stärke), Angleichung der Monate, Look × Stärke, Regler als Versatz
 function adjOf(id, { noMatch = false, look } = {}) {
@@ -5976,6 +6030,10 @@ function adjOf(id, { noMatch = false, look } = {}) {
   for (const k of LOOK_KEYS) {
     const v = (rr[k] || 0) + (a ? (a[k] || 0) * s : 0) + (m ? m[k] || 0 : 0) + (lk ? (lk[k] || 0) * la : 0);
     if (v) out[k] = k === 'mono' || k === 'fade' ? clamp01(v) : Math.max(-1, Math.min(1, v));
+  }
+  for (const k of DETAIL_KEYS) {                      // eigener Wert ersetzt den Vorschlag der Automatik (0 = bewusst aus)
+    const v = rr[k] != null ? rr[k] : a && a[k] ? a[k] * Math.min(1.4, s / .7) : 0;
+    if (v >= .01) out[k] = Math.min(1, +v.toFixed(2));
   }
   if (a) {                                            // Tonwertumfang und Weißabgleich nur aus der Automatik
     if (a.lvlB || a.lvlW !== undefined && a.lvlW !== 1) { out.lvlB = (a.lvlB || 0) * s; out.lvlW = 1 - (1 - (a.lvlW ?? 1)) * s; }
@@ -6000,7 +6058,7 @@ function toneCurve(r) {
   };
 }
 function compileAdjust(r) {
-  if (!r) return null;
+  if (!r || !Object.keys(r).some(k => !DETAIL_KEYS.includes(k))) return null;   // nur Detailbearbeitung: kein Filter
   const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
   const gain = [(1 + .07 * w + .02 * t) * (r.wbR || 1), 1 - .045 * t, (1 - .07 * w + .02 * t) * (r.wbB || 1)];
   const m = [];
@@ -6050,6 +6108,7 @@ function setAdjust(id, patch) {
   S.doc.adjust ||= {};
   const r = { ...(S.doc.adjust[id] || {}), ...patch };
   for (const k of ADJ_KEYS) if (!r[k]) delete r[k];
+  for (const k of DETAIL_KEYS) if (r[k] == null) delete r[k];
   if (!r.auto) { delete r.autoV; delete r.strength; delete r.auto; }
   if (!r.look) { delete r.look; delete r.lookAmt; }
   if (!r.match || !Object.keys(r.match).length) delete r.match;
@@ -6065,11 +6124,11 @@ function setAdjust(id, patch) {
      gekappt; bei warmer, satter Stimmung weniger, bei großen warmen Flächen (Sonnenuntergang) gar nicht
    - Farbe: blasse Fotos etwas kräftiger, bunte nicht; dunkle Tiefen etwas öffnen
    Die Werte werden gespeichert (autoV), damit das Foto in einem Jahr gleich gedruckt wird, auch wenn sich das Verfahren ändert. */
-const AUTO_VERSION = 'auto-1';
+const AUTO_VERSION = 'auto-2';                    // auto-2: mit Vorschlag für Gegenlicht und Rauschen
 // Belichtungsregler, der den Wert cur auf target bringt (Gamma-Modell der Tonkurve)
 const adjEv = (cur, target) => (cur > .03 && cur < .97 ? -Math.log2(Math.log(target) / Math.log(cur)) / .75 : 0);
-async function photoPixels(id, size = 256) {
-  const ph = S.photos[id], src = (ph && (RT.prev[id] || RT.thumb[id])); if (!src) return null;
+async function photoPixels(id, size = 256, fx = '') {
+  const ph = S.photos[id], src = withFx(ph && (RT.prev[id] || RT.thumb[id]), fx); if (!src) return null;
   const im = await loadImg(src); if (!im) return null;
   const k = size / Math.max(im.naturalWidth || im.width, im.naturalHeight || im.height);
   const w = Math.max(1, Math.round((im.naturalWidth || im.width) * k)), h = Math.max(1, Math.round((im.naturalHeight || im.height) * k));
@@ -6094,7 +6153,7 @@ function photoStats(px, faces = []) {
   const gray = cnt > n * .05 ? sum.map(v => Math.pow(v / cnt, 1 / 6)) : null;
   return { lo: pct(.003), p25: pct(.25), med: pct(.5), hi: pct(.997), chroma: chroma / n, warm: warm / n, gray, face: faceN > 20 ? faceL / faceN / 255 : null };
 }
-function autoRecipe(st) {
+function autoRecipe(st, { backlit = false } = {}) {
   const a = { v: AUTO_VERSION };
   // Tonwertumfang: halb so weit spreizen wie möglich, Grenzen gekappt
   if (st.lo > .02) a.lvlB = Math.min(.08, st.lo * .5);
@@ -6108,6 +6167,8 @@ function autoRecipe(st) {
   // Gesichter: sichtbar belichtet heißt, das Motiv stimmt, also wenig aufhellen; nur sehr dunkle Gesichter (unter 15 %)
   // gelten als unterbelichtet. Beides gilt für jeden Hautton, ein Ziel-Hautton wird nie angesteuert.
   if (st.face != null) ev = stretch(st.face) < .15 ? Math.max(ev, evFor(stretch(st.face), .22)) : st.hi > .85 ? Math.min(ev, .2) : ev;
+  // Gegenlicht: das Helle ist der Hintergrund; abdunkeln würde das Motiv wieder versenken und den Himmel grau machen
+  if (backlit) ev = Math.max(0, ev);
   ev = Math.max(-.45, Math.min(.45, ev)); if (Math.abs(ev) > .04) a.exposure = +ev.toFixed(3);
   // Weißabgleich: Richtung neutral, zur Hälfte, höchstens ±10 %; warme Stimmung kaum anfassen
   if (st.gray && st.warm < .35) {                          // weite warme, satte Flächen (Sonnenuntergang): nicht anfassen
@@ -6124,8 +6185,14 @@ function autoRecipe(st) {
   return a;
 }
 async function computeAuto(id) {
-  const px = await photoPixels(id); if (!px) return null;
-  return autoRecipe(photoStats(px, facesOf(id) || []));
+  // Mit dem Dienst: erst Gegenlicht und Rauschen messen, dann Belichtung und Farbe auf dem bearbeiteten Bild
+  if (SVC.pid) { try { await loadQuality([id]); } catch (e) { /* ohne Analyse weiter */ } }
+  const q = qualityOf(id), fx = q ? fxText(q.fusion, q.denoise) : '';
+  const px = await photoPixels(id, 256, fx); if (!px) return null;
+  const a = autoRecipe(photoStats(px, facesOf(id) || []), { backlit: !!(q && q.fusion) });
+  if (q && q.fusion) a.fusion = q.fusion;
+  if (q && q.denoise) a.denoise = q.denoise;
+  return a;
 }
 // Automatik für ein Foto ein- oder ausschalten; die Werte werden beim Einschalten einmal berechnet
 async function setAuto(id, on) {
@@ -6138,12 +6205,74 @@ async function setAuto(id, on) {
 }
 
 
+/* ----- Detailbearbeitung im Dienst: Gegenlicht und Rauschen -----
+   Der Dienst misst je Foto Rauschen und Gegenlicht und schlägt eine Stärke vor (zwischengespeichert). Die
+   Prüfliste nennt Fotos, bei denen es sich lohnt; die Automatik übernimmt die Vorschläge. Ohne Dienst oder ohne
+   OpenCV im Dienst gibt es beides nicht, alles andere funktioniert wie zuvor. */
+const QUALITY = { available: null, q: {}, busy: false };
+const fxText = (f, n) => (f >= .01 || n >= .01 ? `f${(f || 0).toFixed(2)}n${(n || 0).toFixed(2)}` : '');
+const detailOn = () => !!SVC.pid && QUALITY.available !== false;
+// live: im Editor zeigt „Original“ (gedrückt halten) auch das Foto ohne Detailbearbeitung
+function fxOf(id, live = true) {
+  if (!detailOn() || (live && ui.adjCompare)) return '';
+  const r = adjOf(id); return r ? fxText(r.fusion, r.denoise) : '';
+}
+const withFx = (url, fx) => (url && fx ? url + (url.includes('?') ? '&' : '?') + 'fx=' + fx : url);
+const qualityOf = (id) => { const ph = S.photos[id], a = ph && faceAsset(ph); return (a && QUALITY.q[a]) || null; };
+// onChunk: nach jedem Paket (die Analyse dauert je Foto etwa eine halbe Sekunde)
+async function loadQuality(ids, onChunk) {
+  if (!detailOn()) return false;
+  const want = [...new Set(ids.map(id => S.photos[id] && faceAsset(S.photos[id])).filter(a => a && SVC.assets[a] && !(a in QUALITY.q)))];
+  for (let i = 0; i < want.length; i += 4) {
+    const chunk = want.slice(i, i + 4), r = await api(PP('/quality'), { method: 'POST', body: { ids: chunk } });
+    QUALITY.available = !!r.available; if (!r.available) return false;
+    for (const a of chunk) QUALITY.q[a] = r.quality[a] || null;     // null: nicht messbar, nicht erneut fragen
+    if (onChunk && chunk.some(a => QUALITY.q[a] && (QUALITY.q[a].fusion || QUALITY.q[a].denoise))) onChunk();
+  }
+  return want.length > 0;
+}
+// Im Hintergrund nachladen; after(), sobald Messungen mit einem Vorschlag dazukommen
+function refreshQuality(ids, after) {
+  if (!detailOn() || QUALITY.busy) return;
+  QUALITY.busy = true;
+  loadQuality(ids, after).catch(() => {}).finally(() => { QUALITY.busy = false; });
+}
+// Fotos im Kalender, bei denen Gegenlicht oder Rauschen deutlich ausgeglichen werden sollte, es aber noch nicht ist
+function detailNeeds(ids) {
+  const back = [], noisy = [];
+  for (const id of ids) {
+    const q = qualityOf(id); if (!q) continue;
+    const r = adjOf(id) || {};
+    if (q.fusion && (r.fusion || 0) < q.fusion * .5) back.push(id);
+    if (q.denoise && (r.denoise || 0) < q.denoise * .5) noisy.push(id);
+  }
+  return { back, noisy };
+}
+function detailChecks() {
+  if (!detailOn()) return [];
+  const u = usage(), ids = Object.keys(u).filter(id => S.photos[id] && !S.photos[id].demo);
+  refreshQuality(ids, () => { if (ui.view === 'print') renderPrint(); });
+  const { back, noisy } = detailNeeds(ids), out = [];
+  const page = (id) => (u[id] || [])[0];
+  if (back.length) out.push(['warn', back.length === 1 ? _t('1 Foto im Gegenlicht: das Motiv ist zu dunkel') : _t('{n} Fotos im Gegenlicht: das Motiv ist zu dunkel', { n: back.length }), page(back[0]), { act: 'fixbacklight', label: _t('Aufhellen') }]);
+  if (noisy.length) out.push(['warn', noisy.length === 1 ? _t('1 Foto ist stark verrauscht') : _t('{n} Fotos sind stark verrauscht', { n: noisy.length }), page(noisy[0]), { act: 'fixnoise', label: _t('Rauschen mindern') }]);
+  return out;
+}
+// Vorschlag des Dienstes als eigenen Wert übernehmen
+function applyDetail(kind) {
+  const ids = Object.keys(usage()).filter(id => S.photos[id]), key = kind === 'back' ? 'fusion' : 'denoise';
+  const list = detailNeeds(ids)[kind];
+  for (const id of list) setAdjust(id, { [key]: qualityOf(id)[key] });
+  return list.length;
+}
+
+
 /* ----- Alle Monate angleichen -----
    Belichtung und Farbstimmung der Monatsseiten zum Mittel des Kalenders ziehen, zu einem einstellbaren Teil:
    Der Kalender wirkt wie aus einem Guss, die Jahreszeiten bleiben erkennbar. Gemessen wird nach den bisherigen
    Anpassungen (ohne eine frühere Angleichung); das Ergebnis steht je Foto in r.match und lässt sich neu berechnen. */
 async function photoTone(id, withMatch = false) {
-  const px = await photoPixels(id, 128); if (!px) return null;
+  const px = await photoPixels(id, 128, fxOf(id, false)); if (!px) return null;
   const c = compileAdjust(adjOf(id, { noMatch: !withMatch })); if (c) applyAdjustPixels(px.data, c);
   const d = px.data, Ls = []; let lr = 0, n = 0;
   for (let i = 0; i < d.length; i += 4) {

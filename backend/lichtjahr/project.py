@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
+from . import detail
 from . import faces as facedet
 from .lock import ProjectLock
 from .media import HEIF, date_from_name, inspect, is_photo, make_thumbnail, month_from_folder, sha256_stream
@@ -419,6 +420,72 @@ class Project:
                     out.write(data)
                 os.replace(tmp, target)
         return path
+
+    # -- Detailbearbeitung (Gegenlicht, Rauschen) --------------------------------------------
+    def _cache_file(self, kind: str, asset: Asset, name: str) -> str:
+        return os.path.join(self.cache_dir, kind, asset.contentHash[:2], name)
+
+    @staticmethod
+    def _save_image(im, path: str, quality: int) -> None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        icc = im.info.get("icc_profile")
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        im.save(tmp, "JPEG", quality=quality, subsampling=0 if quality >= 92 else 2, **({"icc_profile": icc} if icc else {}))
+        os.replace(tmp, path)
+
+    def detail_thumbnail(self, asset: Asset, size: int, fx: dict) -> str:
+        """Vorschau mit Detailbearbeitung (zwischengespeichert nach Prüfsumme, Größe und Einstellung)."""
+        from PIL import Image
+        size = max(64, min(2400, size))
+        path = self._cache_file("detail", asset, f"{asset.contentHash}_{size}_{detail.fx_key(fx)}_{detail.VERSION}.jpg")
+        if not os.path.exists(path):
+            if size < detail.PROXY:                      # kleine Vorschau aus der bearbeiteten großen: sieht gleich aus
+                with Image.open(self.detail_thumbnail(asset, detail.PROXY, fx)) as big:
+                    big.load()
+                    icc = big.info.get("icc_profile")
+                    big.thumbnail((size, size), Image.Resampling.LANCZOS)
+                    if icc:
+                        big.info["icc_profile"] = icc
+                    self._save_image(big, path, 90)
+            else:
+                with Image.open(self.thumbnail(asset, size)) as im:
+                    im.load()
+                    self._save_image(detail.apply(im, fx), path, 90)
+        return path
+
+    def detail_original(self, asset: Asset, fx: dict) -> str:
+        """Original in voller Größe mit Detailbearbeitung, als JPEG mit dem Farbprofil des Fotos."""
+        from PIL import Image, ImageOps
+        path = self._cache_file("detail", asset, f"{asset.contentHash}_full_{detail.fx_key(fx)}_{detail.VERSION}.jpg")
+        if not os.path.exists(path):
+            with self.storage.open_read(asset.path) as fh:
+                data = fh.read()
+            with Image.open(io.BytesIO(data)) as im:
+                icc = im.info.get("icc_profile")
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                if icc:
+                    im.info["icc_profile"] = icc
+                self._save_image(detail.apply(im, fx), path, 95)
+        return path
+
+    def quality(self, asset: Asset) -> dict:
+        """Rauschen und Gegenlicht messen, mit Vorschlag für die Stärke (zwischengespeichert)."""
+        from PIL import Image, ImageOps
+        path = self._cache_file("quality", asset, f"{asset.contentHash}_{detail.VERSION}.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        with self.storage.open_read(asset.path) as fh:
+            data = fh.read()
+        with Image.open(io.BytesIO(data)) as full, Image.open(self.thumbnail(asset, 1600)) as proxy:
+            full = ImageOps.exif_transpose(full)
+            found = detail.analyze(full, proxy)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(found, fh)
+        os.replace(tmp, path)
+        return found
 
     def faces(self, asset: Asset) -> list[dict]:
         """Gesichter im Foto (Bruchteile des Fotos), zwischengespeichert nach Prüfsumme und Detektor-Version."""

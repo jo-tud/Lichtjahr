@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
+from . import detail
 from . import faces as facedet
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
@@ -372,15 +373,34 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return a
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/thumb")
-    def thumb(project_id: str, asset_id: str, size: int = 360):
+    def thumb(project_id: str, asset_id: str, size: int = 360, fx: str = ""):
+        """Vorschau; mit ``fx`` (z. B. „f0.6n0.4“) mit Gegenlicht-Ausgleich und Rauschminderung."""
         p = get_project(project_id)
         a = asset_or_404(p, asset_id)
+        eff = detail.parse_fx(fx) if detail.available() else None
         try:
-            path = p.thumbnail(a, size)
+            path = p.detail_thumbnail(a, size, eff) if eff else p.thumbnail(a, size)
         except NotFound:
             raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable",
-                                                                     "ETag": f'"{a.contentHash}_{size}"'})
+                                                                     "ETag": f'"{a.contentHash}_{size}_{detail.fx_key(eff)}"'})
+
+    @app.post("/api/projects/{project_id}/quality")
+    def quality(project_id: str, req: FacesRequest):
+        """Rauschen und Gegenlicht der angefragten Fotos mit Vorschlag; ``available`` ist falsch ohne OpenCV."""
+        p = get_project(project_id)
+        if not detail.available():
+            return {"available": False, "quality": {}}
+        man, _ = p.load()
+        out = {}
+        for aid in dict.fromkeys(req.ids):
+            a = man.asset(aid)
+            if a and a.status != "missing":
+                try:
+                    out[aid] = p.quality(a)
+                except Exception:                              # ein unlesbares Foto hält die anderen nicht auf
+                    continue
+        return {"available": True, "quality": out}
 
     @app.post("/api/projects/{project_id}/faces")
     def faces(project_id: str, req: FacesRequest):
@@ -435,7 +455,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/proof")
     def proof(project_id: str, asset_id: str, printer: str, size: int = 1600, paper: bool = True, gamut: bool = False,
-              adj: str = "", tune: bool = False):
+              adj: str = "", tune: bool = False, fx: str = ""):
         """Softproof: Vorschaubild so, wie es mit dem Druckprofil gedruckt aussieht (zwischengespeichert)."""
         p = get_project(project_id)
         a = asset_or_404(p, asset_id)
@@ -443,12 +463,14 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         size = max(64, min(2400, size))
         m, lut = parse_adjust(adj)
         lut = compose_lut(lut, print_tune(profile)["lut"] if tune else None)
+        eff = detail.parse_fx(fx) if detail.available() else None
         tag = hashlib.sha1(f"{m};{lut}".encode()).hexdigest()[:10] if (m or lut) else "0"
-        key = f"v3_{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{tag}_{int(os.path.getmtime(profile.path))}"
+        key = (f"v3_{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{tag}"
+               f"_{detail.fx_key(eff) or '0'}{detail.VERSION if eff else ''}_{int(os.path.getmtime(profile.path))}")
         path = os.path.join(p.cache_dir, "proof", a.contentHash[:2], key + ".jpg")
         if not os.path.exists(path):
             try:
-                src = p.thumbnail(a, size)
+                src = p.detail_thumbnail(a, size, eff) if eff else p.thumbnail(a, size)
             except NotFound:
                 raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
             with Image.open(src) as im:
@@ -463,10 +485,17 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/original")
-    def original(project_id: str, asset_id: str):
-        """Originaldatei; HEIC und TIFF als JPEG in voller Größe, weil Browser sie nicht lesen (zwischengespeichert)."""
+    def original(project_id: str, asset_id: str, fx: str = ""):
+        """Originaldatei; HEIC und TIFF als JPEG in voller Größe, weil Browser sie nicht lesen (zwischengespeichert).
+        Mit ``fx`` in voller Größe mit Gegenlicht-Ausgleich und Rauschminderung (für den PDF-Entwurf)."""
         p = get_project(project_id)
         a = asset_or_404(p, asset_id)
+        eff = detail.parse_fx(fx) if detail.available() else None
+        if eff:
+            try:
+                return FileResponse(p.detail_original(a, eff), media_type="image/jpeg")
+            except NotFound:
+                raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         if os.path.splitext(a.path)[1].lower() not in BROWSER_EXT:
             path = os.path.join(p.cache_dir, "browser", a.contentHash[:2], a.contentHash + ".jpg")
             if not os.path.exists(path):
