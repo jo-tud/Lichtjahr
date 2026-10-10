@@ -1,11 +1,12 @@
-# Veröffentlicht die Oberfläche unter https://<owner>.github.io/<repo>/
+# Veröffentlicht die Website unter https://<owner>.github.io/<repo>/: Landingpage (site/, englisch und unter /de/
+# deutsch), die App unter /app/ und die Bilder aus docs/images unter /images/.
 # Einmalig nötig: Settings → Pages → Source: „GitHub Actions“.
 name: Online-Version
 
 on:
   push:
     branches: [main]
-    paths: ["prototyp/dist/**", "docs/images/**", ".github/workflows/pages.yml"]
+    paths: ["prototyp/dist/**", "docs/images/**", "site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,8 +28,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Seite zusammenstellen
         run: |
-          mkdir -p _site
-          cp prototyp/dist/index.html _site/index.html
+          mkdir -p _site/app
+          cp -r site/. _site/
+          cp prototyp/dist/index.html _site/app/index.html
+          cp -r docs/images _site/images
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

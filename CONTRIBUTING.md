@@ -57,6 +57,13 @@ The app is available in English (the default) and German.
 - Documentation: `README.md` and `backend/README.md` are in English, with German versions in
   `README.de.md` and `backend/README.de.md`. Please update both when features change.
 
+### Website (`site/`)
+
+The landing page at `https://jo-tud.github.io/Lichtjahr/` is plain HTML and CSS in `site/`: `index.html` in English,
+`de/index.html` in German – please keep both in step. The Pages workflow adds the app under `/app/` and
+`docs/images/` under `/images/`. The page loads nothing from third parties (Jost lies in `site/assets/`, the
+body text uses the system font); please keep it that way.
+
 ### Local service (`backend/`)
 
 ```sh

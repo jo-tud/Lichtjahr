@@ -14,7 +14,8 @@ und ein CMYK-PDF für die Druckerei erzeugen. Im Browser, am Desktop wie auf dem
 [![Release](https://img.shields.io/github/v/release/jo-tud/Lichtjahr)](https://github.com/jo-tud/Lichtjahr/releases/latest)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 
-[**▶ Im Browser ausprobieren**](https://jo-tud.github.io/Lichtjahr/) ·
+[**▶ Im Browser ausprobieren**](https://jo-tud.github.io/Lichtjahr/app/) ·
+[Website](https://jo-tud.github.io/Lichtjahr/de/) ·
 [**⬇ Herunterladen**](https://github.com/jo-tud/Lichtjahr/releases/latest) ·
 [Schnellstart](#schnellstart) ·
 [Funktionen](#was-lichtjahr-kann) ·
@@ -147,7 +148,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 
 ### Nur ausprobieren
 
-Öffne die **[Online-Version](https://jo-tud.github.io/Lichtjahr/)**. Sie startet mit Beispielbildern.
+Öffne die **[Online-Version](https://jo-tud.github.io/Lichtjahr/app/)**. Sie startet mit Beispielbildern.
 Eigene Fotos bleiben im Browser (IndexedDB) und werden nirgendwohin hochgeladen.
 
 Ohne Internet geht es genauso: Repository klonen und `prototyp/dist/index.html` im Browser öffnen.
@@ -354,6 +355,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Wer ist wie oft auf den Fotos (lokale Gesichtserkennung)
 - [x] Serienbilder: bestes Foto vorgeschlagen
 - [x] Version 1.0: Download mit Startskripten für macOS, Windows und Linux ([Änderungen](CHANGELOG.md), auf Englisch)
+- [x] [Website](https://jo-tud.github.io/Lichtjahr/de/) auf Deutsch und Englisch, ohne Inhalte von Dritten
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
 
