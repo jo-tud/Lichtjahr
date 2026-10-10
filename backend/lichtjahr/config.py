@@ -1,18 +1,40 @@
 """Orte auf dem eigenen Rechner: Liste der bekannten Projekte, Vorschau-Cache, Entwürfe.
 
-Nichts davon liegt im Projektordner. Standard unter Linux nach XDG:
-``~/.local/share/lichtjahr`` (Daten) und ``~/.cache/lichtjahr`` (Vorschaubilder).
+Nichts davon liegt im Projektordner. Standard je Betriebssystem:
+
+- Linux (XDG): ``~/.local/share/lichtjahr`` (Daten) und ``~/.cache/lichtjahr`` (Vorschaubilder)
+- macOS: ``~/Library/Application Support/Lichtjahr`` und ``~/Library/Caches/Lichtjahr``
+- Windows: ``%LOCALAPPDATA%\\Lichtjahr`` und ``%LOCALAPPDATA%\\Lichtjahr\\Cache``
+
+Wer schon einen Datenordner am Linux-Ort hat (frühere Versionen nutzten ihn überall), behält ihn.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 
 
 def _xdg(var: str, fallback: str) -> str:
     return os.environ.get(var) or os.path.expanduser(fallback)
+
+
+def default_dirs(platform: str | None = None) -> tuple[str, str]:
+    """(Datenordner, Cache-Ordner) für dieses Betriebssystem."""
+    platform = platform or sys.platform
+    xdg = (os.path.join(_xdg("XDG_DATA_HOME", "~/.local/share"), "lichtjahr"),
+           os.path.join(_xdg("XDG_CACHE_HOME", "~/.cache"), "lichtjahr"))
+    if platform.startswith("linux") or "XDG_DATA_HOME" in os.environ or os.path.isdir(xdg[0]):
+        return xdg
+    if platform == "darwin":
+        lib = os.path.expanduser("~/Library")
+        return os.path.join(lib, "Application Support", "Lichtjahr"), os.path.join(lib, "Caches", "Lichtjahr")
+    if platform == "win32":
+        base = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~/AppData/Local"), "Lichtjahr")
+        return base, os.path.join(base, "Cache")
+    return xdg
 
 
 @dataclass
@@ -23,11 +45,8 @@ class Settings:
 
     @classmethod
     def default(cls, data_dir: str | None = None, cache_dir: str | None = None, token: str | None = None) -> "Settings":
-        return cls(
-            data_dir=data_dir or os.path.join(_xdg("XDG_DATA_HOME", "~/.local/share"), "lichtjahr"),
-            cache_dir=cache_dir or os.path.join(_xdg("XDG_CACHE_HOME", "~/.cache"), "lichtjahr"),
-            token=token,
-        )
+        data, cache = default_dirs()
+        return cls(data_dir=data_dir or data, cache_dir=cache_dir or cache, token=token)
 
 
 class Registry:

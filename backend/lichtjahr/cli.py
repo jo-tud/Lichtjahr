@@ -43,7 +43,50 @@ def _lan_ip() -> str | None:
         return None
 
 
+def _lichtjahr_at(port: int) -> str | None:
+    """Läuft auf diesem Port schon Lichtjahr? Dann dessen Version, sonst None."""
+    import json
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return str(data.get("version", "?")) if data.get("ok") else None
+    except Exception:                                 # nichts oder ein anderes Programm
+        return None
+
+
+def _port_free(host: str, port: int) -> bool:
+    import socket
+    bind = "" if host in ("0.0.0.0", "::") else host
+    family = socket.AF_INET6 if ":" in bind else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as s:
+        if os.name != "nt":                           # wie uvicorn; unter Windows hieße das „Port teilen“
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((bind, port))
+            return True
+        except OSError:
+            return False
+
+
+def _open_when_ready(url: str, port: int) -> None:
+    """Browser öffnen, sobald der Dienst antwortet (im Hintergrund, damit uvicorn starten kann)."""
+    import threading
+    import time
+    import webbrowser
+
+    def wait() -> None:
+        for _ in range(100):
+            if _lichtjahr_at(port):
+                webbrowser.open(url)
+                return
+            time.sleep(.2)
+    threading.Thread(target=wait, daemon=True).start()
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
+    import webbrowser
+
     import uvicorn
 
     from .api import create_app
@@ -69,16 +112,37 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print(_t("Projekt: {title} {year} ({location})", title=s["title"], year=s["calendarYear"], location=s["storage"]["location"]))
     if token:
         query["token"] = token
+    port = args.port
+    if not _port_free(args.host, port):
+        running = _lichtjahr_at(port)
+        if running and _is_loopback(args.host) and not args.path:
+            url = f"http://localhost:{port}/"         # schon gestartet, z. B. zweimal doppelgeklickt
+            print(_t("Lichtjahr {version} läuft bereits: {url}", version=running, url=url))
+            if not args.no_browser:
+                webbrowser.open(url)
+            return 0
+        port = next((p for p in range(args.port + 1, args.port + 20) if _port_free(args.host, p)), 0)
+        if not port:
+            print(_t("Port {port} ist belegt, und kein freier in der Nähe gefunden. Mit --port einen anderen wählen.", port=args.port), file=sys.stderr)
+            return 1
+        print(_t("Port {old} ist belegt, Lichtjahr nimmt {new}.", old=args.port, new=port))
     app = create_app(settings, static_dir=args.static or _repo_static())
     shown = "localhost" if _is_loopback(args.host) else args.host
     if shown in ("0.0.0.0", "::"):
         shown = _lan_ip() or "localhost"
-    url = f"http://{shown}:{args.port}/" + ("?" + urlencode(query) if query else "")
+    url = f"http://{shown}:{port}/" + ("?" + urlencode(query) if query else "")
     print(_t("Lichtjahr {version} läuft: {url}", version=__version__, url=url))
     if not _is_loopback(args.host):
         print(_t("Diese Adresse (mit Schlüssel) auf dem Handy öffnen; sie gilt nur in eurem Netz."))
-    print(_t("API-Dokumentation: {url}", url=f"http://{shown}:{args.port}/api/docs"))
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    print(_t("API-Dokumentation: {url}", url=f"http://{shown}:{port}/api/docs"))
+    print(_t("Dieses Fenster offen lassen, solange du am Kalender arbeitest. Beenden mit Strg+C oder Fenster schließen."))
+    if not args.no_browser:
+        local = f"http://localhost:{port}/" + ("?" + urlencode(query) if query else "")
+        _open_when_ready(local, port)
+    try:
+        uvicorn.run(app, host=args.host, port=port, log_level="warning")
+    except KeyboardInterrupt:
+        pass
     return 0
 
 
@@ -103,8 +167,8 @@ def cmd_init(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="lichtjahr", description="Lokaler Dienst für den Familien-Fotokalender.")
     parser.add_argument("--version", action="version", version=f"lichtjahr {__version__}")
-    parser.add_argument("--data-dir", help="Ort für Projektliste und Entwürfe (Standard: ~/.local/share/lichtjahr)")
-    parser.add_argument("--cache-dir", help="Ort für Vorschaubilder (Standard: ~/.cache/lichtjahr)")
+    parser.add_argument("--data-dir", help="Ort für Projektliste und Entwürfe (Standard je nach Betriebssystem, siehe README)")
+    parser.add_argument("--cache-dir", help="Ort für Vorschaubilder (Standard je nach Betriebssystem)")
     sub = parser.add_subparsers(dest="cmd")
 
     s = sub.add_parser("serve", help="Dienst starten (Standard: nur auf diesem Rechner erreichbar)")
@@ -112,7 +176,8 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--host", default="127.0.0.1", help="Bind-Adresse; 0.0.0.0 für Zugriff aus dem Heimnetz")
     s.add_argument("--port", type=int, default=8470)
     s.add_argument("--token", help="Zugriffsschlüssel; wird bei Netzzugriff automatisch erzeugt")
-    s.add_argument("--static", help="Ordner mit der Oberfläche (Standard: prototyp/dist)")
+    s.add_argument("--static", help="Ordner mit der Oberfläche (Standard: im Paket bzw. prototyp/dist)")
+    s.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
     s.set_defaults(func=cmd_serve)
 
     i = sub.add_parser("init", help="Neues Projekt in einem Ordner anlegen")
@@ -123,6 +188,11 @@ def main(argv: list[str] | None = None) -> None:
     i.add_argument("--language", choices=["en", "de"], help="Sprache der Ordnernamen (Standard: Systemsprache)")
     i.set_defaults(func=cmd_init)
 
+    for stream in (sys.stdout, sys.stderr):           # Umlaute und Pfeile auch in alten Windows-Konsolen
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     set_lang(system_lang())
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

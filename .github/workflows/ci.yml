@@ -29,6 +29,19 @@ jobs:
       - run: pip install -e '.[dev]'
       - run: pytest -q
 
+  package:
+    name: Paket und Download bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bauen und in frischer Umgebung starten
+        run: tools/package.sh --check
+      - name: Startskripte prüfen
+        run: sh -n start/lichtjahr.sh
+
   prototype:
     name: Oberfläche bauen
     runs-on: ubuntu-latest

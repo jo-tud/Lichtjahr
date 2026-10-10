@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lichtjahr"
-version = "0.1.0"
-description = "Lokaler Dienst für Lichtjahr: Projektordner, Fotos nach Monaten, Sperre, Druck-PDF mit Farbmanagement"
+version = "1.0.0"
+description = "Local service for Lichtjahr, the family photo wall calendar: project folders, photos by month, print PDF with color management"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -32,7 +32,7 @@ lichtjahr = "lichtjahr.cli:main"
 include = ["lichtjahr*"]
 
 [tool.setuptools.package-data]
-lichtjahr = ["icc/*.icc", "icc/*.md", "icc/*.txt", "models/*.onnx", "models/*.md", "models/*.txt"]
+lichtjahr = ["static/*.html", "icc/*.icc", "icc/*.md", "icc/*.txt", "models/*.onnx", "models/*.md", "models/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

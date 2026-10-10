@@ -19,7 +19,7 @@ def pick(header_or_locale: str | None) -> str:
     """„de-DE,de;q=0.9,en;q=0.8“ oder „de_DE.UTF-8“ → „de“; alles andere → „en“."""
     for part in (header_or_locale or "").replace("_", "-").split(","):
         tag = part.split(";")[0].strip().lower()
-        if tag.startswith("de"):
+        if tag.startswith("de") or tag.startswith("german"):     # Windows meldet „German_Germany“
             return "de"
         if tag.startswith("en"):
             return "en"
@@ -155,6 +155,10 @@ EN = {
     "{path}: {error}  Neues Projekt mit „lichtjahr init {path}“ anlegen.": "{path}: {error}  Create a new project with “lichtjahr init {path}”.",
     "Projekt: {title} {year} ({location})": "Project: {title} {year} ({location})",
     "Lichtjahr {version} läuft: {url}": "Lichtjahr {version} is running: {url}",
+    "Lichtjahr {version} läuft bereits: {url}": "Lichtjahr {version} is already running: {url}",
+    "Port {port} ist belegt, und kein freier in der Nähe gefunden. Mit --port einen anderen wählen.": "Port {port} is in use and no free port was found nearby. Choose another one with --port.",
+    "Port {old} ist belegt, Lichtjahr nimmt {new}.": "Port {old} is in use, Lichtjahr uses {new}.",
+    "Dieses Fenster offen lassen, solange du am Kalender arbeitest. Beenden mit Strg+C oder Fenster schließen.": "Keep this window open while you work on the calendar. To quit, press Ctrl+C or close the window.",
     "Diese Adresse (mit Schlüssel) auf dem Handy öffnen; sie gilt nur in eurem Netz.": "Open this address (including the key) on your phone; it only works on your home network.",
     "API-Dokumentation: {url}": "API documentation: {url}",
     "Projekt „{title}“ für {year} angelegt in {root}": "Project “{title}” for {year} created in {root}",

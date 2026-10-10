@@ -102,6 +102,19 @@ CI on GitHub runs the tests and the build automatically for every pull request.
 - Commit messages in English or German, with a concise first line in the present tense.
 - Please discuss larger restructurings in an issue first.
 
+## Releases
+
+1. Raise the version in `backend/lichtjahr/__init__.py` and `backend/pyproject.toml` and add a section to
+   `CHANGELOG.md`.
+2. `tools/package.sh --check` builds the package with the app inside and the download ZIP with the start
+   scripts (`start/`), installs the package in a fresh environment and starts it. CI does the same for every
+   pull request.
+3. After merging, push a tag `vX.Y.Z`; the release workflow builds again and publishes ZIP and package with the
+   changelog section as release notes.
+
+The start scripts are tested on Linux in CI; changes to `start/Lichtjahr.bat` or the macOS behavior should be
+tried on the real system.
+
 ## License
 
 By contributing, you agree that your contribution is licensed under the project's [MIT License](LICENSE).

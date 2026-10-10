@@ -6,11 +6,16 @@ Der Dienst arbeitet direkt in einem **Projektordner** auf deinem Rechner. Er lie
 Monatsordnern, erzeugt Vorschaubilder, speichert den Gestaltungsstand und schützt das Projekt mit einer
 Bearbeitungssperre. Die Oberfläche im Browser spricht über eine HTTP-Schnittstelle mit ihm.
 
-Der Dienst liefert die Oberfläche gleich mit aus: `lichtjahr serve` starten, Adresse im Browser öffnen, fertig.
+Der Dienst liefert die Oberfläche gleich mit aus: `lichtjahr serve` starten, und die App öffnet sich im Browser.
 
 ## Installation
 
-Voraussetzung: Python 3.11 oder neuer (unter Linux meist vorhanden).
+Ohne Terminal: das ZIP aus dem [aktuellen Release](https://github.com/jo-tud/Lichtjahr/releases/latest)
+herunterladen und das Startskript doppelklicken (siehe [Haupt-README](../README.de.md#schnellstart)). Die Skripte
+nutzen [uv](https://docs.astral.sh/uv/), das auch Python mitbringt, und starten den fertig gepackten Dienst
+samt Oberfläche und HEIC-Unterstützung.
+
+Zum Entwickeln, mit Python 3.11 oder neuer (unter Linux meist vorhanden):
 
 ```sh
 cd backend
@@ -25,8 +30,11 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF-Fotos vom iPhone (pillow-heif
 ```sh
 # Dienst starten – nur auf diesem Rechner erreichbar
 lichtjahr serve
-# → Lichtjahr 0.1.0 läuft: http://localhost:8470/
+# → Lichtjahr 1.0.0 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
 ```
+
+Ein zweiter Start öffnet nur den Browser erneut. Ist Port 8470 von einem anderen Programm belegt, nimmt der
+Dienst den nächsten freien und sagt das.
 
 Beim ersten Öffnen fragt die App nach dem Projektordner: neu anlegen (die Monatsordner entstehen dabei)
 oder einen vorhandenen öffnen. Alternativ auf der Befehlszeile:
@@ -56,7 +64,7 @@ Hand): neue Dateien kommen dazu, verschobene werden wiedererkannt, fehlende geme
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 0.1.0 läuft: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.0.0 läuft: http://192.168.178.20:8470/?token=…
 ```
 
 Sobald der Dienst im Netz erreichbar ist, verlangt er einen Zugriffsschlüssel. Er wird automatisch erzeugt
@@ -91,8 +99,17 @@ Kalender-2027/
     └── journal.jsonl       Journal für Dateiverschiebungen
 ```
 
-Vorschaubilder liegen nicht im Projektordner, sondern im Cache (`~/.cache/lichtjahr`). Die Liste der
-bekannten Projekte und gerettete Entwürfe liegen unter `~/.local/share/lichtjahr`.
+Vorschaubilder liegen nicht im Projektordner, sondern in einem Cache; die Liste der bekannten Projekte,
+gerettete Entwürfe und das Modell der Gesichtserkennung liegen in einem Datenordner auf diesem Rechner
+(`--data-dir` und `--cache-dir` ändern das):
+
+| System  | Daten                                  | Cache                              |
+|---------|----------------------------------------|------------------------------------|
+| Linux   | `~/.local/share/lichtjahr`             | `~/.cache/lichtjahr`               |
+| macOS   | `~/Library/Application Support/Lichtjahr` | `~/Library/Caches/Lichtjahr`    |
+| Windows | `%LOCALAPPDATA%\Lichtjahr`             | `%LOCALAPPDATA%\Lichtjahr\Cache`   |
+
+Gibt es `~/.local/share/lichtjahr` schon (frühere Versionen nutzten den Ort überall), bleibt es dabei.
 
 ## Druck-PDF
 

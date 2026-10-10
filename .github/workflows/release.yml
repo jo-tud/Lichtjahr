@@ -1,0 +1,36 @@
+# Release: Tag „v1.2.3“ pushen → Paket (Wheel mit Oberfläche) und ZIP mit Startskripten als GitHub-Release.
+# Die Version im Tag muss zu backend/lichtjahr/__init__.py passen; die Notizen kommen aus CHANGELOG.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Version prüfen
+        run: |
+          v=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' backend/lichtjahr/__init__.py)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version $v"; exit 1; }
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+      - name: Bauen und prüfen
+        run: tools/package.sh --check
+      - name: Notizen aus CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '$0 ~ "^## \\[?"v"\\]?" {on=1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::Kein Abschnitt für $VERSION in CHANGELOG.md"; exit 1; }
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/Lichtjahr-$VERSION.zip release/lichtjahr-$VERSION-py3-none-any.whl \
+            --title "Lichtjahr $VERSION" --notes-file notes.md
