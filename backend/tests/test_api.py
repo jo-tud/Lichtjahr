@@ -16,7 +16,7 @@ def client(tmp_path, token=None):
 def test_full_flow(tmp_path):
     c = client(tmp_path)
     root = tmp_path / "Kalender 2027"
-    r = c.post("/api/projects", json={"path": str(root), "calendarYear": 2027, "title": "Unser Jahr"})
+    r = c.post("/api/projects", json={"path": str(root), "calendarYear": 2027, "title": "Unser Jahr", "language": "de"})
     assert r.status_code == 200, r.text
     pid = r.json()["id"]
     assert c.get("/api/projects").json()[0]["id"] == pid
@@ -122,3 +122,27 @@ def test_serve_with_path_registers_project(tmp_path, monkeypatch, capsys):
     with pytest.raises(SystemExit) as ex:
         cli.main([*base, "serve", str(tmp_path / "leer")])
     assert ex.value.code == 1
+
+
+def test_languages_messages_and_folder_names(tmp_path):
+    c = client(tmp_path)
+    en = c.post("/api/projects", json={"path": str(tmp_path / "Calendar"), "calendarYear": 2027})
+    assert en.status_code == 200 and en.json()["title"] == "Family Calendar" and en.json()["language"] == "en"
+    assert (tmp_path / "Calendar" / "Photos" / "03 March").is_dir() and (tmp_path / "Calendar" / "Photos" / "No month").is_dir()
+    assert en.json()["storage"]["folders"]["months"][11] == "12 December"
+    de = c.post("/api/projects", json={"path": str(tmp_path / "Kalender")}, headers={"Accept-Language": "de-DE,de;q=0.9"})
+    assert de.status_code == 422                                       # Kalenderjahr fehlt
+    de = c.post("/api/projects", json={"path": str(tmp_path / "Kalender"), "calendarYear": 2027}, headers={"Accept-Language": "de-DE,de;q=0.9"})
+    assert de.json()["title"] == "Familienkalender" and (tmp_path / "Kalender" / "Fotos" / "03 März").is_dir()
+    pid = en.json()["id"]
+    H = {"X-Lichtjahr-Session": c.post(f"/api/projects/{pid}/lock", json={}).json()["session"]}
+    put(str(tmp_path / "Calendar"), "Photos/02 February/snow.jpg", photo_bytes())
+    assert len(c.post(f"/api/projects/{pid}/scan", headers=H).json()["added"]) == 1
+    a = c.get(f"/api/projects/{pid}/assets").json()[0]
+    assert a["month"] == 1
+    moved = c.post(f"/api/projects/{pid}/assets/{a['id']}/move", headers=H, json={"month": None}).json()
+    assert moved["path"] == "Photos/No month/snow.jpg"
+    msg = lambda lang: c.get("/api/projects/gibtsnicht", headers={"Accept-Language": lang}).json()["detail"]
+    assert msg("en-US") == "Unknown project. Please add it via “Open project”."
+    assert msg("de") == "Projekt unbekannt. Bitte über „Projekt öffnen“ hinzufügen."
+    assert c.post(f"/api/projects/{pid}/scan").json()["detail"] == "Acquire the editing lock before making changes."

@@ -18,6 +18,7 @@ import tempfile
 from typing import Iterator
 
 from .base import AlreadyExists, Conflict, Entry, NotFound, StorageError
+from ..i18n import _t
 
 
 def etag_of(data: bytes) -> str:
@@ -37,7 +38,7 @@ class LocalStorage:
     def _abs(self, path: str) -> str:
         p = os.path.normpath(os.path.join(self.root, *path.split("/")))
         if p != self.root and not p.startswith(self.root + os.sep):
-            raise StorageError(f"Pfad außerhalb des Projektordners: {path}")
+            raise StorageError(_t("Pfad außerhalb des Projektordners: {path}", path=path))
         return p
 
     @contextlib.contextmanager

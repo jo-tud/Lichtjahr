@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import __version__
 from .config import Registry, Settings
+from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
 from .printing import PrinterRegistry, PrintError, make_print_pdf
 from .project import Project, ProjectError, RevisionConflict
@@ -32,7 +33,8 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 class CreateProject(BaseModel):
     path: str
-    title: str = "Familienkalender"
+    title: str | None = None
+    language: str | None = None                       # Ordnernamen; Standard: Sprache der Anfrage
     calendarYear: int
     sourceYear: int | None = None
     format: dict[str, Any] | None = None
@@ -68,16 +70,17 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Zugriffsschutz -------------------------------------------------------------------
     @app.middleware("http")
     async def require_token(request: Request, call_next):
+        set_lang(pick(request.headers.get("accept-language")))
         # Ohne Schlüssel läuft der Dienst nur lokal. Fremde Hostnamen abweisen, damit keine Webseite
         # per DNS-Rebinding als „localhost“ auf die Fotos zugreifen kann.
         if not settings.token:
             host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]").lower()
             if host not in LOCAL_HOSTS:
-                return JSONResponse({"detail": "Unbekannter Hostname. Bitte über http://localhost aufrufen."}, status_code=403)
+                return JSONResponse({"detail": _t("Unbekannter Hostname. Bitte über http://localhost aufrufen.")}, status_code=403)
         if settings.token and request.url.path.startswith("/api/") and request.url.path != "/api/health":
             given = request.headers.get("authorization", "").removeprefix("Bearer ").strip() or request.query_params.get("token", "")
             if not secrets.compare_digest(given, settings.token):
-                return JSONResponse({"detail": "Zugriffsschlüssel fehlt oder ist falsch."}, status_code=401)
+                return JSONResponse({"detail": _t("Zugriffsschlüssel fehlt oder ist falsch.")}, status_code=401)
         return await call_next(request)
 
     @app.exception_handler(Locked)
@@ -102,7 +105,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.exception_handler(StorageError)
     async def _serr(_, exc: StorageError):
-        return JSONResponse({"detail": f"Speicherfehler: {exc}"}, status_code=500)
+        return JSONResponse({"detail": _t("Speicherfehler: {error}", error=exc)}, status_code=500)
 
     # -- Hilfen ---------------------------------------------------------------------------
     def cache_for(project_id: str) -> str:
@@ -118,10 +121,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             return projects[project_id]
         entry = registry.get(project_id)
         if not entry:
-            raise HTTPException(404, "Projekt unbekannt. Bitte über „Projekt öffnen“ hinzufügen.")
+            raise HTTPException(404, _t("Projekt unbekannt. Bitte über „Projekt öffnen“ hinzufügen."))
         storage = entry["storage"]
         if storage.get("kind") != "local":
-            raise HTTPException(400, f"Speicherart {storage.get('kind')} wird noch nicht unterstützt.")
+            raise HTTPException(400, _t("Speicherart {kind} wird noch nicht unterstützt.", kind=storage.get("kind")))
         p = Project.open(LocalStorage(storage["location"]), cache_for(project_id))
         projects[project_id] = p
         return p
@@ -139,11 +142,12 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return registry.all()
 
     @app.post("/api/projects")
-    def create_project(req: CreateProject):
+    def create_project(req: CreateProject, request: Request):
         storage = LocalStorage(req.path)
         os.makedirs(storage.root, exist_ok=True)
-        p = Project.create(storage, "", title=req.title, calendar_year=req.calendarYear,
-                           source_year=req.sourceYear or req.calendarYear - 1, format=req.format)
+        lang = req.language if req.language in ("de", "en") else pick(request.headers.get("accept-language"))
+        p = Project.create(storage, "", title=req.title or (_t("Familienkalender")), calendar_year=req.calendarYear,
+                           source_year=req.sourceYear or req.calendarYear - 1, format=req.format, language=lang)
         man, _ = p.load()
         p.cache_dir = cache_for(man.id)
         projects[man.id] = p
@@ -186,7 +190,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     @app.post("/api/projects/{project_id}/lock/heartbeat")
     def heartbeat(project_id: str, session: str | None = Depends(session_header)):
         if not session:
-            raise HTTPException(400, "Sitzung fehlt.")
+            raise HTTPException(400, _t("Sitzung fehlt."))
         return {"lock": get_project(project_id).lock.heartbeat(session).public()}
 
     @app.delete("/api/projects/{project_id}/lock")
@@ -254,7 +258,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         safe = os.path.basename(name)
         local = p.storage.local_path(f"{EXPORT_DIR}/{safe}")
         if not safe.lower().endswith(".pdf") or not local or not os.path.exists(local):
-            raise HTTPException(404, "Datei nicht gefunden.")
+            raise HTTPException(404, _t("Datei nicht gefunden."))
         return FileResponse(local, media_type="application/pdf", filename=safe)
 
     # -- Druckprofile ---------------------------------------------------------------------
@@ -267,7 +271,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
                           bleed: float | None = Form(default=None), intent: str | None = Form(default=None)):
         data = await file.read()
         if len(data) > 20_000_000:
-            raise HTTPException(400, "Die Datei ist zu groß für ein ICC-Profil.")
+            raise HTTPException(400, _t("Die Datei ist zu groß für ein ICC-Profil."))
         return printers.add(data, name, tac=tac, bleed=bleed, intent=intent).public()
 
     @app.delete("/api/printers/{printer_id}")
@@ -289,7 +293,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         man, _ = p.load()
         a = man.asset(asset_id)
         if not a:
-            raise HTTPException(404, "Foto nicht gefunden.")
+            raise HTTPException(404, _t("Foto nicht gefunden."))
         return a
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/thumb")
@@ -299,7 +303,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         try:
             path = p.thumbnail(a, size)
         except NotFound:
-            raise HTTPException(404, "Die Datei fehlt im Projektordner.")
+            raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable",
                                                                      "ETag": f'"{a.contentHash}_{size}"'})
 
@@ -313,7 +317,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         try:
             data, _ = p.storage.read(a.path)
         except NotFound:
-            raise HTTPException(404, "Die Datei fehlt im Projektordner.")
+            raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
         return Response(data)
 
     @app.post("/api/projects/{project_id}/assets")
@@ -322,7 +326,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         p = get_project(project_id)
         m = int(month) if month not in (None, "", "none") else None
         if m is not None and not 0 <= m <= 11:
-            raise HTTPException(400, "Monat muss zwischen 0 (Januar) und 11 (Dezember) liegen.")
+            raise HTTPException(400, _t("Monat muss zwischen 0 (Januar) und 11 (Dezember) liegen."))
         a, duplicate = p.add_file(session, file.filename or "foto.jpg", await file.read(), m)
         return {**a.model_dump(), "duplicate": duplicate}
 

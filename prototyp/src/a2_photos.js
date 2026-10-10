@@ -92,31 +92,32 @@ const IMG_RE = /\.(jpe?g|png|webp|gif|avif|heic|heif|tiff?)$/i;
 
 async function importFiles(list) {
   const files = list.filter(f => (f.type && f.type.startsWith('image/')) || IMG_RE.test(f.name));
-  if (!files.length) { toast('Keine Bilddateien gefunden.'); return; }
-  if (SVC.pid && SVC.readOnly) { toast('Nur ansehen: Fotos hinzufügen geht erst, wenn das Projekt frei ist.', 6000); return; }
+  if (!files.length) { toast(_t('Keine Bilddateien gefunden.')); return; }
+  if (SVC.pid && SVC.readOnly) { toast(_t('Nur ansehen: Fotos hinzufügen geht erst, wenn das Projekt frei ist.'), 6000); return; }
   const known = new Set(Object.values(S.photos).map(p => p.name + '|' + p.size));
   const todo = files.filter(f => !known.has(f.name + '|' + f.size));
   let skipped = files.length - todo.length, done = 0;
   const failed = [];
-  const bar = busy('Fotos werden eingelesen', `0 von ${todo.length}`);
+  const bar = busy(_t('Fotos werden eingelesen'), _t('{n} von {total}', { n: 0, total: todo.length }));
   const worker = async () => {
     while (todo.length) {
       const f = todo.shift();
       try { if (await importOne(f) === 'dup') { skipped++; done--; } } catch (e) { failed.push(f.name); }
-      done++; bar.update(done / (done + todo.length), `${done} von ${done + todo.length}`);
+      done++; bar.update(done / (done + todo.length), _t('{n} von {total}', { n: done, total: done + todo.length }));
     }
   };
   await Promise.all([worker(), worker(), worker()]);
   bar.close();
   commit(); renderAll();
-  let msg = `${plural(done - failed.length, 'Foto', 'Fotos')} eingelesen.`;
-  if (skipped) msg += ` ${skipped} ${skipped === 1 ? 'war' : 'waren'} schon da.`;
+  const ok = done - failed.length;
+  let msg = ok === 1 ? _t('1 Foto eingelesen.') : _t('{n} Fotos eingelesen.', { n: ok });
+  if (skipped) msg += ' ' + (skipped === 1 ? _t('1 war schon da.') : _t('{n} waren schon da.', { n: skipped }));
   // Fehlgeschlagene Dateien mit Namen und Abhilfe im Fotobereich zeigen
   ui.importErrors = failed;
-  if (failed.length) msg += ` ${plural(failed.length, 'Datei', 'Dateien')} ${failed.length === 1 ? 'ließ' : 'ließen'} sich nicht öffnen, Details oben.`;
+  if (failed.length) msg += ' ' + (failed.length === 1 ? _t('1 Datei ließ sich nicht öffnen, Details oben.') : _t('{n} Dateien ließen sich nicht öffnen, Details oben.', { n: failed.length }));
   const empty = pageKeys().some(k => pageMonth(k) != null && visibleSlots(S.pages[k]).some(s => !s.photo || !S.photos[s.photo]));
   renderAll();
-  toast(msg, 7000, done - failed.length > 0 && empty ? { label: 'Kalender automatisch gestalten', fn: autoDesign } : null);
+  toast(msg, 7000, done - failed.length > 0 && empty ? { label: _t('Kalender automatisch gestalten'), fn: autoDesign } : null);
 }
 async function importOne(file) {
   const id = uid();
@@ -269,7 +270,7 @@ const DEMO_CAPTIONS = [
 ];
 const DEMO_W = 6000, DEMO_H = 4000;
 async function makeDemoPhotos() {
-  const bar = busy('Beispielprojekt wird vorbereitet', 'Bilder werden gezeichnet …');
+  const bar = busy(_t('Beispielprojekt wird vorbereitet'), _t('Bilder werden gezeichnet …'));
   let n = 0, total = DEMO_CAPTIONS.flat().length;
   for (let m = 0; m < 12; m++) {
     for (let i = 0; i < DEMO_CAPTIONS[m].length; i++) {
@@ -286,9 +287,9 @@ async function makeDemoPhotos() {
       const thumb = await new Promise(r => t.toBlob(r, 'image/jpeg', .8));
       setUrls(id, prev, thumb);
       const d = new Date(new Date().getFullYear(), m, 3 + i * 6);
-      S.photos[id] = { id, name: `Beispiel_${MONTHS_SHORT[m]}_${i + 1}.jpg`, size: 0, path: '', w, h, month: m, src: 'Beispiel', date: isoDate(d), caption: DEMO_CAPTIONS[m][i], fav: i === 0, demo: { seed, m } };
+      S.photos[id] = { id, name: `${_t('Beispiel')}_${MONTHS_SHORT[m]}_${i + 1}.jpg`, size: 0, path: '', w, h, month: m, src: 'Beispiel', date: isoDate(d), caption: _t(DEMO_CAPTIONS[m][i]), fav: i === 0, demo: { seed, m } };
       await DB.put('blobs', id, { prev, thumb });
-      bar.update(++n / total, `${n} von ${total}`);
+      n++; bar.update(n / total, _t('{n} von {total}', { n, total }));
     }
   }
   bar.close();

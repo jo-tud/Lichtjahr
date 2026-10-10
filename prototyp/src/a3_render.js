@@ -75,7 +75,7 @@ function schoolMonth(year, m) {
     if (b < first || a > last) continue;
     const from = a < first ? 1 : +a.slice(8), to = b > last ? daysIn(year, m) : +b.slice(8);
     for (let d = from; d <= to; d++) days.set(d, name);
-    ranges.push(from === to ? `${from}. ${name}` : `${from}.–${to}. ${name}`);
+    ranges.push(from === to ? _tc('{d}. {name}', { d: from, name: _tc(name) }) : _tc('{a}.–{b}. {name}', { a: from, b: to, name: _tc(name) }));
   }
   return { days, ranges };
 }
@@ -94,8 +94,8 @@ function monthInfo(year, m, c) {
   const hol = holidays(year, S.doc.region), sch = c.school ? schoolMonth(year, m) : { days: new Map(), ranges: [] };
   const bd = c.bd === 'off' ? new Map() : birthdaysOf(year, m), names = [];
   for (let d = 1; d <= daysIn(year, m); d++) {
-    const h = hol.get(`${m}-${d}`); if (h) names.push(`${d}. ${h}`);
-    if (c.bd === 'names' && bd.has(d)) names.push(`${d}. ${bd.get(d).join(', ')}`);
+    const h = hol.get(`${m}-${d}`); if (h) names.push(_tc('{d}. {name}', { d, name: _tc(h) }));
+    if (c.bd === 'names' && bd.has(d)) names.push(_tc('{d}. {name}', { d, name: bd.get(d).join(', ') }));
   }
   if (c.school && sch.ranges.length) names.push(...sch.ranges);
   return { hol, sch, bd, names };
@@ -107,22 +107,22 @@ const bar = (x, y, w, h, fill) => ({ t: 'rect', x, y, w, h, fill });
 function calH(year, m, f, c) {
   const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
   const ts = 9 * f, ws = 2.5 * f, ns = 4.6 * f, cw = 7.2 * f, wg = 2 * f, ks = 1.9 * f;
-  const tb = ts * .74;
-  items.push(T(0, tb, MONTHS[m], 'bold', ts, c.color));
-  items.push(T(textWidth(MONTHS[m], 'bold', ts) + 2.2 * f, tb, String(year), 'regular', ts, c.color));
+  const tb = ts * .74, mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
+  items.push(T(0, tb, mn, 'bold', ts, c.color));
+  items.push(T(textWidth(mn, 'bold', ts) + 2.2 * f, tb, String(year), 'regular', ts, c.color));
   const kwH = c.kw ? 2.6 * f : 0, y1 = tb + 6.6 * f + kwH, y2 = y1 + 6.2 * f;
   let x = 0;
   for (let d = 1; d <= n; d++) {
     const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h;
     const fill = sp && c.hi === 'red' ? 'red' : c.color, font = sp && c.hi !== 'none' ? 'bold' : 'regular';
-    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, y1 - ws - 1.2 * f, 'KW ' + isoWeek(year, m, d), 'regular', ks, c.color, 'middle'));
-    items.push(T(x + cw / 2, y1, WD2[dow], sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill, 'middle'));
+    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, y1 - ws - 1.2 * f, _tc('KW {n}', { n: isoWeek(year, m, d) }), 'regular', ks, c.color, 'middle'));
+    items.push(T(x + cw / 2, y1, wd[dow], sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill, 'middle'));
     items.push(T(x + cw / 2, y2, String(d), font, ns, fill, 'middle'));
     if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(x + cw / 2 + textWidth(String(d), font, ns) / 2 - ns * .2, y2, ns, c.color));
     if (info.sch.days.has(d)) items.push(bar(x + .4 * f, y2 + 1.3 * f, cw - .8 * f + (dow === 0 && info.sch.days.has(d + 1) ? wg : 0) + .8 * f * (info.sch.days.has(d + 1) ? 1 : 0), .45 * f, c.color));
     x += cw; if (dow === 0 && d < n) x += wg;
   }
-  let w = Math.max(x, textWidth(MONTHS[m] + ' ' + year, 'bold', ts) + 2 * f), hgt = y2 + (info.sch.days.size ? 2.3 : 1.3) * f;
+  let w = Math.max(x, textWidth(mn + ' ' + year, 'bold', ts) + 2 * f), hgt = y2 + (info.sch.days.size ? 2.3 : 1.3) * f;
   if (c.names && info.names.length) {
     const ls = 2.3 * f;
     for (const l of wrap(info.names.join('  ·  '), 'regular', ls, w)) { hgt += 3.6 * f; items.push(T(0, hgt, l, 'regular', ls, c.color)); }
@@ -134,7 +134,8 @@ function calV(year, m, f, c) {
   const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
   const ts = 7.6 * f, ys = 4.6 * f, ws = 2.6 * f, ns = 4 * f, ls = 2.3 * f, rh = 4.9 * f, gap = 1.6 * f, ks = 1.9 * f;
   const x0 = (c.kw ? 5.5 : 0) * f + (info.sch.days.size ? 1.6 * f : 0);   // Platz für KW und Ferienstrich
-  items.push(T(0, ts * .74, MONTHS[m], 'bold', ts, c.color));
+  const mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
+  items.push(T(0, ts * .74, mn, 'bold', ts, c.color));
   items.push(T(0, ts * .74 + 5.6 * f, String(year), 'regular', ys, c.color));
   let y = ts * .74 + 5.6 * f + 7 * f, nameW = 0;
   const numX = x0 + 12.5 * f, extra = [];
@@ -143,14 +144,14 @@ function calV(year, m, f, c) {
     const fill = sp && c.hi === 'red' ? 'red' : c.color, font = sp && c.hi !== 'none' ? 'bold' : 'regular';
     if (c.kw && (dow === 1 || d === 1)) items.push(T(0, y, String(isoWeek(year, m, d)), 'regular', ks, c.color));
     if (info.sch.days.has(d)) items.push(bar(x0 - 1.4 * f, y - ns * .8, .45 * f, rh + (dow === 0 && info.sch.days.has(d + 1) ? gap : 0) + (info.sch.days.has(d + 1) ? 0 : -rh + ns * .9), c.color));
-    items.push(T(x0, y, WD2[dow], 'regular', ws, fill));
+    items.push(T(x0, y, wd[dow], 'regular', ws, fill));
     items.push(T(numX, y, String(d), font, ns, fill, 'end'));
     if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(numX - ns * .2, y, ns, c.color));
-    const label = [h, c.bd === 'names' && info.bd.has(d) ? info.bd.get(d).join(', ') : null].filter(Boolean).join(' · ');
+    const label = [h && _tc(h), c.bd === 'names' && info.bd.has(d) ? info.bd.get(d).join(', ') : null].filter(Boolean).join(' · ');
     if (label && c.names) { items.push(T(numX + 2.2 * f, y, label, 'regular', ls, c.color)); nameW = Math.max(nameW, textWidth(label, 'regular', ls)); }
     y += rh; if (dow === 0 && d < n) y += gap;
   }
-  let w = Math.max(textWidth(MONTHS[m], 'bold', ts), numX + (nameW ? 2.2 * f + nameW : 0)), hgt = y - rh + 1.2 * f;
+  let w = Math.max(textWidth(mn, 'bold', ts), numX + (nameW ? 2.2 * f + nameW : 0)), hgt = y - rh + 1.2 * f;
   if (c.names && info.sch.ranges.length) {
     for (const l of wrap(info.sch.ranges.join(' · '), 'regular', ls, Math.max(w, 30 * f))) { hgt += 3.6 * f; extra.push(T(0, hgt, l, 'regular', ls, c.color)); }
     w = Math.max(w, ...extra.map(t => textWidth(t.text, 'regular', ls)));
@@ -160,12 +161,12 @@ function calV(year, m, f, c) {
 function calG(year, m, f, c) {
   const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
   const ts = 6.4 * f, ws = 2.4 * f, ns = 3.8 * f, cw = 7.4 * f, rh = 6 * f, ks = 1.9 * f, kx = c.kw ? 5.5 * f : 0;
-  const tb = ts * .74;
-  items.push(T(0, tb, MONTHS[m], 'bold', ts, c.color));
-  items.push(T(textWidth(MONTHS[m], 'bold', ts) + 1.8 * f, tb, String(year), 'regular', ts, c.color));
+  const tb = ts * .74, mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
+  items.push(T(0, tb, mn, 'bold', ts, c.color));
+  items.push(T(textWidth(mn, 'bold', ts) + 1.8 * f, tb, String(year), 'regular', ts, c.color));
   const yh = tb + 6 * f;
-  if (c.kw) items.push(T(0, yh, 'KW', 'regular', ks, c.color));
-  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach((t, i) =>
+  if (c.kw) items.push(T(0, yh, _tc('KW'), 'regular', ks, c.color));
+  [1, 2, 3, 4, 5, 6, 0].map(i => wd[i]).forEach((t, i) =>
     items.push(T(kx + i * cw + cw / 2, yh, t, 'regular', ws, i === 6 && c.hi === 'red' ? 'red' : c.color, 'middle')));
   const off = (new Date(year, m, 1).getDay() + 6) % 7;
   let rows = 0;
@@ -259,7 +260,10 @@ function birthdayLines() {
   if (!S.doc.indexBirthdays) return [];
   return (S.doc.birthdays || []).filter(b => b.name && +b.d >= 1 && +b.m >= 1 && +b.m <= 12)
     .sort((a, b) => (a.m - b.m) || (a.d - b.d))
-    .map(b => { const age = b.y ? S.doc.year - +b.y : 0; return `${+b.d}. ${MONTHS[b.m - 1]}: ${b.name}${age > 0 ? ` (wird ${age})` : ''}`; });
+    .map(b => {
+      const age = b.y ? S.doc.year - +b.y : 0, v = { d: +b.d, month: MONTH_NAMES[calLang()][b.m - 1], name: b.name, age };
+      return age > 0 ? _tc('{d}. {month}: {name} (wird {age})', v) : _tc('{d}. {month}: {name}', v);
+    });
 }
 // Register in drei Arten (doc.indexMode):
 //   'photos' – je Seite die Fotos mit Bildtext (Nummern und Miniaturen optional)
@@ -294,7 +298,7 @@ function entryLayout() {
     return { k, caps: nums ? caps : [], lines, h: Math.max(mh, labelH + lines.length * lh + f) };
   });
   const bl = birthdayLines();
-  if (bl.length) { const lines = bl.flatMap(l => wrap(l, 'regular', ls, tw)).map(l => [null, l]); entries.push({ k: null, label: 'Geburtstage', caps: [], lines, h: labelH + lines.length * lh + f }); }
+  if (bl.length) { const lines = bl.flatMap(l => wrap(l, 'regular', ls, tw)).map(l => [null, l]); entries.push({ k: null, label: _tc('Geburtstage'), caps: [], lines, h: labelH + lines.length * lh + f }); }
   const pages = []; let cur = [], y = mg + 20 * f;
   for (let i = 0; i < entries.length; i += cols) {
     const row = entries.slice(i, i + cols), rh = Math.max(...row.map(e => e.h));
@@ -322,7 +326,7 @@ function textLayout() {
     blocks.push({ gap: true });
   }
   const bl = birthdayLines();
-  if (bl.length) { blocks.push({ head: true, lines: ['Geburtstage'] }); for (const l of bl) blocks.push({ head: false, lines: wrap(l, 'regular', bs, colW) }); }
+  if (bl.length) { blocks.push({ head: true, lines: [_tc('Geburtstage')] }); for (const l of bl) blocks.push({ head: false, lines: wrap(l, 'regular', bs, colW) }); }
   const pages = []; let cur = [], col = 0, top = mg + 20 * f, y = top;
   const nextCol = () => { col++; if (col >= cols) { pages.push(cur); cur = []; col = 0; top = mg + 12 * f; } y = top; };
   for (const b of blocks) {
@@ -340,17 +344,25 @@ function textLayout() {
   pages.geom = { f, mg, text: true };
   return pages;
 }
+// Quellenangabe der Schulferien (ODbL) in der Sprache des Kalenders; Datum im Englischen ausgeschrieben
+function schoolSourceNote() {
+  let date = SCHOOL_SOURCE.fetched;
+  const dm = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(date);
+  if (dm && calLang() !== 'de') date = new Date(+dm[3], dm[2] - 1, +dm[1]).toLocaleDateString(locale(calLang()), { day: 'numeric', month: 'long', year: 'numeric' });
+  return _tc('Schulferien: {name} ({url}), {license}, Stand {date}, ohne Gewähr.', { name: SCHOOL_SOURCE.name, url: SCHOOL_SOURCE.url.replace('https://www.', ''), license: SCHOOL_SOURCE.license, date });
+}
 function indexItems(p) {
   const doc = S.doc, W = doc.w, items = [], L = indexLayout(), g = L.geom, { f, mg } = g;
   const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
-    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || 'Bildregister', 'bold', 9 * f, col));
-    items.push(T(mg, mg + 9 * f * .74 + 6 * f, `Familienkalender ${doc.year}`, 'regular', 3.2 * f, col));
-    if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? 'Noch kein Text. Rechts unter „Register“ schreiben.' : 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
-  } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
+    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'bold', 9 * f, col));
+    items.push(T(mg, mg + 9 * f * .74 + 6 * f, _tc('Familienkalender {year}', { year: doc.year }), 'regular', 3.2 * f, col));
+    // Hinweis auf leerer Seite richtet sich an die Bearbeiter, daher in der Sprache der Oberfläche
+    if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? _t('Noch kein Text. Rechts unter „Register“ schreiben.') : _t('Noch keine Fotos auf den Seiten.'), 'regular', 3.5 * f, col)); return items; }
+  } else items.push(T(mg, mg + 6 * f * .74, _tc('{title} (Fortsetzung)', { title: doc.indexTitle || _tc('Bildregister') }), 'bold', 6 * f, col));
   // Quellenhinweis zu den Schulferien auf der letzten Registerseite
-  if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, `Schulferien: ${SCHOOL_SOURCE.name} (${SCHOOL_SOURCE.url.replace('https://www.', '')}), ${SCHOOL_SOURCE.license}, Stand ${SCHOOL_SOURCE.fetched}, ohne Gewähr.`, 'regular', 2 * f, col));
+  if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, schoolSourceNote(), 'regular', 2 * f, col));
   if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
   const { mw, ls, lh, ind, thumbs } = g;
   for (const e of list) {
@@ -364,7 +376,7 @@ function indexItems(p) {
       }
     }
     const tx = e.x + (mini ? mw + 4 * f : 0); let y = e.y + 3.1 * f * .74;
-    items.push(T(tx, y, e.label || pageLabel(e.k), 'bold', 3.1 * f, col)); y += f;
+    items.push(T(tx, y, e.label || pageLabelCal(e.k), 'bold', 3.1 * f, col)); y += f;
     for (const [num, l] of e.lines) {
       y += lh;
       if (num != null) items.push(T(tx, y, String(num), 'bold', ls, col));
@@ -406,7 +418,7 @@ function svgPage(p, o = {}) {
         return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
           `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
           `<path d="M${cx - s} ${cy}h${2 * s}M${cx} ${cy - s}v${2 * s}" stroke="#7d8793" stroke-width="${s * .18}" stroke-linecap="round"/>` +
-          (vis.w > 60 ? `<text x="${cx}" y="${cy + s * 2.2}" font-size="${Math.min(5, s * .7)}" fill="#6b7580" text-anchor="middle">Foto hierher ziehen</text>` : '') + `</g>`;
+          (vis.w > 60 ? `<text x="${cx}" y="${cy + s * 2.2}" font-size="${Math.min(5, s * .7)}" fill="#6b7580" text-anchor="middle">${esc(_t('Foto hierher ziehen'))}</text>` : '') + `</g>`;
       }
       case 'block': {
         const inner = it.items.map(x => emit(x, small)).join('');

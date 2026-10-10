@@ -11,6 +11,7 @@ from datetime import date
 from urllib.parse import urlencode
 
 from . import __version__
+from .i18n import _t, set_lang, system_lang
 
 
 def _repo_static() -> str | None:
@@ -51,7 +52,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     token = args.token
     if not _is_loopback(args.host) and not token:
         token = secrets.token_urlsafe(16)
-        print(f"Hinweis: Der Dienst ist im Netz erreichbar ({args.host}). Zugriff nur mit Schlüssel.")
+        print(_t("Hinweis: Der Dienst ist im Netz erreichbar ({host}). Zugriff nur mit Schlüssel.", host=args.host))
     settings = Settings.default(args.data_dir, args.cache_dir, token)
     query = {}
     if args.path:                                    # Projekt gleich öffnen: in die Liste aufnehmen
@@ -61,11 +62,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         try:
             s = Project.open(LocalStorage(args.path), "").summary()
         except ProjectError as e:
-            print(f"{args.path}: {e}  Neues Projekt mit „lichtjahr init {args.path}“ anlegen.", file=sys.stderr)
+            print(_t("{path}: {error}  Neues Projekt mit „lichtjahr init {path}“ anlegen.", path=args.path, error=e), file=sys.stderr)
             return 1
         Registry(settings).remember({"id": s["id"], "title": s["title"], "calendarYear": s["calendarYear"], "storage": s["storage"]})
         query["projekt"] = s["id"]
-        print(f"Projekt: {s['title']} {s['calendarYear']} ({s['storage']['location']})")
+        print(_t("Projekt: {title} {year} ({location})", title=s["title"], year=s["calendarYear"], location=s["storage"]["location"]))
     if token:
         query["token"] = token
     app = create_app(settings, static_dir=args.static or _repo_static())
@@ -73,10 +74,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if shown in ("0.0.0.0", "::"):
         shown = _lan_ip() or "localhost"
     url = f"http://{shown}:{args.port}/" + ("?" + urlencode(query) if query else "")
-    print(f"Lichtjahr {__version__} läuft: {url}")
+    print(_t("Lichtjahr {version} läuft: {url}", version=__version__, url=url))
     if not _is_loopback(args.host):
-        print("Diese Adresse (mit Schlüssel) auf dem Handy öffnen; sie gilt nur in eurem Netz.")
-    print(f"API-Dokumentation: http://{shown}:{args.port}/api/docs")
+        print(_t("Diese Adresse (mit Schlüssel) auf dem Handy öffnen; sie gilt nur in eurem Netz."))
+    print(_t("API-Dokumentation: {url}", url=f"http://{shown}:{args.port}/api/docs"))
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0
 
@@ -89,11 +90,13 @@ def cmd_init(args: argparse.Namespace) -> int:
     storage = LocalStorage(args.path)
     os.makedirs(storage.root, exist_ok=True)
     settings = Settings.default(args.data_dir, args.cache_dir)
-    p = Project.create(storage, "", title=args.title, calendar_year=args.year, source_year=args.source_year or args.year - 1)
+    lang = args.language or system_lang()
+    title = args.title or _t("Familienkalender")
+    p = Project.create(storage, "", title=title, calendar_year=args.year, source_year=args.source_year or args.year - 1, language=lang)
     s = p.summary()
     Registry(settings).remember({"id": s["id"], "title": s["title"], "calendarYear": s["calendarYear"], "storage": s["storage"]})
-    print(f"Projekt „{args.title}“ für {args.year} angelegt in {storage.root}")
-    print("Fotos in die Monatsordner unter Fotos/ legen oder später in der App hinzufügen.")
+    print(_t("Projekt „{title}“ für {year} angelegt in {root}", title=title, year=args.year, root=storage.root))
+    print(_t("Fotos in die Monatsordner unter {photos}/ legen oder später in der App hinzufügen.", photos=s["storage"]["folders"]["photos"]))
     return 0
 
 
@@ -116,9 +119,11 @@ def main(argv: list[str] | None = None) -> None:
     i.add_argument("path")
     i.add_argument("--year", type=int, default=date.today().year + 1, help="Kalenderjahr (Standard: nächstes Jahr)")
     i.add_argument("--source-year", type=int, help="Jahr, aus dem die Fotos stammen (Standard: Kalenderjahr − 1)")
-    i.add_argument("--title", default="Familienkalender")
+    i.add_argument("--title", help="Titel (Standard: „Family Calendar“ bzw. „Familienkalender“)")
+    i.add_argument("--language", choices=["en", "de"], help="Sprache der Ordnernamen (Standard: Systemsprache)")
     i.set_defaults(func=cmd_init)
 
+    set_lang(system_lang())
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):
         args = parser.parse_args(["serve", *(argv or sys.argv[1:])])

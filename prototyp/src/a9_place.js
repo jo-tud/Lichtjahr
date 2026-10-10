@@ -87,28 +87,36 @@ function applyPlacement(p, s) {
 }
 const spotWords = (s) => {
   const W = S.doc.w, H = S.doc.h, cx = (s.x + s.w / 2) / W, cy = (s.y + s.h / 2) / H;
-  const v = cy < .34 ? 'oben' : cy > .66 ? 'unten' : 'in der Mitte', h = cx < .34 ? 'links' : cx > .66 ? 'rechts' : '';
-  return `${v}${h ? ' ' + h : ''}`;
+  const v = cy < .34 ? 0 : cy > .66 ? 2 : 1, h = cx < .34 ? 0 : cx > .66 ? 2 : 1;
+  return [
+    [_t('oben links'), _t('oben'), _t('oben rechts')],
+    [_t('in der Mitte links'), _t('in der Mitte'), _t('in der Mitte rechts')],
+    [_t('unten links'), _t('unten'), _t('unten rechts')],
+  ][v][h];
 };
 async function placeHere() {
   const p = curPage(), before = pageItems(p).find(i => i.t === 'block' && i.kind === 'cal');
   const s = await suggestPlacement(p.key, { tryStyles: false });   // die gewählte Form bleibt
-  if (!s) { toast('Für diese Seite gibt es keinen passenden Platz (Kalendarium aus oder zu groß).'); return; }
+  if (!s) { toast(_t('Für diese Seite gibt es keinen passenden Platz (Kalendarium aus oder zu groß).')); return; }
   applyPlacement(p, s); commit();
   ui.tab = 'cal'; renderEditor(); renderPanelKeepScroll(); updateThumb();
   showAnalysis(s, before);
-  toast(`Ruhige Stelle ${spotWords(s)} gefunden, ${s.color === 'black' ? 'dunkle' : 'helle'} Schrift${s.panel !== 'none' ? ' mit Fläche dahinter' : ''}. Rückgängig ist möglich.`, 5000);
+  const where = spotWords(s), dark = s.color === 'black', panel = s.panel !== 'none';
+  toast(panel
+    ? (dark ? _t('Ruhige Stelle {where} gefunden, dunkle Schrift mit Fläche dahinter. Rückgängig ist möglich.', { where }) : _t('Ruhige Stelle {where} gefunden, helle Schrift mit Fläche dahinter. Rückgängig ist möglich.', { where }))
+    : (dark ? _t('Ruhige Stelle {where} gefunden, dunkle Schrift. Rückgängig ist möglich.', { where }) : _t('Ruhige Stelle {where} gefunden, helle Schrift. Rückgängig ist möglich.', { where })), 5000);
 }
 async function placeAll() {
   const keys = pageKeys().filter(k => S.pages[k] && pageMonth(k) != null && calSettings(S.pages[k]).style !== 'off');
-  const bar = busy('Kalendarien werden platziert', '');
+  const bar = busy(_t('Kalendarien werden platziert'), '');
   let n = 0;
   for (const k of keys) {
     const s = await suggestPlacement(k, { tryStyles: false }); if (s) { applyPlacement(S.pages[k], s); n++; }
     bar.update(n / keys.length, pageLabel(k)); await sleep0();
   }
   bar.close(); commit(); renderDesign();
-  toast(`${n} Kalendarien auf ruhige Bildstellen gesetzt. Jede Seite lässt sich danach von Hand korrigieren.`, 5000);
+  toast(n === 1 ? _t('1 Kalendarium auf eine ruhige Bildstelle gesetzt. Jede Seite lässt sich danach von Hand korrigieren.')
+    : _t('{n} Kalendarien auf ruhige Bildstellen gesetzt. Jede Seite lässt sich danach von Hand korrigieren.', { n }), 5000);
 }
 // Kurz zeigen, wie die App „sieht“: unruhige Stellen dunkel, die gewählte Fläche hervorgehoben; das Kalendarium gleitet hin
 function showAnalysis(s, before) {

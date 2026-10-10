@@ -11,7 +11,7 @@ function wallViews() {
     }
     if (isBack(k)) continue;                                    // Rückseiten zeigt die Ansicht bei „Zweites Motiv“ per Umschalter
     out.push({ main: k, upper: null, alt: mode === 'alternative' && v.part === 'front' ? k + '-b' : null,
-      label: v.month != null ? `${MONTHS[v.month]} ${S.doc.year}${v.part === 'more' ? ', weiteres Motiv' : ''}` : pageLabel(k) });
+      label: v.month == null ? pageLabel(k) : v.part === 'more' ? _t('{month} {year}, weiteres Motiv', { month: MONTHS[v.month], year: S.doc.year }) : `${MONTHS[v.month]} ${S.doc.year}` });
   }
   return out;
 }
@@ -24,16 +24,16 @@ function openWall() {
   const i = views.findIndex(v => v.main === ui.page || v.upper === ui.page || v.alt === ui.page);
   wall.i = i >= 0 ? i : Math.max(0, views.findIndex(v => pageMonth(v.main) != null));
   wall.showAlt = false;
-  const el = document.createElement('div'); el.className = 'wall'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Kalender an der Wand');
+  const el = document.createElement('div'); el.className = 'wall'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', _t('Kalender an der Wand'));
   el.innerHTML = `<div class="wall-light" aria-hidden="true"></div>
-    <button class="wall-close" data-wall="close" aria-label="Schließen">×</button>
+    <button class="wall-close" data-wall="close" aria-label="${esc(_t('Schließen'))}">×</button>
     <div class="wall-stage"><div class="wall-cal" id="wallCal"></div></div>
     <div class="wall-nav">
-      <button class="wall-btn" data-wall="prev" aria-label="Vorheriger Monat">‹</button>
+      <button class="wall-btn" data-wall="prev" aria-label="${esc(_t('Vorheriger Monat'))}">‹</button>
       <div class="wall-label"><b id="wallLabel"></b><span id="wallCount"></span></div>
-      <button class="wall-btn" data-wall="next" aria-label="Nächster Monat">›</button>
+      <button class="wall-btn" data-wall="next" aria-label="${esc(_t('Nächster Monat'))}">›</button>
     </div>
-    <div class="wall-hint">${matchMedia('(pointer: coarse)').matches ? 'Wischen oder aufs Blatt tippen zum Umblättern' : 'Aufs Blatt klicken, wischen oder Pfeiltasten zum Umblättern · Esc schließt'}</div>`;
+    <div class="wall-hint">${esc(matchMedia('(pointer: coarse)').matches ? _t('Wischen oder aufs Blatt tippen zum Umblättern') : _t('Aufs Blatt klicken, wischen oder Pfeiltasten zum Umblättern · Esc schließt'))}</div>`;
   document.body.appendChild(el); wall.el = el;
   document.documentElement.classList.add('wall-open');
   el.addEventListener('click', (e) => {
@@ -86,8 +86,8 @@ function renderWall() {
   cal.innerHTML = (two ? `<div class="wall-sheet" style="height:${ph}px">${pageSvg(upper)}</div>` : viewModeOf() === 'opened' ? `<div class="wall-sheet ghost" style="height:${ph}px"></div>` : '')
     + `<div class="wall-sheet" id="wallMain" style="height:${ph}px">${pageSvg(main)}</div>`
     + wireSvg(pw, ph, viewModeOf() === 'opened' ? ph : 0);
-  $('#wallLabel').textContent = v.label + (v.alt ? (wall.showAlt ? ' · Motiv B' : ' · Motiv A') : '');
-  $('#wallCount').innerHTML = ` ${wall.i + 1} / ${views.length}${v.alt ? ` <button class="wall-alt" data-wall="alt">Anderes Motiv</button>` : ''}`;
+  $('#wallLabel').textContent = v.label + (v.alt ? ' · ' + (wall.showAlt ? _t('Motiv B') : _t('Motiv A')) : '');
+  $('#wallCount').innerHTML = ` ${wall.i + 1} / ${views.length}${v.alt ? ` <button class="wall-alt" data-wall="alt">${esc(_t('Anderes Motiv'))}</button>` : ''}`;
   wall.el.querySelector('[data-wall="prev"]').disabled = wall.i === 0;
   wall.el.querySelector('[data-wall="next"]').disabled = wall.i === views.length - 1;
 }
