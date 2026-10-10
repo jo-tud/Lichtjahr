@@ -164,6 +164,12 @@ const ACTIONS = {
   calcolor: (el) => { curPage().cal.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   calpanel: (el) => { curPage().cal.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
   calhi: (el) => { curPage().cal.hi = el.dataset.v; commit(); refresh(); renderPanel(); },
+  caldesign: (el) => { Object.assign(S.doc.cal, CAL_DESIGNS[el.dataset.v], { design: el.dataset.v }); calDesignChanged(); },
+  caltitle: (el) => { S.doc.cal.title = el.dataset.v; calDesignChanged(); },
+  calwd: (el) => { S.doc.cal.wd = +el.dataset.v; calDesignChanged(); },
+  calweeks: (el) => { S.doc.cal.weeks = el.dataset.v; calDesignChanged(); },
+  calnum: (el) => { S.doc.cal.num = el.dataset.v; calDesignChanged(); },
+  calwidth: (el) => { S.doc.cal.width = el.dataset.v; calDesignChanged(); },
   calreset: () => { const p = curPage(), st = calSettings(p).style; if (p.cal.pos) delete p.cal.pos[st]; commit(); refresh(); renderPanel(); },
   caldefault: () => {
     const p = curPage(), st = calSettings(p).style, pos = p.cal.pos && p.cal.pos[st];
@@ -284,6 +290,9 @@ const ACTIONS = {
   },
   vcf: () => $('#vcfIn').click(),
 };
+// Gestaltung gilt für alle Monate: Seitenleiste mit allen Vorschauen neu, Bedienfeld an derselben Stelle
+function calDesignChanged() { commit(); renderStrip(); renderEditor(); renderFrameBar(); renderPanelKeepScroll(); }
+document.addEventListener('toggle', (e) => { if (e.target.id === 'calDetails') ui.calDetails = e.target.open; }, true);
 function renderPanelKeepScroll() { const b = $('#tabBody'), s = b ? b.scrollTop : 0; renderPanel(); if (b) $('#tabBody').scrollTop = s; }
 document.addEventListener('click', (e) => {
   const a = e.target.closest('[data-act]');

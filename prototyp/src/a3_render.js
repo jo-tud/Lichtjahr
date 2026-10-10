@@ -104,89 +104,166 @@ function monthInfo(year, m, c) {
 const bdDot = (x, y, ns, fill) => ({ t: 'circle', x: x + ns * .42, y: y - ns * .78, r: ns * .11, fill });
 const bar = (x, y, w, h, fill) => ({ t: 'rect', x, y, w, h, fill });
 
+/* Gestaltungsregeln, die jede Form (Leiste, Spalte, Raster) und jede Variante einhält:
+   - Ziffern gleicher Breite (wie Tabellenziffern): Abstände und Spalten wirken ruhig, „11“ steht nicht enger als „28“
+   - eine Tageszelle ist mindestens zwei Ziffern plus eine halbe Ziffernhöhe breit, also nie gedrängt
+   - Wochen werden deutlich (halbe Zelle oder Linie) oder gar nicht getrennt, nie mit einem kleinen Zufallsabstand
+   - keine Schrift unter 6 pt (2,1 mm), Tageszahlen nicht unter 8 pt (2,8 mm)
+   - das Kalendarium passt immer auf die Seite; wäre es zu groß, wird es kleiner (calBlock) */
+const CAL_MIN_TEXT = 2.1, CAL_MIN_NUM = 2.8;
+const CAL_DESIGNS = {
+  classic: { title: 'classic', wd: 2, weeks: 'gap', num: 'regular' },
+  modern: { title: 'caps', wd: 1, weeks: 'line', num: 'regular' },
+  minimal: { title: 'light', wd: 0, weeks: 'gap', num: 'regular' },
+  bold: { title: 'number', wd: 2, weeks: 'none', num: 'bold' },
+};
+// Gestaltung des Kalendariums (gilt für alle Monate), mit Rückfall für ältere Projekte
+const calOpts = (c) => ({ ...CAL_DESIGNS.classic, width: 'auto', ...Object.fromEntries(['title', 'wd', 'weeks', 'num', 'width'].filter(k => c[k] != null).map(k => [k, c[k]])) });
+let DIGIT_ADV = null;
+const digitAdvance = (font) => (DIGIT_ADV ||= Object.fromEntries(['regular', 'bold'].map(f => [f, Math.max(...[...'0123456789'].map(d => textWidth(d, f, 1)))])))[font];
+const numWidth = (n, font, size) => String(n).length * digitAdvance(font) * size;
+// Zahl mit Ziffern gleicher Breite: jede Ziffer mittig in ihrem Feld
+function tnum(x, y, n, font, size, fill, anchor = 'middle') {
+  const s = String(n), a = digitAdvance(font) * size, w = s.length * a;
+  const x0 = anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+  return [...s].map((ch, i) => T(x0 + a * (i + .5), y, ch, font, size, fill, 'middle'));
+}
+// Text mit Laufweite (ls in mm); Breite einschließlich Laufweite
+const TL = (x, y, text, font, size, fill, ls) => ({ ...T(x, y, text, font, size, fill), ls });
+const trackedWidth = (text, font, size, ls) => textWidth(text, font, size) + ls * Math.max(0, [...text].length - 1);
+const wdLabel = (wd, dow, o) => (o.wd === 1 ? wd[dow].slice(0, 1) : wd[dow]);
+
+// Monatstitel in vier Varianten. stack: Jahr unter den Monat (für die schmale Spalte). Ergebnis mit Breite und Grundlinie.
+function calTitle(m, year, ts, color, o, stack = false) {
+  const mn = MONTH_NAMES[calLang()][m], items = [];
+  if (o.title === 'caps') {
+    const s = Math.max(ts * .58, CAL_MIN_TEXT), ls = s * .16, a = mn.toUpperCase(), b = String(year), base = s * .72;
+    items.push(TL(0, base, a, 'bold', s, color, ls));
+    if (stack) { items.push(TL(0, base + s * 1.35, b, 'regular', s, color, ls)); return { items, w: Math.max(trackedWidth(a, 'bold', s, ls), trackedWidth(b, 'regular', s, ls)), base: base + s * 1.35 }; }
+    const x = trackedWidth(a, 'bold', s, ls) + s * .9;
+    items.push(TL(x, base, b, 'regular', s, color, ls));
+    return { items, w: x + trackedWidth(b, 'regular', s, ls), base };
+  }
+  if (o.title === 'light') {
+    const base = ts * .74, ys = Math.max(ts * .5, CAL_MIN_TEXT);
+    items.push(T(0, base, mn, 'regular', ts, color));
+    if (stack) { items.push(T(0, base + ys * 1.5, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'regular', ts), base: base + ys * 1.5 }; }
+    const x = textWidth(mn, 'regular', ts) + ts * .3;
+    items.push(T(x, base, String(year), 'regular', ys, color));
+    return { items, w: x + textWidth(String(year), 'regular', ys), base };
+  }
+  if (o.title === 'number') {
+    const big = ts * 1.7, s = Math.max(ts * .5, CAL_MIN_TEXT), num = String(m + 1).padStart(2, '0'), base = big * .72;
+    items.push(...tnum(0, base, num, 'bold', big, color, 'start'));
+    const x = numWidth(num, 'bold', big) + big * .18;
+    items.push(T(x, base - s * 1.25, mn, 'bold', s, color), T(x, base, String(year), 'regular', s, color));
+    return { items, w: x + Math.max(textWidth(mn, 'bold', s), textWidth(String(year), 'regular', s)), base };
+  }
+  const base = ts * .74;                                               // klassisch: Monat fett, Jahr normal
+  items.push(T(0, base, mn, 'bold', ts, color));
+  if (stack) { const ys = ts * .6; items.push(T(0, base + ys * 1.25, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'bold', ts), base: base + ys * 1.25 }; }
+  const x = textWidth(mn, 'bold', ts) + ts * .25;
+  items.push(T(x, base, String(year), 'regular', ts, color));
+  return { items, w: x + textWidth(String(year), 'regular', ts), base };
+}
+const dayStyle = (c, o, sp) => ({ fill: sp && c.hi === 'red' ? 'red' : c.color, font: sp && c.hi !== 'none' ? 'bold' : o.num });
+const rule = (x, y, w, h, fill) => ({ t: 'rect', x, y, w, h, fill });
+function namesBlock(items, names, w, f, hgt, color) {
+  const ls = Math.max(2.3 * f, CAL_MIN_TEXT);
+  for (const l of wrap(names, 'regular', ls, w)) { hgt += ls * 1.55; items.push(T(0, hgt, l, 'regular', ls, color)); }
+  return hgt + .8 * f;
+}
+
 function calH(year, m, f, c) {
-  const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
-  const ts = 9 * f, ws = 2.5 * f, ns = 4.6 * f, cw = 7.2 * f, wg = 2 * f, ks = 1.9 * f;
-  const tb = ts * .74, mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
-  items.push(T(0, tb, mn, 'bold', ts, c.color));
-  items.push(T(textWidth(mn, 'bold', ts) + 2.2 * f, tb, String(year), 'regular', ts, c.color));
-  const kwH = c.kw ? 2.6 * f : 0, y1 = tb + 6.6 * f + kwH, y2 = y1 + 6.2 * f;
+  const o = calOpts(c), n = daysIn(year, m), info = monthInfo(year, m, c), items = [], wd = WEEKDAYS2[calLang()];
+  const ns = Math.max(4.4 * f, CAL_MIN_NUM), ws = Math.max(ns * .5, CAL_MIN_TEXT), ks = Math.max(ns * .42, CAL_MIN_TEXT);
+  let cw = 2 * digitAdvance('bold') * ns + .5 * ns;
+  let wg = o.weeks === 'gap' ? cw * .5 : o.weeks === 'line' ? cw * .4 : 0;
+  const breaks = [...Array(n - 1)].filter((_, i) => new Date(year, m, i + 1).getDay() === 0).length;
+  const natural = n * cw + breaks * wg;
+  if (o.width === 'full' && c.maxW > natural) { const k = c.maxW / natural; cw *= k; wg *= k; }
+  const title = calTitle(m, year, 9 * f, c.color, o);
+  items.push(...title.items);
+  const kwH = c.kw ? ks * 1.9 : 0, top = title.base + ns * .55 + kwH;
+  const yWd = top + ws * .75, y2 = (o.wd ? yWd + ws * .45 : top) + ns * .8;
   let x = 0;
   for (let d = 1; d <= n; d++) {
-    const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h;
-    const fill = sp && c.hi === 'red' ? 'red' : c.color, font = sp && c.hi !== 'none' ? 'bold' : 'regular';
-    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, y1 - ws - 1.2 * f, _tc('KW {n}', { n: isoWeek(year, m, d) }), 'regular', ks, c.color, 'middle'));
-    items.push(T(x + cw / 2, y1, wd[dow], sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill, 'middle'));
-    items.push(T(x + cw / 2, y2, String(d), font, ns, fill, 'middle'));
-    if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(x + cw / 2 + textWidth(String(d), font, ns) / 2 - ns * .2, y2, ns, c.color));
-    if (info.sch.days.has(d)) items.push(bar(x + .4 * f, y2 + 1.3 * f, cw - .8 * f + (dow === 0 && info.sch.days.has(d + 1) ? wg : 0) + .8 * f * (info.sch.days.has(d + 1) ? 1 : 0), .45 * f, c.color));
-    x += cw; if (dow === 0 && d < n) x += wg;
+    const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h, { fill, font } = dayStyle(c, o, sp);
+    if (c.kw && (dow === 1 || d === 1)) items.push(T(x + cw / 2, top - kwH * .35 + (o.wd ? 0 : ns * .1), _tc('KW {n}', { n: isoWeek(year, m, d) }), 'regular', ks, c.color, 'middle'));
+    if (o.wd) items.push(T(x + cw / 2, yWd, wdLabel(wd, dow, o), sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill, 'middle'));
+    items.push(...tnum(x + cw / 2, y2, d, font, ns, fill));
+    if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(x + cw / 2 + numWidth(d, font, ns) / 2 - ns * .2, y2, ns, c.color));
+    if (info.sch.days.has(d)) items.push(bar(x + cw * .12, y2 + ns * .3, cw * .76 + (info.sch.days.has(d + 1) ? cw * .24 + (dow === 0 ? wg : 0) : 0), Math.max(.3, ns * .1), c.color));
+    x += cw;
+    if (dow === 0 && d < n) {
+      if (o.weeks === 'line') items.push(rule(x + wg / 2 - .1, (o.wd ? yWd - ws * .8 : y2 - ns * .8), .2, (y2 + ns * .1) - (o.wd ? yWd - ws * .8 : y2 - ns * .8), c.color));
+      x += wg;
+    }
   }
-  let w = Math.max(x, textWidth(mn + ' ' + year, 'bold', ts) + 2 * f), hgt = y2 + (info.sch.days.size ? 2.3 : 1.3) * f;
-  if (c.names && info.names.length) {
-    const ls = 2.3 * f;
-    for (const l of wrap(info.names.join('  ·  '), 'regular', ls, w)) { hgt += 3.6 * f; items.push(T(0, hgt, l, 'regular', ls, c.color)); }
-    hgt += .8 * f;
-  }
+  const w = Math.max(x, title.w);
+  let hgt = y2 + (info.sch.days.size ? ns * .5 : ns * .25);
+  if (c.names && info.names.length) hgt = namesBlock(items, info.names.join('  ·  '), w, f, hgt, c.color);
   return { w, h: hgt, items };
 }
 function calV(year, m, f, c) {
-  const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
-  const ts = 7.6 * f, ys = 4.6 * f, ws = 2.6 * f, ns = 4 * f, ls = 2.3 * f, rh = 4.9 * f, gap = 1.6 * f, ks = 1.9 * f;
-  const x0 = (c.kw ? 5.5 : 0) * f + (info.sch.days.size ? 1.6 * f : 0);   // Platz für KW und Ferienstrich
-  const mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
-  items.push(T(0, ts * .74, mn, 'bold', ts, c.color));
-  items.push(T(0, ts * .74 + 5.6 * f, String(year), 'regular', ys, c.color));
-  let y = ts * .74 + 5.6 * f + 7 * f, nameW = 0;
-  const numX = x0 + 12.5 * f, extra = [];
+  const o = calOpts(c), n = daysIn(year, m), info = monthInfo(year, m, c), items = [], wd = WEEKDAYS2[calLang()];
+  const ns = Math.max(4 * f, CAL_MIN_NUM), ws = Math.max(ns * .62, CAL_MIN_TEXT), ls = Math.max(2.3 * f, CAL_MIN_TEXT), ks = Math.max(1.9 * f, CAL_MIN_TEXT);
+  const rh = ns * 1.25, gap = o.weeks === 'gap' ? rh * .5 : o.weeks === 'line' ? rh * .5 : 0;
+  const x0 = (c.kw ? ks * 2.6 : 0) + (info.sch.days.size ? 1.6 * f : 0);
+  const title = calTitle(m, year, 7.6 * f, c.color, o, true);
+  items.push(...title.items);
+  const wdW = o.wd ? Math.max(...wd.map((_, i) => textWidth(wdLabel(wd, i, o), 'bold', ws))) + ns * .45 : 0;
+  const numX = x0 + wdW + numWidth(31, 'bold', ns);
+  let y = title.base + ns * 1.6, nameW = 0;
+  const extra = [];
   for (let d = 1; d <= n; d++) {
-    const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h;
-    const fill = sp && c.hi === 'red' ? 'red' : c.color, font = sp && c.hi !== 'none' ? 'bold' : 'regular';
+    const dow = new Date(year, m, d).getDay(), h = info.hol.get(`${m}-${d}`), sp = dow === 0 || !!h, { fill, font } = dayStyle(c, o, sp);
     if (c.kw && (dow === 1 || d === 1)) items.push(T(0, y, String(isoWeek(year, m, d)), 'regular', ks, c.color));
-    if (info.sch.days.has(d)) items.push(bar(x0 - 1.4 * f, y - ns * .8, .45 * f, rh + (dow === 0 && info.sch.days.has(d + 1) ? gap : 0) + (info.sch.days.has(d + 1) ? 0 : -rh + ns * .9), c.color));
-    items.push(T(x0, y, wd[dow], 'regular', ws, fill));
-    items.push(T(numX, y, String(d), font, ns, fill, 'end'));
+    if (info.sch.days.has(d)) items.push(bar(x0 - 1.4 * f, y - ns * .8, Math.max(.3, ns * .1), rh + (dow === 0 && info.sch.days.has(d + 1) ? gap : 0) + (info.sch.days.has(d + 1) ? 0 : -rh + ns * .9), c.color));
+    if (o.wd) items.push(T(x0, y, wdLabel(wd, dow, o), sp && c.hi === 'bold' ? 'bold' : 'regular', ws, fill));
+    items.push(...tnum(numX, y, d, font, ns, fill, 'end'));
     if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(numX - ns * .2, y, ns, c.color));
     const label = [h && _tc(h), c.bd === 'names' && info.bd.has(d) ? info.bd.get(d).join(', ') : null].filter(Boolean).join(' · ');
-    if (label && c.names) { items.push(T(numX + 2.2 * f, y, label, 'regular', ls, c.color)); nameW = Math.max(nameW, textWidth(label, 'regular', ls)); }
-    y += rh; if (dow === 0 && d < n) y += gap;
+    if (label && c.names) { items.push(T(numX + ns * .55, y, label, 'regular', ls, c.color)); nameW = Math.max(nameW, textWidth(label, 'regular', ls)); }
+    y += rh;
+    if (dow === 0 && d < n) {
+      if (o.weeks === 'line') items.push(rule(x0, y - rh + ns * .35 + gap / 2, numX - x0, .2, c.color));
+      y += gap;
+    }
   }
-  let w = Math.max(textWidth(mn, 'bold', ts), numX + (nameW ? 2.2 * f + nameW : 0)), hgt = y - rh + 1.2 * f;
+  let w = Math.max(title.w, numX + (nameW ? ns * .55 + nameW : 0)), hgt = y - rh + ns * .3;
   if (c.names && info.sch.ranges.length) {
-    for (const l of wrap(info.sch.ranges.join(' · '), 'regular', ls, Math.max(w, 30 * f))) { hgt += 3.6 * f; extra.push(T(0, hgt, l, 'regular', ls, c.color)); }
+    for (const l of wrap(info.sch.ranges.join(' · '), 'regular', ls, Math.max(w, 30 * f))) { hgt += ls * 1.55; extra.push(T(0, hgt, l, 'regular', ls, c.color)); }
     w = Math.max(w, ...extra.map(t => textWidth(t.text, 'regular', ls)));
   }
   return { w, h: hgt, items: items.concat(extra) };
 }
 function calG(year, m, f, c) {
-  const n = daysIn(year, m), info = monthInfo(year, m, c), items = [];
-  const ts = 6.4 * f, ws = 2.4 * f, ns = 3.8 * f, cw = 7.4 * f, rh = 6 * f, ks = 1.9 * f, kx = c.kw ? 5.5 * f : 0;
-  const tb = ts * .74, mn = MONTH_NAMES[calLang()][m], wd = WEEKDAYS2[calLang()];
-  items.push(T(0, tb, mn, 'bold', ts, c.color));
-  items.push(T(textWidth(mn, 'bold', ts) + 1.8 * f, tb, String(year), 'regular', ts, c.color));
-  const yh = tb + 6 * f;
+  const o = calOpts(c), n = daysIn(year, m), info = monthInfo(year, m, c), items = [], wd = WEEKDAYS2[calLang()];
+  const ns = Math.max(3.8 * f, CAL_MIN_NUM), ws = Math.max(ns * .6, CAL_MIN_TEXT), ks = Math.max(1.9 * f, CAL_MIN_TEXT);
+  const cw = Math.max(7.4 * f, 2 * digitAdvance('bold') * ns + .55 * ns), rh = Math.max(6 * f, ns * 1.55), kx = c.kw ? ks * 2.6 : 0;
+  const title = calTitle(m, year, 6.4 * f, c.color, o);
+  items.push(...title.items);
+  const og = { ...o, wd: o.wd || 1 };                                  // im Raster braucht es die Wochentage immer
+  const yh = title.base + ws * 1.9;
   if (c.kw) items.push(T(0, yh, _tc('KW'), 'regular', ks, c.color));
-  [1, 2, 3, 4, 5, 6, 0].map(i => wd[i]).forEach((t, i) =>
-    items.push(T(kx + i * cw + cw / 2, yh, t, 'regular', ws, i === 6 && c.hi === 'red' ? 'red' : c.color, 'middle')));
+  [1, 2, 3, 4, 5, 6, 0].forEach((dow, i) =>
+    items.push(T(kx + i * cw + cw / 2, yh, wdLabel(wd, dow, og), 'regular', ws, i === 6 && c.hi === 'red' ? 'red' : c.color, 'middle')));
+  if (o.weeks === 'line') items.push(rule(kx, yh + ws * .45, 7 * cw, .2, c.color));
   const off = (new Date(year, m, 1).getDay() + 6) % 7;
   let rows = 0;
   for (let d = 1; d <= n; d++) {
-    const k = off + d - 1, r = Math.floor(k / 7), col = k % 7, h = info.hol.get(`${m}-${d}`), sp = col === 6 || !!h;
-    const fill = sp && c.hi === 'red' ? 'red' : c.color, font = sp && c.hi !== 'none' ? 'bold' : 'regular';
-    const by = yh + 2 * f + r * rh + rh * .68, cx = kx + col * cw + cw / 2;
+    const k = off + d - 1, r = Math.floor(k / 7), col = k % 7, h = info.hol.get(`${m}-${d}`), sp = col === 6 || !!h, { fill, font } = dayStyle(c, o, sp);
+    const by = yh + ns * .5 + r * rh + rh * .68, cx = kx + col * cw + cw / 2;
     if (c.kw && (col === 0 || d === 1)) items.push(T(0, by, String(isoWeek(year, m, d)), 'regular', ks, c.color));
-    items.push(T(cx, by, String(d), font, ns, fill, 'middle'));
-    if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(cx + textWidth(String(d), font, ns) / 2 - ns * .2, by, ns, c.color));
-    if (info.sch.days.has(d)) items.push(bar(kx + col * cw + .6 * f, by + 1.2 * f, cw - 1.2 * f + (col < 6 && info.sch.days.has(d + 1) ? 1.2 * f : 0), .45 * f, c.color));
+    items.push(...tnum(cx, by, d, font, ns, fill));
+    if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(cx + numWidth(d, font, ns) / 2 - ns * .2, by, ns, c.color));
+    if (info.sch.days.has(d)) items.push(bar(kx + col * cw + cw * .12, by + ns * .32, cw * .76 + (col < 6 && info.sch.days.has(d + 1) ? cw * .24 : 0), Math.max(.3, ns * .1), c.color));
     rows = r + 1;
   }
-  const w = kx + 7 * cw;
-  let hgt = yh + 2 * f + rows * rh;
-  if (c.names && info.names.length) {
-    const ls = 2.2 * f;
-    for (const l of wrap(info.names.join('  ·  '), 'regular', ls, w)) { hgt += 3.4 * f; items.push(T(0, hgt, l, 'regular', ls, c.color)); }
-    hgt += .8 * f;
-  }
+  const w = Math.max(kx + 7 * cw, title.w);
+  let hgt = yh + ns * .5 + rows * rh;
+  if (c.names && info.names.length) hgt = namesBlock(items, info.names.join('  ·  '), w, f, hgt, c.color);
   return { w, h: hgt, items };
 }
 function offsetItem(it, dx, dy) {
@@ -205,8 +282,13 @@ function blockFrame(lay, anchor, f, panel, opacity = 1) {
 function calBlock(p) {
   const m = pageMonth(p.key); if (m == null) return null;
   const c = calSettings(p); if (c.style === 'off') return null;
-  const f = c.size * Math.min(S.doc.w, S.doc.h) / 300;
-  const lay = (c.style === 'v' ? calV : c.style === 'g' ? calG : calH)(S.doc.year, m, f, c);
+  // Passt immer auf die Seite: sonst kleiner. „Ganze Breite“ spannt die Leiste zwischen den Rändern auf.
+  let f = c.size * Math.min(S.doc.w, S.doc.h) / 300;
+  const fn = c.style === 'v' ? calV : c.style === 'g' ? calG : calH, pad = () => (PANELS[c.panel] ? 3 * f : 0), safe = 6;
+  const cc = () => ({ ...c, maxW: S.doc.w - 2 * Math.max(10, S.doc.w * .05) - 2 * pad() });
+  let lay = fn(S.doc.year, m, f, cc());
+  const k = Math.min((S.doc.w - 2 * safe - 2 * pad()) / lay.w, (S.doc.h - 2 * safe - 2 * pad()) / lay.h);
+  if (k < 1) { f *= k * .98; lay = fn(S.doc.year, m, f, cc()); }
   const a = (p.cal && p.cal.pos && p.cal.pos[c.style]) || S.doc.cal.def[c.style];
   return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel, c.opacity ?? .85) };
 }
@@ -408,7 +490,7 @@ function svgPage(p, o = {}) {
       case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
-      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
+      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
         return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
