@@ -206,8 +206,12 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .progress { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
 .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 .lighttable { background: var(--desk); border-radius: 12px; padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
-.lt-page { display: grid; gap: 6px; font-size: 12px; color: var(--muted); border: 0; background: none; padding: 0; text-align: left; }
+.lt-page { display: block; border: 0; background: none; padding: 0; min-width: 0; }
 .lt-page svg { width: 100%; height: auto; display: block; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.lt-group { display: grid; gap: 6px; font-size: 12px; color: var(--muted); align-content: start; min-width: 0; }
+.lt-group .lt-pages { display: grid; gap: 0; }
+.lt-group.row .lt-pages { grid-template-columns: 1fr 1fr; gap: 6px; }
+@media (min-width: 600px) { .lt-group.row { grid-column: span 2; } }
 .specs { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; }
 .specs dt { color: var(--muted); }
 .specs dd { margin: 0; }
@@ -593,6 +597,7 @@ const LAYOUTS = [
   { id: 'fullin',  name: 'Vollbild + Einleger',     slots: [[0, 0, 1, 1]], ov: [[.06, .5, .34, .38]] },
   { id: 'cols2in', name: 'Zwei + Einleger',         slots: [[0, 0, .5, 1], [.5, 0, .5, 1]], ov: [[.34, .27, .32, .42]] },
   { id: 'rows2in', name: 'Übereinander + Einleger', slots: [[0, 0, 1, .5], [0, .5, 1, .5]], ov: [[.6, .28, .32, .44]] },
+  { id: 'blank',   name: 'Leere Seite',             slots: [] },
 ];
 const layoutById = (id) => LAYOUTS.find(l => l.id === id) || LAYOUTS[0];
 const slotCount = (id) => { const l = layoutById(id); return l.slots.length + (l.ov ? l.ov.length : 0); };
@@ -602,7 +607,7 @@ function defaultDoc() {
   return {
     year: new Date().getFullYear() + 1, format: 'sq297', w: 297, h: 297,
     bleed: 3, gap: 3, margin: 0, ovBorder: 3, bg: 'white',
-    cover: true, index: true, backs: false, backRotate: false, region: lastRegion(), cropMarks: false,
+    cover: true, index: true, duplex: false, viewMode: 'opened', viewCal: {}, extraSheets: [], backRotate: false, region: lastRegion(), cropMarks: false,
     bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
     cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true,
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
@@ -616,37 +621,104 @@ let S = { doc: defaultDoc(), pages: {}, photos: {}, demo: false };
 const RT = { thumb: {}, prev: {}, file: {} };     // Laufzeit: Bild-URLs und Originaldateien
 const ui = {
   view: 'design', page: 'm0', sel: null, crop: null, selBlock: null, viewZoom: 1, tab: 'layout', armed: null, swapFrom: null, pool: null,
-  showBleed: true, showBind: true, showGuides: true, photoSel: new Set(), photoFocus: null, banner: true,
+  showBleed: true, showBind: true, showGuides: true, showPartner: true, ltMode: 'views', photoSel: new Set(), photoFocus: null, banner: true,
 };
 
-// Seiten ohne Register; das Register hängt davon ab, wie viele Seiten es braucht
-function baseKeys(doc = S.doc) {
-  const k = [];
-  if (doc.cover) { k.push('cover'); if (doc.backs) k.push('cover-b'); }
-  for (let m = 0; m < 12; m++) { k.push('m' + m); if (doc.backs) k.push('m' + m + '-b'); }
-  return k;
+/* ---------- Blätter, Druckseiten und Monatsansichten ----------
+   Ein Blatt (Sheet) ist ein physisches Blatt Papier: Vorderseite und bei beidseitigem Druck Rückseite.
+   Eine Monatsansicht ist, was beim Aufhängen zu sehen ist. Wie Rückseiten genutzt werden (doc.viewMode):
+     'opened'      – aufgeklappt: oben die Rückseite des vorigen Blatts, unten die Vorderseite des Monats;
+                     ein Kalendarium für beide zusammen (doc.viewCal[m]: 'lower' oder 'upper')
+     'alternative' – Vorder- und Rückseite sind zwei Motive desselben Monats, jedes mit Kalendarium
+     'free'        – Rückseiten sind zusätzliche Fotoseiten ohne Kalendarium
+   Zusätzliche Blätter (doc.extraSheets): weiteres Motiv für einen Monat oder freies Blatt, eingefügt nach einem Blatt. */
+const viewModeOf = (doc = S.doc) => doc.duplex ? (doc.viewMode || 'opened') : 'single';
+function sheetList(doc = S.doc) {
+  const out = [], extras = doc.extraSheets || [];
+  const push = (sh) => {
+    out.push(sh);
+    for (const x of extras.filter(x => x.after === sh.id)) push({ id: x.id, role: x.month != null ? 'month' : 'blank', month: x.month ?? null, front: x.id, extra: true });
+  };
+  if (doc.cover || viewModeOf(doc) === 'opened') push({ id: 'cover', role: 'cover', month: null, front: 'cover' });
+  for (let m = 0; m < 12; m++) push({ id: 'm' + m, role: 'month', month: m, front: 'm' + m });
+  if (doc.duplex) for (const sh of out) sh.back = sh.front + '-b';
+  return out;
 }
+// Alle Blätter einschließlich Register (dessen Umfang hängt vom Inhalt ab)
+function allSheets(doc = S.doc) {
+  const sh = sheetList(doc);
+  if (doc.index) {
+    const n = indexLayout().length;
+    for (let i = 1; i <= n; i++) { const k = i === 1 ? 'index' : 'index-' + i; sh.push({ id: k, role: 'index', month: null, front: k, back: doc.duplex ? k + '-b' : undefined }); }
+  }
+  return sh;
+}
+const sideKeys = (sheets) => sheets.flatMap(s => s.back ? [s.front, s.back] : [s.front]);
+// Seiten ohne Register; das Register hängt davon ab, welche Seiten es gibt
+function baseKeys(doc = S.doc) { return sideKeys(sheetList(doc)); }
 function pageKeys(doc = S.doc) {
-  const k = baseKeys(doc);
-  if (doc.index) { const n = indexLayout().length; for (let i = 1; i <= n; i++) k.push(i === 1 ? 'index' : 'index-' + i); }
-  return k;
+  const keys = sideKeys(allSheets(doc));
+  for (const k of keys) if (!S.pages[k]) S.pages[k] = fillSlots(newPage(k));   // z. B. eine neu nötige Registerseite
+  return keys;
 }
-const isIndex = (key) => key.startsWith('index');
+const isIndex = (key) => /^index(-\d+)?$/.test(key);
 const indexNo = (key) => key === 'index' ? 1 : +key.split('-')[1];
-function pageMonth(key) { const r = /^m(\d+)/.exec(key); return r ? +r[1] : null; }
 const isBack = (key) => key.endsWith('-b');
+const sheetOf = (key) => allSheets().find(s => s.front === key || s.back === key);
+
+// Rolle jeder Seite in ihrer Monatsansicht: month, part, cal (trägt standardmäßig das Kalendarium)
+function viewMap(doc = S.doc) {
+  const map = {}, sheets = sheetList(doc), mode = viewModeOf(doc);
+  sheets.forEach((sh, i) => {
+    if (sh.role !== 'month') map[sh.front] = { month: null, part: sh.role };
+    else if (mode === 'opened') map[sh.front] = { month: sh.month, part: 'lower', cal: (doc.viewCal || {})[sh.id] !== 'upper' };
+    else map[sh.front] = { month: sh.month, part: sh.extra ? 'more' : 'front', cal: true };
+    if (!sh.back) return;
+    const next = sheets[i + 1];
+    if (mode === 'opened' && next && next.role === 'month') map[sh.back] = { month: next.month, part: 'upper', cal: (doc.viewCal || {})[next.id] === 'upper', lower: next.front };
+    else if (mode === 'alternative' && sh.role === 'month') map[sh.back] = { month: sh.month, part: 'altB', cal: true };
+    else map[sh.back] = { month: mode === 'free' ? sh.month : null, part: 'back' };
+  });
+  return map;
+}
+const viewOf = (key) => viewMap()[key] || { month: null, part: isIndex(key) ? 'index' : 'back' };
+function pageMonth(key) { return viewOf(key).month ?? null; }
+// Partnerseite in der aufgeklappten Ansicht (oben ↔ unten)
+function partnerOf(key) {
+  const v = viewOf(key);
+  if (v.part === 'upper') return v.lower;
+  if (v.part === 'lower') { const m = viewMap(); return Object.keys(m).find(k => m[k].part === 'upper' && m[k].lower === key) || null; }
+  return null;
+}
 function pageLabel(key) {
-  if (key === 'cover') return 'Titelblatt';
-  if (key === 'cover-b') return 'Rückseite Titel';
   if (isIndex(key)) return 'Bildregister' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  const m = pageMonth(key);
-  return (isBack(key) ? 'Rückseite ' : '') + MONTHS[m];
+  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Rückseite Register';
+  const v = viewOf(key), mn = v.month != null ? MONTHS[v.month] : '';
+  switch (v.part) {
+    case 'cover': return 'Titelblatt';
+    case 'blank': return 'Freies Blatt';
+    case 'lower': return `${mn} unten`;
+    case 'upper': return `${mn} oben`;
+    case 'more': return `${mn}, weiteres Motiv`;
+    case 'altB': return `${mn}, Motiv B`;
+    case 'front': return viewModeOf() === 'alternative' ? `${mn}, Motiv A` : mn;
+    default: return 'Rückseite ' + pageLabel(key.slice(0, -2));
+  }
 }
 function pageShort(key) {
-  if (key === 'cover') return 'Titel';
-  if (key === 'cover-b') return 'Titel R';
   if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
+  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Reg. R';
+  const v = viewOf(key), mn = v.month != null ? MONTHS_SHORT[v.month] : '';
+  switch (v.part) {
+    case 'cover': return 'Titel';
+    case 'blank': return 'Frei';
+    case 'lower': return `${mn} ↓`;
+    case 'upper': return `${mn} ↑`;
+    case 'more': return `${mn} +`;
+    case 'altB': return `${mn} B`;
+    case 'front': return viewModeOf() === 'alternative' ? `${mn} A` : mn;
+    default: return pageShort(key.slice(0, -2)) + ' R';
+  }
 }
 // Ein Rahmen: Foto mit Ausschnitt (zoom, cx/cy = Bildpunkt in der Rahmenmitte, rot = Bilddrehung, fit).
 // Optional: box (eigene Lage in mm, dann gilt die Vorlage nicht mehr), z (Ebene), border (Rand in mm), hidden.
@@ -654,19 +726,19 @@ function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5, rot: 0, fit:
 // Vorlagenrahmen haben Zahlen als Schlüssel, zusätzliche Rahmen eine feste ID
 const keyOf = (v) => /^\d+$/.test(String(v)) ? +v : String(v);
 function slotOf(p, key) { return typeof key === 'number' ? p.slots[key] : (p.extra || []).find(s => s.id === key); }
+function fillSlots(p) { if (p.layout !== 'index') while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot()); return p; }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
   if (isIndex(key)) p.layout = 'index';
+  if (isBack(key) && isIndex(key.slice(0, -2))) p.layout = 'blank';   // Rückseite des Registers bleibt zunächst leer
   if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'white', size: 1, panel: 'none', ax: .08, ay: .9 };
-  if (isBack(key)) { p.layout = 'cols2'; p.cal = { style: 'off' }; }
   return p;
 }
 function ensurePages() {
   for (const k of baseKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of pageKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of Object.keys(S.pages)) {
-    const p = S.pages[k];
-    if (p.layout !== 'index') while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
+    fillSlots(S.pages[k]);
   }
   if (!pageKeys().includes(ui.page)) ui.page = pageKeys()[0];
 }
@@ -677,7 +749,12 @@ function usage() {
   for (const k of pageKeys()) visibleSlots(S.pages[k]).forEach(s => { if (s.photo) (u[s.photo] ||= []).push(k); });
   return u;
 }
-function calSettings(p) { return { ...S.doc.cal, ...(p.cal || {}) }; }
+// Kalendarium: Voreinstellung des Projekts, aus, wenn die Seite in ihrer Ansicht keins trägt, dann Werte der Seite
+function calSettings(p) {
+  const base = { ...S.doc.cal };
+  if (!viewOf(p.key).cal) base.style = 'off';
+  return { ...base, ...(p.cal || {}) };
+}
 // Kopien teilen sich die Bilddaten mit dem Original
 const blobId = (ph) => ph.copyOf || ph.id;
 
@@ -1351,19 +1428,20 @@ function svgPage(p, o = {}) {
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
   const url = (pid, small) => (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {
-      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && ed ? ` data-slot="${it.slot}"` : ''}/>`;
+      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
-        if (!ed) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
+        if (!live) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
         const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, cx = vis.x + vis.w / 2, cy = vis.y + vis.h / 2, s = Math.min(vis.w, vis.h) * .08;
         return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
           `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
@@ -1372,15 +1450,27 @@ function svgPage(p, o = {}) {
       }
       case 'block': {
         const inner = it.items.map(x => emit(x, small)).join('');
-        if (!ed) return inner;
+        if (!live) return inner;
         return `<g data-block="${it.kind}"><rect x="${it.x - 1.5}" y="${it.y - 1.5}" width="${it.w + 3}" height="${it.h + 3}" fill="transparent"/>${inner}</g>`;
       }
     }
     return '';
   };
   const items = pageItems(p);
+  // Aufgeklappte Ansicht: Partnerseite blass oben oder unten daneben zeigen
+  const partner = ed && o.partner && S.pages[o.partner], pdy = partner ? (viewOf(p.key).part === 'upper' ? H : -H) : 0;
+  if (partner) {
+    live = false;
+    const pc = `${id}p`; defs.push(`<clipPath id="${pc}"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath>`);
+    body.push(`<g transform="translate(0 ${pdy})" opacity=".5" pointer-events="none"><g clip-path="url(#${pc})">${pageItems(partner).map(x => emit(x, false)).join('')}</g>` +
+      `<text x="${W / 2}" y="${pdy < 0 ? H - 8 : 12}" font-size="${Math.min(W, H) * .022}" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".3" paint-order="stroke">${esc(pageLabel(o.partner))}</text></g>`);
+    live = ed;
+    vb[1] = Math.min(vb[1], pdy - 4); vb[3] = H + Math.abs(pdy) + 2 * pad + 4;
+  }
   for (const it of items) body.push(emit(it, o.mode === 'thumb'));
 
+  // Oben hängende Rückseiten haben die Lochung an ihrer Unterkante
+  const flipBind = viewOf(p.key).part === 'upper';
   let over = '';
   if (ed) {
     // Auflösungswarnungen
@@ -1399,7 +1489,7 @@ function svgPage(p, o = {}) {
       const sm = 5;
       over += `<rect x="${sm}" y="${sm}" width="${W - 2 * sm}" height="${H - 2 * sm}" fill="none" stroke="#00a0e3" stroke-width="0.3" stroke-dasharray="1 1.5" pointer-events="none"/>`;
     }
-    if (o.showBind) over += bindingSvg(true);
+    if (o.showBind) over += bindingSvg(true, flipBind);
     // Ausschnitt-Modus: das ganze Foto blass zeigen, auch außerhalb des Rahmens
     const ci = ui.crop != null && items.find(i => i.t === 'img' && i.slot === ui.crop);
     if (ci) {
@@ -1425,7 +1515,7 @@ function svgPage(p, o = {}) {
         }
       }
     }
-  } else if (o.showBind) over += bindingSvg(false);
+  } else if (o.showBind) over += bindingSvg(false, flipBind);
 
   let content = body.join('');
   if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<g clip-path="url(#${cid})">${content}</g>`; }
@@ -1455,9 +1545,9 @@ function holePositions() {
   }
   return out;
 }
-function bindingSvg(ed) {
+function bindingSvg(ed, flip = false) {
   const B = S.doc.bind, W = S.doc.w, b = S.doc.bleed;
-  let s = '<g pointer-events="none">';
+  let s = `<g pointer-events="none"${flip ? ` transform="translate(0 ${S.doc.h}) scale(1 -1)"` : ''}>`;
   if (ed && B.type !== 'none') s += `<rect x="0" y="0" width="${W}" height="${bindZoneDepth()}" fill="#c2185b" fill-opacity=".1"/>`;
   if (B.type !== 'none') {
     const c = bindingConf(B.type);
@@ -1514,8 +1604,8 @@ const range = (id, bind, val, min, max, step, unit, label, scale = 1) =>
 
 /* ----- Projekt ----- */
 function renderProject() {
-  const d = S.doc, n = pageKeys().length, sheets = n - (d.backs ? Math.floor(n / 2) : 0);
-  const sheetsCount = d.backs ? pageKeys().filter(k => !isBack(k)).length : n;
+  const d = S.doc, sheets = allSheets(), n = pageKeys().length, mode = viewModeOf();
+  const extras = (d.extraSheets || []).map(x => ({ ...x, label: x.month != null ? `${MONTHS[x.month]}, weiteres Motiv` : 'Freies Blatt', afterLabel: pageLabel(sheetList().find(s => s.id === x.after)?.front || x.after) }));
   $('#v-project').innerHTML = `<div class="project">
     <div class="cards">
       <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden. Ein Wechsel ist auch später möglich, die Seiten passen sich an.</p></header>
@@ -1525,12 +1615,16 @@ function renderProject() {
         }).join('')}</div>
         ${d.format === 'custom' ? `<div class="row"><div class="field"><label for="cw">Breite mm</label><input type="number" id="cw" data-bind="doc.w" min="100" max="600" value="${d.w}"></div><div class="field"><label for="ch">Höhe mm</label><input type="number" id="ch" data-bind="doc.h" min="100" max="600" value="${d.h}"></div></div>` : ''}
       </section>
-      <section class="card"><header><h2>Blätter</h2><p>${sheetsCount} Blätter, ${n} Druckseiten.</p></header>
+      <section class="card"><header><h2>Blätter</h2><p>${sheets.length} Blätter, ${n} Druckseiten.</p></header>
         <div class="field"><label for="yr">Kalenderjahr</label><input type="number" id="yr" data-bind="doc.year" min="2000" max="2100" value="${d.year}"></div>
-        <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover ? 'checked' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
-        <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Eine Seite, die alle Fotos mit Bildtexten erklärt.</span></span></label>
-        <label class="check"><input type="checkbox" id="bk" data-bind="doc.backs" ${d.backs ? 'checked' : ''}><span>Rückseiten mit Fotos<span class="hint">Jedes Blatt beidseitig bedruckt.</span></span></label>
-        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF um 180° drehen<span class="hint">Nur einschalten, wenn das Datenblatt der Druckerei das verlangt.</span></span></label>` : ''}
+        <div class="field"><span class="lbl">Druck</span>${seg([['single', 'Einseitig'], ['double', 'Beidseitig']], d.duplex ? 'double' : 'single', 'duplex')}</div>
+        ${d.duplex ? `<div class="field"><span class="lbl">Rückseiten nutzen</span>${seg([['opened', 'Aufgeklappt'], ['alternative', 'Zweites Motiv'], ['free', 'Freie Fotoseiten']], mode, 'viewmode')}
+          <p class="hint">${mode === 'opened' ? 'Beim Aufhängen oben die Rückseite des vorigen Blatts, unten die Monatsseite. Ein Kalendarium für beide zusammen; die Bindung liegt in der Mitte. Das Titelblatt ist dafür nötig, seine Rückseite ist der obere Teil des Januars.' : mode === 'alternative' ? 'Vorder- und Rückseite zeigen zwei Motive desselben Monats, beide mit Kalendarium. Beim Aufhängen wählt man das schönere.' : 'Rückseiten sind zusätzliche Fotoseiten ohne Kalendarium.'}</p></div>
+          <label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF Kopf an Fuß (um 180° gedreht)<span class="hint">Hängt davon ab, wie die Druckerei wendet. Nur nach deren Datenblatt einschalten.</span></span></label>` : ''}
+        <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover || mode === 'opened' ? 'checked' : ''} ${mode === 'opened' ? 'disabled' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
+        <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Erklärt die Fotos, als Liste oder freier Text.</span></span></label>
+        ${extras.length ? `<div class="field"><span class="lbl">Zusätzliche Blätter</span>${extras.map(x => `<div class="row"><span style="flex:1">${esc(x.label)} <span class="muted small">nach ${esc(x.afterLabel)}</span></span><button class="btn small danger" data-act="delsheet" data-v="${x.id}">Entfernen</button></div>`).join('')}</div>` : ''}
+        <p class="hint">Weitere Blätter, etwa ein zweites Motiv für einen Monat, fügst du beim Gestalten im Reiter „Layout“ ein.</p>
       </section>
       <section class="card"><header><h2>Bilder und Abstände</h2><p>Gilt für alle Seiten.</p></header>
         ${range('gp', 'doc.gap', d.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern')}
@@ -1638,12 +1732,13 @@ function renderStage() {
     <span class="row" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">Beschnitt</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">Bindung</button>
-    <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>`;
+    <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>
+    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">Aufgeklappt</button>` : ''}`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
   const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
-  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
+  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, partner: ui.showPartner ? partnerOf(ui.page) : null, attrs: 'id="editor"' });
   const svg = $('#editor');
   // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
   wrap.classList.toggle('zoomed', ui.viewZoom > 1);
@@ -1720,7 +1815,18 @@ function panelLayout(p) {
     <label class="check"><input type="checkbox" id="pgo" data-act="pagegapon" ${p.gap != null ? 'checked' : ''}><span>Eigener Abstand nur für diese Seite</span></label>
     ${p.gap != null ? `<div class="field"><label for="pg">Abstand auf dieser Seite</label><div class="range"><input type="range" id="pg" min="0" max="5" step="0.5" value="${p.gap}" data-act-input="pagegap"><output>${fmt1(p.gap)} mm</output></div></div>` : ''}
     ${range('mg2', 'doc.margin', S.doc.margin, 0, 20, 1, ' mm', 'Außenrand (alle Seiten)')}
-    <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>`;
+    <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>
+    ${sheetTools(p)}`;
+}
+// Blätter einfügen und entfernen
+function sheetTools(p) {
+  const sh = sheetOf(p.key); if (!sh || sh.role === 'index') return '';
+  const m = pageMonth(p.key);
+  return `<div class="field"><span class="lbl">Blatt</span>
+    <div class="row">${m != null ? `<button class="btn small" data-act="addsheet" data-v="month">Weiteres Motiv für ${MONTHS[m]}</button>` : ''}
+    <button class="btn small" data-act="addsheet" data-v="blank">Freies Blatt danach</button>
+    ${sh.extra ? `<button class="btn small danger" data-act="delsheet">Dieses Blatt entfernen</button>` : ''}</div>
+    <p class="hint">Ein weiteres Motiv ist ein zusätzliches Blatt mit demselben Kalendarium. So kann man beim Aufhängen das schönere wählen.</p></div>`;
 }
 function poolPhotos(p) {
   const m = pageMonth(p.key);
@@ -1740,7 +1846,11 @@ function panelPhotos(p) {
 function panelCal(p) {
   const c = calSettings(p);
   const custom = p.cal && p.cal.pos && p.cal.pos[c.style];
-  return `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
+  const v = viewOf(p.key), opened = v.part === 'upper' || v.part === 'lower';
+  const where = opened ? `<div class="field"><span class="lbl">Kalendarium der Ansicht ${MONTHS[v.month]}</span>${seg([['upper', 'Oben'], ['lower', 'Unten']], (S.doc.viewCal || {})[(sheetOf(v.part === 'upper' ? v.lower : p.key) || {}).id] === 'upper' ? 'upper' : 'lower', 'viewcal')}
+    <p class="hint">Oben und unten bilden zusammen eine Monatsansicht und bekommen ein gemeinsames Kalendarium.</p></div>` : '';
+  if (opened && c.style === 'off' && !(p.cal && p.cal.style)) return where + `<p class="hint">Auf dieser Seite steht kein Kalendarium, weil es auf der ${v.part === 'upper' ? 'unteren' : 'oberen'} Seite steht.</p>`;
+  return where + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
@@ -1803,7 +1913,7 @@ function checks() {
       else if (dpi < 200) { low++; out.push(['warn', `${pageLabel(k)}: Foto mit ${Math.round(dpi)} dpi ist knapp`, k]); }
     }
     for (const it of items) if (it.t === 'block') {
-      if (it.y < zone) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ragt in die Bindung`, k]);
+      if (viewOf(k).part === 'upper' ? it.y + it.h > d.h - zone : it.y < zone) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ragt in die Bindung`, k]);
       else if (it.x < 4 || it.y < 4 || it.x + it.w > d.w - 4 || it.y + it.h > d.h - 4) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} liegt sehr nah am Schnitt`, k]);
     }
   }
@@ -1837,7 +1947,7 @@ function renderPrint() {
         <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
       <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
-        <dl class="specs"><dt>Seiten</dt><dd>${keys.length}${d.backs ? ' (Vorder- und Rückseiten im Wechsel)' : ''}</dd>
+        <dl class="specs"><dt>Blätter</dt><dd>${allSheets().length}, ${d.duplex ? 'beidseitig' : 'einseitig'} bedruckt</dd><dt>Seiten</dt><dd>${keys.length}${d.duplex ? ' (Vorder- und Rückseite im Wechsel)' : ''}</dd>
           <dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm</dd>
           <dt>Farbraum</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
           <dt>Transparenz</dt><dd>keine (Flächen werden eingerechnet)</dd><dt>Fehlt noch</dt><dd>ICC-Ausgabeprofil, PDF/X, Druckerei-Profil</dd></dl>
@@ -1851,9 +1961,33 @@ function renderPrint() {
         <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
       </section>
     </div>
-    <section class="card"><header><h2>Leuchttisch</h2><p>Alle Seiten im Endformat, mit Lochung und Aufhänger.</p></header>
-      <div class="lighttable">${keys.map(k => `<button class="lt-page" data-act="jump" data-v="${k}">${svgPage(S.pages[k], { mode: 'thumb', showBind: true })}<span>${esc(pageLabel(k))}</span></button>`).join('')}</div></section>
+    <section class="card"><header><h2>Leuchttisch</h2><p>${ui.ltMode === 'sheets' ? 'Die Druckbogen in Druckreihenfolge, Vorder- und Rückseite nebeneinander.' : 'So sieht der Kalender aufgehängt aus, mit Lochung und Aufhänger.'}</p></header>
+      ${seg([['views', 'Monatsansichten'], ['sheets', 'Druckbogen']], ui.ltMode || 'views', 'ltmode')}
+      <div class="lighttable">${ui.ltMode === 'sheets' ? sheetCards() : viewCards()}</div></section>
   </div>`;
+}
+
+// Was beim Aufhängen zusammen zu sehen ist
+function viewGroups() {
+  const mode = viewModeOf(), groups = [];
+  for (const k of pageKeys()) {
+    const v = viewOf(k);
+    if (v.part === 'upper' || v.part === 'altB') continue;
+    if (v.part === 'back' && mode !== 'free') continue;            // nur im Druckbogen
+    if (v.part === 'lower') { const up = partnerOf(k); groups.push({ label: MONTHS[v.month], keys: up ? [up, k] : [k], dir: 'col' }); continue; }
+    if (mode === 'alternative' && v.part === 'front') { groups.push({ label: `${MONTHS[v.month]}, Motiv A und B`, keys: [k, k + '-b'], dir: 'row' }); continue; }
+    groups.push({ label: pageLabel(k), keys: [k], dir: 'col' });
+  }
+  return groups;
+}
+const ltSvg = (k) => `<button class="lt-page" data-act="jump" data-v="${k}" aria-label="${esc(pageLabel(k))}">${svgPage(S.pages[k], { mode: 'thumb', showBind: true })}</button>`;
+function viewCards() {
+  return viewGroups().map(g => `<div class="lt-group ${g.dir}"><div class="lt-pages">${g.keys.map(ltSvg).join('')}</div><span>${esc(g.label)}</span></div>`).join('');
+}
+function sheetCards() {
+  let n = 0;
+  return allSheets().map((sh, i) => `<div class="lt-group row"><div class="lt-pages">${[sh.front, sh.back].filter(Boolean).map(ltSvg).join('')}</div>
+    <span>Blatt ${i + 1}: ${[sh.front, sh.back].filter(Boolean).map(k => `S. ${++n} ${esc(pageShort(k))}`).join(' · ')}</span></div>`).join('');
 }
 
 const ICON = {
@@ -1894,7 +2028,7 @@ function onBind(el, final) {
   if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
   const out = el.parentElement.querySelector('output');
   if (out) out.textContent = fmt1(v * (+el.dataset.scale || 1)) + (el.dataset.unit ?? ' mm');
-  const structural = /doc\.(cover|index|backs|format|bind\.cut|bind\.type|backRotate)/.test(path);
+  const structural = /doc\.(cover|index|format|bind\.cut|bind\.type|backRotate)/.test(path);
   if (structural) ensurePages();
   if (final) {
     commit();
@@ -2028,7 +2162,7 @@ const ACTIONS = {
     const p = curPage(), c = calSettings(p);
     const keep = { style: c.style, size: c.size, color: c.color, panel: c.panel, hi: c.hi };
     Object.assign(S.doc.cal, keep);
-    for (const k of pageKeys()) if (pageMonth(k) != null && !isBack(k)) { const pc = S.pages[k].cal || {}; S.pages[k].cal = pc.pos ? { pos: pc.pos } : {}; }
+    for (const k of pageKeys()) if (viewOf(k).cal) { const pc = S.pages[k].cal || {}; S.pages[k].cal = pc.pos ? { pos: pc.pos } : {}; }
     commit(); renderDesign(); toast('Für alle Monate übernommen.');
   },
   titlecolor: (el) => { curPage().title.color = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -2072,6 +2206,31 @@ const ACTIONS = {
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
+  duplex: (el) => { S.doc.duplex = el.dataset.v === 'double'; ensurePages(); commit(); renderAll(); },
+  viewmode: (el) => { S.doc.viewMode = el.dataset.v; ensurePages(); commit(); renderAll(); },
+  addsheet: (el) => {
+    // weiteres Motiv für den Monat dieser Seite oder freies Blatt, direkt nach dem aktuellen Blatt
+    const sh = sheetOf(ui.page); if (!sh || sh.role === 'index') return;
+    const m = el.dataset.v === 'month' ? pageMonth(ui.page) : null, id = 'x' + uid();
+    (S.doc.extraSheets ||= []).push({ id, after: sh.id, month: m });
+    ensurePages(); ui.page = id; ui.sel = null; commit(); renderAll();
+    toast(m != null ? `Weiteres Motiv für ${MONTHS[m]} eingefügt.` : 'Freies Blatt eingefügt.');
+  },
+  delsheet: async (el) => {
+    const id = el.dataset.v || (sheetOf(ui.page) || {}).id, sh = sheetList().find(s => s.id === id);
+    if (!sh || !sh.extra) return;
+    const used = [sh.front, sh.back].filter(Boolean).flatMap(k => visibleSlots(S.pages[k] || { layout: 'index' })).filter(s => s.photo).length;
+    if (used) {
+      const ok = await ask({ title: 'Blatt entfernen?', text: `Auf dem Blatt stehen ${used} Fotos. Sie bleiben im Fotopool erhalten. Rückgängig ist möglich.`, buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      if (!ok) return;
+    }
+    // Blätter, die nach diesem eingefügt waren, rücken an seine Stelle
+    for (const x of S.doc.extraSheets) if (x.after === id) x.after = (S.doc.extraSheets.find(y => y.id === id) || {}).after;
+    S.doc.extraSheets = S.doc.extraSheets.filter(x => x.id !== id);
+    ensurePages(); commit(); renderAll();
+  },
+  viewcal: (el) => { const v = viewOf(ui.page), lower = v.part === 'upper' ? v.lower : ui.page; (S.doc.viewCal ||= {})[(sheetOf(lower) || {}).id] = el.dataset.v; commit(); renderDesign(); },
+  ltmode: (el) => { ui.ltMode = el.dataset.v; renderPrint(); },
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },
@@ -2718,6 +2877,10 @@ async function loadSaved() {
   try {
     const o = JSON.parse(json);
     S = { doc: { ...defaultDoc(), ...o.doc }, pages: o.pages || {}, photos: o.photos || {}, demo: !!o.demo };
+    // Älterer Stand: „Rückseiten mit Fotos“ entspricht beidseitig mit freien Rückseiten
+    if (o.doc && o.doc.backs && o.doc.duplex == null) { S.doc.duplex = true; S.doc.viewMode = 'free'; }
+    delete S.doc.backs;
+    for (const [k, p] of Object.entries(S.pages)) if (isBack(k) && p.cal && p.cal.style === 'off' && Object.keys(p.cal).length === 1) p.cal = {};
   } catch (e) { return false; }
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {

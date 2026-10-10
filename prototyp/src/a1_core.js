@@ -100,6 +100,7 @@ const LAYOUTS = [
   { id: 'fullin',  name: 'Vollbild + Einleger',     slots: [[0, 0, 1, 1]], ov: [[.06, .5, .34, .38]] },
   { id: 'cols2in', name: 'Zwei + Einleger',         slots: [[0, 0, .5, 1], [.5, 0, .5, 1]], ov: [[.34, .27, .32, .42]] },
   { id: 'rows2in', name: 'Übereinander + Einleger', slots: [[0, 0, 1, .5], [0, .5, 1, .5]], ov: [[.6, .28, .32, .44]] },
+  { id: 'blank',   name: 'Leere Seite',             slots: [] },
 ];
 const layoutById = (id) => LAYOUTS.find(l => l.id === id) || LAYOUTS[0];
 const slotCount = (id) => { const l = layoutById(id); return l.slots.length + (l.ov ? l.ov.length : 0); };
@@ -109,7 +110,7 @@ function defaultDoc() {
   return {
     year: new Date().getFullYear() + 1, format: 'sq297', w: 297, h: 297,
     bleed: 3, gap: 3, margin: 0, ovBorder: 3, bg: 'white',
-    cover: true, index: true, backs: false, backRotate: false, region: lastRegion(), cropMarks: false,
+    cover: true, index: true, duplex: false, viewMode: 'opened', viewCal: {}, extraSheets: [], backRotate: false, region: lastRegion(), cropMarks: false,
     bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
     cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true,
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
@@ -123,37 +124,104 @@ let S = { doc: defaultDoc(), pages: {}, photos: {}, demo: false };
 const RT = { thumb: {}, prev: {}, file: {} };     // Laufzeit: Bild-URLs und Originaldateien
 const ui = {
   view: 'design', page: 'm0', sel: null, crop: null, selBlock: null, viewZoom: 1, tab: 'layout', armed: null, swapFrom: null, pool: null,
-  showBleed: true, showBind: true, showGuides: true, photoSel: new Set(), photoFocus: null, banner: true,
+  showBleed: true, showBind: true, showGuides: true, showPartner: true, ltMode: 'views', photoSel: new Set(), photoFocus: null, banner: true,
 };
 
-// Seiten ohne Register; das Register hängt davon ab, wie viele Seiten es braucht
-function baseKeys(doc = S.doc) {
-  const k = [];
-  if (doc.cover) { k.push('cover'); if (doc.backs) k.push('cover-b'); }
-  for (let m = 0; m < 12; m++) { k.push('m' + m); if (doc.backs) k.push('m' + m + '-b'); }
-  return k;
+/* ---------- Blätter, Druckseiten und Monatsansichten ----------
+   Ein Blatt (Sheet) ist ein physisches Blatt Papier: Vorderseite und bei beidseitigem Druck Rückseite.
+   Eine Monatsansicht ist, was beim Aufhängen zu sehen ist. Wie Rückseiten genutzt werden (doc.viewMode):
+     'opened'      – aufgeklappt: oben die Rückseite des vorigen Blatts, unten die Vorderseite des Monats;
+                     ein Kalendarium für beide zusammen (doc.viewCal[m]: 'lower' oder 'upper')
+     'alternative' – Vorder- und Rückseite sind zwei Motive desselben Monats, jedes mit Kalendarium
+     'free'        – Rückseiten sind zusätzliche Fotoseiten ohne Kalendarium
+   Zusätzliche Blätter (doc.extraSheets): weiteres Motiv für einen Monat oder freies Blatt, eingefügt nach einem Blatt. */
+const viewModeOf = (doc = S.doc) => doc.duplex ? (doc.viewMode || 'opened') : 'single';
+function sheetList(doc = S.doc) {
+  const out = [], extras = doc.extraSheets || [];
+  const push = (sh) => {
+    out.push(sh);
+    for (const x of extras.filter(x => x.after === sh.id)) push({ id: x.id, role: x.month != null ? 'month' : 'blank', month: x.month ?? null, front: x.id, extra: true });
+  };
+  if (doc.cover || viewModeOf(doc) === 'opened') push({ id: 'cover', role: 'cover', month: null, front: 'cover' });
+  for (let m = 0; m < 12; m++) push({ id: 'm' + m, role: 'month', month: m, front: 'm' + m });
+  if (doc.duplex) for (const sh of out) sh.back = sh.front + '-b';
+  return out;
 }
+// Alle Blätter einschließlich Register (dessen Umfang hängt vom Inhalt ab)
+function allSheets(doc = S.doc) {
+  const sh = sheetList(doc);
+  if (doc.index) {
+    const n = indexLayout().length;
+    for (let i = 1; i <= n; i++) { const k = i === 1 ? 'index' : 'index-' + i; sh.push({ id: k, role: 'index', month: null, front: k, back: doc.duplex ? k + '-b' : undefined }); }
+  }
+  return sh;
+}
+const sideKeys = (sheets) => sheets.flatMap(s => s.back ? [s.front, s.back] : [s.front]);
+// Seiten ohne Register; das Register hängt davon ab, welche Seiten es gibt
+function baseKeys(doc = S.doc) { return sideKeys(sheetList(doc)); }
 function pageKeys(doc = S.doc) {
-  const k = baseKeys(doc);
-  if (doc.index) { const n = indexLayout().length; for (let i = 1; i <= n; i++) k.push(i === 1 ? 'index' : 'index-' + i); }
-  return k;
+  const keys = sideKeys(allSheets(doc));
+  for (const k of keys) if (!S.pages[k]) S.pages[k] = fillSlots(newPage(k));   // z. B. eine neu nötige Registerseite
+  return keys;
 }
-const isIndex = (key) => key.startsWith('index');
+const isIndex = (key) => /^index(-\d+)?$/.test(key);
 const indexNo = (key) => key === 'index' ? 1 : +key.split('-')[1];
-function pageMonth(key) { const r = /^m(\d+)/.exec(key); return r ? +r[1] : null; }
 const isBack = (key) => key.endsWith('-b');
+const sheetOf = (key) => allSheets().find(s => s.front === key || s.back === key);
+
+// Rolle jeder Seite in ihrer Monatsansicht: month, part, cal (trägt standardmäßig das Kalendarium)
+function viewMap(doc = S.doc) {
+  const map = {}, sheets = sheetList(doc), mode = viewModeOf(doc);
+  sheets.forEach((sh, i) => {
+    if (sh.role !== 'month') map[sh.front] = { month: null, part: sh.role };
+    else if (mode === 'opened') map[sh.front] = { month: sh.month, part: 'lower', cal: (doc.viewCal || {})[sh.id] !== 'upper' };
+    else map[sh.front] = { month: sh.month, part: sh.extra ? 'more' : 'front', cal: true };
+    if (!sh.back) return;
+    const next = sheets[i + 1];
+    if (mode === 'opened' && next && next.role === 'month') map[sh.back] = { month: next.month, part: 'upper', cal: (doc.viewCal || {})[next.id] === 'upper', lower: next.front };
+    else if (mode === 'alternative' && sh.role === 'month') map[sh.back] = { month: sh.month, part: 'altB', cal: true };
+    else map[sh.back] = { month: mode === 'free' ? sh.month : null, part: 'back' };
+  });
+  return map;
+}
+const viewOf = (key) => viewMap()[key] || { month: null, part: isIndex(key) ? 'index' : 'back' };
+function pageMonth(key) { return viewOf(key).month ?? null; }
+// Partnerseite in der aufgeklappten Ansicht (oben ↔ unten)
+function partnerOf(key) {
+  const v = viewOf(key);
+  if (v.part === 'upper') return v.lower;
+  if (v.part === 'lower') { const m = viewMap(); return Object.keys(m).find(k => m[k].part === 'upper' && m[k].lower === key) || null; }
+  return null;
+}
 function pageLabel(key) {
-  if (key === 'cover') return 'Titelblatt';
-  if (key === 'cover-b') return 'Rückseite Titel';
   if (isIndex(key)) return 'Bildregister' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  const m = pageMonth(key);
-  return (isBack(key) ? 'Rückseite ' : '') + MONTHS[m];
+  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Rückseite Register';
+  const v = viewOf(key), mn = v.month != null ? MONTHS[v.month] : '';
+  switch (v.part) {
+    case 'cover': return 'Titelblatt';
+    case 'blank': return 'Freies Blatt';
+    case 'lower': return `${mn} unten`;
+    case 'upper': return `${mn} oben`;
+    case 'more': return `${mn}, weiteres Motiv`;
+    case 'altB': return `${mn}, Motiv B`;
+    case 'front': return viewModeOf() === 'alternative' ? `${mn}, Motiv A` : mn;
+    default: return 'Rückseite ' + pageLabel(key.slice(0, -2));
+  }
 }
 function pageShort(key) {
-  if (key === 'cover') return 'Titel';
-  if (key === 'cover-b') return 'Titel R';
   if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
+  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Reg. R';
+  const v = viewOf(key), mn = v.month != null ? MONTHS_SHORT[v.month] : '';
+  switch (v.part) {
+    case 'cover': return 'Titel';
+    case 'blank': return 'Frei';
+    case 'lower': return `${mn} ↓`;
+    case 'upper': return `${mn} ↑`;
+    case 'more': return `${mn} +`;
+    case 'altB': return `${mn} B`;
+    case 'front': return viewModeOf() === 'alternative' ? `${mn} A` : mn;
+    default: return pageShort(key.slice(0, -2)) + ' R';
+  }
 }
 // Ein Rahmen: Foto mit Ausschnitt (zoom, cx/cy = Bildpunkt in der Rahmenmitte, rot = Bilddrehung, fit).
 // Optional: box (eigene Lage in mm, dann gilt die Vorlage nicht mehr), z (Ebene), border (Rand in mm), hidden.
@@ -161,19 +229,19 @@ function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5, rot: 0, fit:
 // Vorlagenrahmen haben Zahlen als Schlüssel, zusätzliche Rahmen eine feste ID
 const keyOf = (v) => /^\d+$/.test(String(v)) ? +v : String(v);
 function slotOf(p, key) { return typeof key === 'number' ? p.slots[key] : (p.extra || []).find(s => s.id === key); }
+function fillSlots(p) { if (p.layout !== 'index') while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot()); return p; }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
   if (isIndex(key)) p.layout = 'index';
+  if (isBack(key) && isIndex(key.slice(0, -2))) p.layout = 'blank';   // Rückseite des Registers bleibt zunächst leer
   if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'white', size: 1, panel: 'none', ax: .08, ay: .9 };
-  if (isBack(key)) { p.layout = 'cols2'; p.cal = { style: 'off' }; }
   return p;
 }
 function ensurePages() {
   for (const k of baseKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of pageKeys()) if (!S.pages[k]) S.pages[k] = newPage(k);
   for (const k of Object.keys(S.pages)) {
-    const p = S.pages[k];
-    if (p.layout !== 'index') while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot());
+    fillSlots(S.pages[k]);
   }
   if (!pageKeys().includes(ui.page)) ui.page = pageKeys()[0];
 }
@@ -184,7 +252,12 @@ function usage() {
   for (const k of pageKeys()) visibleSlots(S.pages[k]).forEach(s => { if (s.photo) (u[s.photo] ||= []).push(k); });
   return u;
 }
-function calSettings(p) { return { ...S.doc.cal, ...(p.cal || {}) }; }
+// Kalendarium: Voreinstellung des Projekts, aus, wenn die Seite in ihrer Ansicht keins trägt, dann Werte der Seite
+function calSettings(p) {
+  const base = { ...S.doc.cal };
+  if (!viewOf(p.key).cal) base.style = 'off';
+  return { ...base, ...(p.cal || {}) };
+}
 // Kopien teilen sich die Bilddaten mit dem Original
 const blobId = (ph) => ph.copyOf || ph.id;
 

@@ -30,7 +30,7 @@ function onBind(el, final) {
   if (path === 'doc.region') { try { localStorage.setItem('kw-region', v); } catch (e) { /* egal */ } }
   const out = el.parentElement.querySelector('output');
   if (out) out.textContent = fmt1(v * (+el.dataset.scale || 1)) + (el.dataset.unit ?? ' mm');
-  const structural = /doc\.(cover|index|backs|format|bind\.cut|bind\.type|backRotate)/.test(path);
+  const structural = /doc\.(cover|index|format|bind\.cut|bind\.type|backRotate)/.test(path);
   if (structural) ensurePages();
   if (final) {
     commit();
@@ -164,7 +164,7 @@ const ACTIONS = {
     const p = curPage(), c = calSettings(p);
     const keep = { style: c.style, size: c.size, color: c.color, panel: c.panel, hi: c.hi };
     Object.assign(S.doc.cal, keep);
-    for (const k of pageKeys()) if (pageMonth(k) != null && !isBack(k)) { const pc = S.pages[k].cal || {}; S.pages[k].cal = pc.pos ? { pos: pc.pos } : {}; }
+    for (const k of pageKeys()) if (viewOf(k).cal) { const pc = S.pages[k].cal || {}; S.pages[k].cal = pc.pos ? { pos: pc.pos } : {}; }
     commit(); renderDesign(); toast('Für alle Monate übernommen.');
   },
   titlecolor: (el) => { curPage().title.color = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -208,6 +208,31 @@ const ACTIONS = {
   vzoom: (el) => { ui.viewZoom = el.dataset.v === 'fit' ? 1 : clamp(ui.viewZoom * (el.dataset.v === 'in' ? 1.5 : 1 / 1.5), 1, 6); renderStage(); },
   savepdf: () => savePdf(),
   ixmode: (el) => { S.doc.indexMode = el.dataset.v; commit(); renderDesign(); },
+  duplex: (el) => { S.doc.duplex = el.dataset.v === 'double'; ensurePages(); commit(); renderAll(); },
+  viewmode: (el) => { S.doc.viewMode = el.dataset.v; ensurePages(); commit(); renderAll(); },
+  addsheet: (el) => {
+    // weiteres Motiv für den Monat dieser Seite oder freies Blatt, direkt nach dem aktuellen Blatt
+    const sh = sheetOf(ui.page); if (!sh || sh.role === 'index') return;
+    const m = el.dataset.v === 'month' ? pageMonth(ui.page) : null, id = 'x' + uid();
+    (S.doc.extraSheets ||= []).push({ id, after: sh.id, month: m });
+    ensurePages(); ui.page = id; ui.sel = null; commit(); renderAll();
+    toast(m != null ? `Weiteres Motiv für ${MONTHS[m]} eingefügt.` : 'Freies Blatt eingefügt.');
+  },
+  delsheet: async (el) => {
+    const id = el.dataset.v || (sheetOf(ui.page) || {}).id, sh = sheetList().find(s => s.id === id);
+    if (!sh || !sh.extra) return;
+    const used = [sh.front, sh.back].filter(Boolean).flatMap(k => visibleSlots(S.pages[k] || { layout: 'index' })).filter(s => s.photo).length;
+    if (used) {
+      const ok = await ask({ title: 'Blatt entfernen?', text: `Auf dem Blatt stehen ${used} Fotos. Sie bleiben im Fotopool erhalten. Rückgängig ist möglich.`, buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      if (!ok) return;
+    }
+    // Blätter, die nach diesem eingefügt waren, rücken an seine Stelle
+    for (const x of S.doc.extraSheets) if (x.after === id) x.after = (S.doc.extraSheets.find(y => y.id === id) || {}).after;
+    S.doc.extraSheets = S.doc.extraSheets.filter(x => x.id !== id);
+    ensurePages(); commit(); renderAll();
+  },
+  viewcal: (el) => { const v = viewOf(ui.page), lower = v.part === 'upper' ? v.lower : ui.page; (S.doc.viewCal ||= {})[(sheetOf(lower) || {}).id] = el.dataset.v; commit(); renderDesign(); },
+  ltmode: (el) => { ui.ltMode = el.dataset.v; renderPrint(); },
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },

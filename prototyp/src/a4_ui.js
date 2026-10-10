@@ -38,8 +38,8 @@ const range = (id, bind, val, min, max, step, unit, label, scale = 1) =>
 
 /* ----- Projekt ----- */
 function renderProject() {
-  const d = S.doc, n = pageKeys().length, sheets = n - (d.backs ? Math.floor(n / 2) : 0);
-  const sheetsCount = d.backs ? pageKeys().filter(k => !isBack(k)).length : n;
+  const d = S.doc, sheets = allSheets(), n = pageKeys().length, mode = viewModeOf();
+  const extras = (d.extraSheets || []).map(x => ({ ...x, label: x.month != null ? `${MONTHS[x.month]}, weiteres Motiv` : 'Freies Blatt', afterLabel: pageLabel(sheetList().find(s => s.id === x.after)?.front || x.after) }));
   $('#v-project').innerHTML = `<div class="project">
     <div class="cards">
       <section class="card"><header><h2>Format</h2><p>Endformat nach dem Schneiden. Ein Wechsel ist auch später möglich, die Seiten passen sich an.</p></header>
@@ -49,12 +49,16 @@ function renderProject() {
         }).join('')}</div>
         ${d.format === 'custom' ? `<div class="row"><div class="field"><label for="cw">Breite mm</label><input type="number" id="cw" data-bind="doc.w" min="100" max="600" value="${d.w}"></div><div class="field"><label for="ch">Höhe mm</label><input type="number" id="ch" data-bind="doc.h" min="100" max="600" value="${d.h}"></div></div>` : ''}
       </section>
-      <section class="card"><header><h2>Blätter</h2><p>${sheetsCount} Blätter, ${n} Druckseiten.</p></header>
+      <section class="card"><header><h2>Blätter</h2><p>${sheets.length} Blätter, ${n} Druckseiten.</p></header>
         <div class="field"><label for="yr">Kalenderjahr</label><input type="number" id="yr" data-bind="doc.year" min="2000" max="2100" value="${d.year}"></div>
-        <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover ? 'checked' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
-        <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Eine Seite, die alle Fotos mit Bildtexten erklärt.</span></span></label>
-        <label class="check"><input type="checkbox" id="bk" data-bind="doc.backs" ${d.backs ? 'checked' : ''}><span>Rückseiten mit Fotos<span class="hint">Jedes Blatt beidseitig bedruckt.</span></span></label>
-        ${d.backs ? `<label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF um 180° drehen<span class="hint">Nur einschalten, wenn das Datenblatt der Druckerei das verlangt.</span></span></label>` : ''}
+        <div class="field"><span class="lbl">Druck</span>${seg([['single', 'Einseitig'], ['double', 'Beidseitig']], d.duplex ? 'double' : 'single', 'duplex')}</div>
+        ${d.duplex ? `<div class="field"><span class="lbl">Rückseiten nutzen</span>${seg([['opened', 'Aufgeklappt'], ['alternative', 'Zweites Motiv'], ['free', 'Freie Fotoseiten']], mode, 'viewmode')}
+          <p class="hint">${mode === 'opened' ? 'Beim Aufhängen oben die Rückseite des vorigen Blatts, unten die Monatsseite. Ein Kalendarium für beide zusammen; die Bindung liegt in der Mitte. Das Titelblatt ist dafür nötig, seine Rückseite ist der obere Teil des Januars.' : mode === 'alternative' ? 'Vorder- und Rückseite zeigen zwei Motive desselben Monats, beide mit Kalendarium. Beim Aufhängen wählt man das schönere.' : 'Rückseiten sind zusätzliche Fotoseiten ohne Kalendarium.'}</p></div>
+          <label class="check"><input type="checkbox" id="br" data-bind="doc.backRotate" ${d.backRotate ? 'checked' : ''}><span>Rückseiten im PDF Kopf an Fuß (um 180° gedreht)<span class="hint">Hängt davon ab, wie die Druckerei wendet. Nur nach deren Datenblatt einschalten.</span></span></label>` : ''}
+        <label class="check"><input type="checkbox" id="cv" data-bind="doc.cover" ${d.cover || mode === 'opened' ? 'checked' : ''} ${mode === 'opened' ? 'disabled' : ''}><span>Eigenes Titelblatt<span class="hint">Vor dem Januar, mit Titel statt Kalendarium.</span></span></label>
+        <label class="check"><input type="checkbox" id="ix" data-bind="doc.index" ${d.index ? 'checked' : ''}><span>Bildregister am Ende<span class="hint">Erklärt die Fotos, als Liste oder freier Text.</span></span></label>
+        ${extras.length ? `<div class="field"><span class="lbl">Zusätzliche Blätter</span>${extras.map(x => `<div class="row"><span style="flex:1">${esc(x.label)} <span class="muted small">nach ${esc(x.afterLabel)}</span></span><button class="btn small danger" data-act="delsheet" data-v="${x.id}">Entfernen</button></div>`).join('')}</div>` : ''}
+        <p class="hint">Weitere Blätter, etwa ein zweites Motiv für einen Monat, fügst du beim Gestalten im Reiter „Layout“ ein.</p>
       </section>
       <section class="card"><header><h2>Bilder und Abstände</h2><p>Gilt für alle Seiten.</p></header>
         ${range('gp', 'doc.gap', d.gap, 0, 5, .5, ' mm', 'Abstand zwischen Bildern')}
@@ -162,12 +166,13 @@ function renderStage() {
     <span class="row" style="gap:4px"><button class="icon-btn" data-act="vzoom" data-v="out" aria-label="Ansicht verkleinern" ${ui.viewZoom <= 1 ? 'disabled' : ''}>−</button><button class="btn small" data-act="vzoom" data-v="fit" title="Ansicht einpassen">${Math.round(ui.viewZoom * 100)} %</button><button class="icon-btn" data-act="vzoom" data-v="in" aria-label="Ansicht vergrößern" ${ui.viewZoom >= 6 ? 'disabled' : ''}>+</button></span>
     <button class="toggle" data-act="tg" data-v="showBleed" aria-pressed="${ui.showBleed}">Beschnitt</button>
     <button class="toggle" data-act="tg" data-v="showBind" aria-pressed="${ui.showBind}">Bindung</button>
-    <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>`;
+    <button class="toggle" data-act="tg" data-v="showGuides" aria-pressed="${ui.showGuides}">Hilfslinien</button>
+    ${partnerOf(ui.page) ? `<button class="toggle" data-act="tg" data-v="showPartner" aria-pressed="${ui.showPartner}">Aufgeklappt</button>` : ''}`;
   renderEditor(); renderFrameBar();
 }
 function renderEditor() {
   const wrap = $('#canvasWrap'), sx = wrap.scrollLeft, sy = wrap.scrollTop;
-  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, attrs: 'id="editor"' });
+  wrap.innerHTML = svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, partner: ui.showPartner ? partnerOf(ui.page) : null, attrs: 'id="editor"' });
   const svg = $('#editor');
   // Ansichtszoom: unabhängig vom Bildzoom im Rahmen
   wrap.classList.toggle('zoomed', ui.viewZoom > 1);
@@ -244,7 +249,18 @@ function panelLayout(p) {
     <label class="check"><input type="checkbox" id="pgo" data-act="pagegapon" ${p.gap != null ? 'checked' : ''}><span>Eigener Abstand nur für diese Seite</span></label>
     ${p.gap != null ? `<div class="field"><label for="pg">Abstand auf dieser Seite</label><div class="range"><input type="range" id="pg" min="0" max="5" step="0.5" value="${p.gap}" data-act-input="pagegap"><output>${fmt1(p.gap)} mm</output></div></div>` : ''}
     ${range('mg2', 'doc.margin', S.doc.margin, 0, 20, 1, ' mm', 'Außenrand (alle Seiten)')}
-    <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>`;
+    <div class="row"><button class="btn" data-act="autofill">Leere Rahmen füllen</button><button class="btn" data-act="clearpage">Seite leeren</button></div>
+    ${sheetTools(p)}`;
+}
+// Blätter einfügen und entfernen
+function sheetTools(p) {
+  const sh = sheetOf(p.key); if (!sh || sh.role === 'index') return '';
+  const m = pageMonth(p.key);
+  return `<div class="field"><span class="lbl">Blatt</span>
+    <div class="row">${m != null ? `<button class="btn small" data-act="addsheet" data-v="month">Weiteres Motiv für ${MONTHS[m]}</button>` : ''}
+    <button class="btn small" data-act="addsheet" data-v="blank">Freies Blatt danach</button>
+    ${sh.extra ? `<button class="btn small danger" data-act="delsheet">Dieses Blatt entfernen</button>` : ''}</div>
+    <p class="hint">Ein weiteres Motiv ist ein zusätzliches Blatt mit demselben Kalendarium. So kann man beim Aufhängen das schönere wählen.</p></div>`;
 }
 function poolPhotos(p) {
   const m = pageMonth(p.key);
@@ -264,7 +280,11 @@ function panelPhotos(p) {
 function panelCal(p) {
   const c = calSettings(p);
   const custom = p.cal && p.cal.pos && p.cal.pos[c.style];
-  return `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
+  const v = viewOf(p.key), opened = v.part === 'upper' || v.part === 'lower';
+  const where = opened ? `<div class="field"><span class="lbl">Kalendarium der Ansicht ${MONTHS[v.month]}</span>${seg([['upper', 'Oben'], ['lower', 'Unten']], (S.doc.viewCal || {})[(sheetOf(v.part === 'upper' ? v.lower : p.key) || {}).id] === 'upper' ? 'upper' : 'lower', 'viewcal')}
+    <p class="hint">Oben und unten bilden zusammen eine Monatsansicht und bekommen ein gemeinsames Kalendarium.</p></div>` : '';
+  if (opened && c.style === 'off' && !(p.cal && p.cal.style)) return where + `<p class="hint">Auf dieser Seite steht kein Kalendarium, weil es auf der ${v.part === 'upper' ? 'unteren' : 'oberen'} Seite steht.</p>`;
+  return where + `<div class="field"><span class="lbl">Kalendarium auf dieser Seite</span>${seg([['h', 'Leiste'], ['v', 'Spalte'], ['g', 'Raster'], ['off', 'Aus']], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', 'Größe')}
     <div class="field"><span class="lbl">Schriftfarbe</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
@@ -327,7 +347,7 @@ function checks() {
       else if (dpi < 200) { low++; out.push(['warn', `${pageLabel(k)}: Foto mit ${Math.round(dpi)} dpi ist knapp`, k]); }
     }
     for (const it of items) if (it.t === 'block') {
-      if (it.y < zone) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ragt in die Bindung`, k]);
+      if (viewOf(k).part === 'upper' ? it.y + it.h > d.h - zone : it.y < zone) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} ragt in die Bindung`, k]);
       else if (it.x < 4 || it.y < 4 || it.x + it.w > d.w - 4 || it.y + it.h > d.h - 4) out.push(['warn', `${pageLabel(k)}: ${it.kind === 'cal' ? 'Kalendarium' : 'Titel'} liegt sehr nah am Schnitt`, k]);
     }
   }
@@ -361,7 +381,7 @@ function renderPrint() {
         <ul class="checks">${list.length ? list.slice(0, 40).map(([lvl, msg, k]) => `<li><span class="dot ${lvl}"></span>${k ? `<button data-act="jump" data-v="${k}">${esc(msg)}</button>` : esc(msg)}</li>`).join('') : '<li><span class="dot"></span>Alle Rahmen gefüllt, Auflösung ausreichend, keine Fotos doppelt.</li>'}
         ${list.length > 40 ? `<li><span></span>… und ${list.length - 40} weitere</li>` : ''}</ul></section>
       <section class="card"><header><h2>PDF-Entwurf</h2><p>Eine Datei mit allen Seiten in Druckreihenfolge. Zum Ansehen und Probedrucken, noch nicht nach den Vorgaben einer Druckerei geprüft.</p></header>
-        <dl class="specs"><dt>Seiten</dt><dd>${keys.length}${d.backs ? ' (Vorder- und Rückseiten im Wechsel)' : ''}</dd>
+        <dl class="specs"><dt>Blätter</dt><dd>${allSheets().length}, ${d.duplex ? 'beidseitig' : 'einseitig'} bedruckt</dd><dt>Seiten</dt><dd>${keys.length}${d.duplex ? ' (Vorder- und Rückseite im Wechsel)' : ''}</dd>
           <dt>Endformat</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>Mit Beschnitt</dt><dd>${fmt1(d.w + 2 * d.bleed)} × ${fmt1(d.h + 2 * d.bleed)} mm</dd>
           <dt>Farbraum</dt><dd>CMYK, einfache Umrechnung ohne ICC-Profil</dd><dt>Schrift</dt><dd>Jost, eingebettet, Text als Vektor</dd>
           <dt>Transparenz</dt><dd>keine (Flächen werden eingerechnet)</dd><dt>Fehlt noch</dt><dd>ICC-Ausgabeprofil, PDF/X, Druckerei-Profil</dd></dl>
@@ -375,9 +395,33 @@ function renderPrint() {
         <p class="hint">Die Farben werden ohne ICC-Profil nach CMYK umgerechnet, Schwarz wird reines K. Farbverbindlich wird es erst mit dem Profil der Druckerei, z. B. PSO Coated v3 oder FOGRA39.</p>
       </section>
     </div>
-    <section class="card"><header><h2>Leuchttisch</h2><p>Alle Seiten im Endformat, mit Lochung und Aufhänger.</p></header>
-      <div class="lighttable">${keys.map(k => `<button class="lt-page" data-act="jump" data-v="${k}">${svgPage(S.pages[k], { mode: 'thumb', showBind: true })}<span>${esc(pageLabel(k))}</span></button>`).join('')}</div></section>
+    <section class="card"><header><h2>Leuchttisch</h2><p>${ui.ltMode === 'sheets' ? 'Die Druckbogen in Druckreihenfolge, Vorder- und Rückseite nebeneinander.' : 'So sieht der Kalender aufgehängt aus, mit Lochung und Aufhänger.'}</p></header>
+      ${seg([['views', 'Monatsansichten'], ['sheets', 'Druckbogen']], ui.ltMode || 'views', 'ltmode')}
+      <div class="lighttable">${ui.ltMode === 'sheets' ? sheetCards() : viewCards()}</div></section>
   </div>`;
+}
+
+// Was beim Aufhängen zusammen zu sehen ist
+function viewGroups() {
+  const mode = viewModeOf(), groups = [];
+  for (const k of pageKeys()) {
+    const v = viewOf(k);
+    if (v.part === 'upper' || v.part === 'altB') continue;
+    if (v.part === 'back' && mode !== 'free') continue;            // nur im Druckbogen
+    if (v.part === 'lower') { const up = partnerOf(k); groups.push({ label: MONTHS[v.month], keys: up ? [up, k] : [k], dir: 'col' }); continue; }
+    if (mode === 'alternative' && v.part === 'front') { groups.push({ label: `${MONTHS[v.month]}, Motiv A und B`, keys: [k, k + '-b'], dir: 'row' }); continue; }
+    groups.push({ label: pageLabel(k), keys: [k], dir: 'col' });
+  }
+  return groups;
+}
+const ltSvg = (k) => `<button class="lt-page" data-act="jump" data-v="${k}" aria-label="${esc(pageLabel(k))}">${svgPage(S.pages[k], { mode: 'thumb', showBind: true })}</button>`;
+function viewCards() {
+  return viewGroups().map(g => `<div class="lt-group ${g.dir}"><div class="lt-pages">${g.keys.map(ltSvg).join('')}</div><span>${esc(g.label)}</span></div>`).join('');
+}
+function sheetCards() {
+  let n = 0;
+  return allSheets().map((sh, i) => `<div class="lt-group row"><div class="lt-pages">${[sh.front, sh.back].filter(Boolean).map(ltSvg).join('')}</div>
+    <span>Blatt ${i + 1}: ${[sh.front, sh.back].filter(Boolean).map(k => `S. ${++n} ${esc(pageShort(k))}`).join(' · ')}</span></div>`).join('');
 }
 
 const ICON = {

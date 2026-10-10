@@ -316,19 +316,20 @@ function svgPage(p, o = {}) {
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
   const url = (pid, small) => (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {
-      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && ed ? ` data-slot="${it.slot}"` : ''}/>`;
+      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
-        if (!ed) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
+        if (!live) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
         const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, cx = vis.x + vis.w / 2, cy = vis.y + vis.h / 2, s = Math.min(vis.w, vis.h) * .08;
         return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
           `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
@@ -337,15 +338,27 @@ function svgPage(p, o = {}) {
       }
       case 'block': {
         const inner = it.items.map(x => emit(x, small)).join('');
-        if (!ed) return inner;
+        if (!live) return inner;
         return `<g data-block="${it.kind}"><rect x="${it.x - 1.5}" y="${it.y - 1.5}" width="${it.w + 3}" height="${it.h + 3}" fill="transparent"/>${inner}</g>`;
       }
     }
     return '';
   };
   const items = pageItems(p);
+  // Aufgeklappte Ansicht: Partnerseite blass oben oder unten daneben zeigen
+  const partner = ed && o.partner && S.pages[o.partner], pdy = partner ? (viewOf(p.key).part === 'upper' ? H : -H) : 0;
+  if (partner) {
+    live = false;
+    const pc = `${id}p`; defs.push(`<clipPath id="${pc}"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath>`);
+    body.push(`<g transform="translate(0 ${pdy})" opacity=".5" pointer-events="none"><g clip-path="url(#${pc})">${pageItems(partner).map(x => emit(x, false)).join('')}</g>` +
+      `<text x="${W / 2}" y="${pdy < 0 ? H - 8 : 12}" font-size="${Math.min(W, H) * .022}" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".3" paint-order="stroke">${esc(pageLabel(o.partner))}</text></g>`);
+    live = ed;
+    vb[1] = Math.min(vb[1], pdy - 4); vb[3] = H + Math.abs(pdy) + 2 * pad + 4;
+  }
   for (const it of items) body.push(emit(it, o.mode === 'thumb'));
 
+  // Oben hängende Rückseiten haben die Lochung an ihrer Unterkante
+  const flipBind = viewOf(p.key).part === 'upper';
   let over = '';
   if (ed) {
     // Auflösungswarnungen
@@ -364,7 +377,7 @@ function svgPage(p, o = {}) {
       const sm = 5;
       over += `<rect x="${sm}" y="${sm}" width="${W - 2 * sm}" height="${H - 2 * sm}" fill="none" stroke="#00a0e3" stroke-width="0.3" stroke-dasharray="1 1.5" pointer-events="none"/>`;
     }
-    if (o.showBind) over += bindingSvg(true);
+    if (o.showBind) over += bindingSvg(true, flipBind);
     // Ausschnitt-Modus: das ganze Foto blass zeigen, auch außerhalb des Rahmens
     const ci = ui.crop != null && items.find(i => i.t === 'img' && i.slot === ui.crop);
     if (ci) {
@@ -390,7 +403,7 @@ function svgPage(p, o = {}) {
         }
       }
     }
-  } else if (o.showBind) over += bindingSvg(false);
+  } else if (o.showBind) over += bindingSvg(false, flipBind);
 
   let content = body.join('');
   if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<g clip-path="url(#${cid})">${content}</g>`; }
@@ -420,9 +433,9 @@ function holePositions() {
   }
   return out;
 }
-function bindingSvg(ed) {
+function bindingSvg(ed, flip = false) {
   const B = S.doc.bind, W = S.doc.w, b = S.doc.bleed;
-  let s = '<g pointer-events="none">';
+  let s = `<g pointer-events="none"${flip ? ` transform="translate(0 ${S.doc.h}) scale(1 -1)"` : ''}>`;
   if (ed && B.type !== 'none') s += `<rect x="0" y="0" width="${W}" height="${bindZoneDepth()}" fill="#c2185b" fill-opacity=".1"/>`;
   if (B.type !== 'none') {
     const c = bindingConf(B.type);
