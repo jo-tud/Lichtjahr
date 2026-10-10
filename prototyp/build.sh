@@ -8,3 +8,11 @@ cd "$(dirname "$0")"
   cat src/body.html
   echo '<script>'; cat fonts/fonts.js src/schoolholidays.js src/jpeg.js src/pdf.js src/a1_core.js src/a2_photos.js src/a3_render.js src/a4_ui.js src/a5_actions.js src/a6_editor.js src/a7_export.js src/a9_place.js src/a8_wall.js; echo '</script>'
 } > dist/kalenderwerkstatt.html
+# Eigenständige Seite für den Start ohne Claude-Artefakt (lokal im Browser oder über den Dienst)
+{
+  printf '<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+  printf '<style>:root{color-scheme:light;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}body{margin:0;font:14px system-ui}img{max-width:100%%}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
+  cat dist/kalenderwerkstatt.html
+  printf '\n</body>\n</html>\n'
+} > dist/index.html
+

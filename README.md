@@ -30,6 +30,11 @@ Eine UX-Prüfung durch zwei unabhängige Agenten ist in `docs/UX-PRUEFUNG.md` be
 
 Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, kein Druckerei-Profil. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
 
+## Lokaler Dienst
+
+Im Ordner `backend/` liegt der lokale Dienst (Python, FastAPI): Projektordner mit Monatsordnern, Vorschaubilder,
+Bearbeitungssperre, Journal für Dateiverschiebungen. Start mit `lichtjahr serve`, Details in `backend/README.md`.
+
 ## Prototyp bauen
 
 ```sh
