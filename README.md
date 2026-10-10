@@ -203,6 +203,8 @@ drop photos into the month folders from the Nextcloud app on their phone, and th
 With the local service, Lichtjahr creates a **Print PDF conforming to PDF/X-1a:2001 or PDF/X-4**:
 
 1. The app lays out the pages; text, calendar grid and backdrops are CMYK vectors, and the photos go to the service as sRGB.
+   Photos with a **wider color space** (Display P3 from an iPhone, Adobe RGB from a camera) are rendered by the service
+   straight from the original instead, so their vivid colors are not clipped to sRGB first.
 2. The service converts the photos to CMYK with **LittleCMS** using the print shop's ICC profile (perceptual, or relative colorimetric with black point compensation).
 3. It writes PDF/X-1a (PDF 1.3, the most widely accepted) or PDF/X-4 (PDF 1.6 with XMP metadata, also takes ICC version 4 profiles) with an output condition (OutputIntent including the embedded profile), bleed box and trim box.
 4. A **preflight** checks the finished file and shows the report in the app; the PDF ends up in `Export/`.
@@ -227,7 +229,7 @@ redistribute the ECI and Adobe profiles, but embedding them in the PDF is allowe
 **Honest limits:**
 - Checking is done by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 - Format, page count, binding and paper are set by the print shop; Lichtjahr does not verify them against its requirements.
-- Photos are treated as sRGB. Any wider color space the browser brings along (Display P3 from an iPhone) is clipped to sRGB.
+- Photos in formats the service can't read (HEIC, RAW) need converting to JPEG first; photos without a color profile count as sRGB.
 - The soft proof is only as accurate as your screen. On an uncalibrated laptop it shows the direction (duller, darker, paper tint), not the exact shade.
 
 **Print preview on screen (soft proof):** Under *Check on screen*, the editor and the wall view show the photos as they
@@ -309,6 +311,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Print PDF in the service: ICC color management (LittleCMS), PDF/X-1a, print profiles, preflight
 - [x] English user interface, with a separate language setting for the printed calendar
 - [x] On-screen soft proof with gamut warning, PDF/X-4
+- [x] Wide color (Display P3, Adobe RGB) printed straight from the original
 - [ ] Take faces into account when cropping automatically
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).

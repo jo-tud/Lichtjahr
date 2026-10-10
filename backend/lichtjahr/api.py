@@ -11,6 +11,7 @@ import getpass
 import mimetypes
 import os
 import secrets
+import threading
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
@@ -294,7 +295,13 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         if standard not in STANDARDS:
             raise PrintError(_t("Unbekannter PDF/X-Standard."))
         data = await file.read()
-        pdf, report = await run_in_threadpool(lambda: make_print_pdf(data, profile, title, standard=standard))
+
+        man, _ = p.load()
+
+        def original(asset_id: str) -> bytes | None:          # für Fotos mit eigenem Farbraum (Display P3 …)
+            a = man.asset(asset_id)
+            return p.storage.read(a.path)[0] if a else None
+        pdf, report = await run_in_threadpool(lambda: make_print_pdf(data, profile, title, standard=standard, original=original))
         path = p.save_export(session, file.filename or "Kalender-Druck.pdf", pdf)
         return {"path": path, "size": len(pdf), "report": report}
 
@@ -365,7 +372,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         a = asset_or_404(p, asset_id)
         profile = printers.get(printer)
         size = max(64, min(2400, size))
-        key = f"{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{int(os.path.getmtime(profile.path))}"
+        key = f"v2_{a.contentHash}_{size}_{profile.id}_{profile.intent}_{int(paper)}{int(gamut)}_{int(os.path.getmtime(profile.path))}"
         path = os.path.join(p.cache_dir, "proof", a.contentHash[:2], key + ".jpg")
         if not os.path.exists(path):
             try:
@@ -375,8 +382,9 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             with Image.open(src) as im:
                 out = proof_image(im, profile, paper=paper, gamut=gamut)
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            out.save(path + ".tmp", "JPEG", quality=88)
-            os.replace(path + ".tmp", path)
+            tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            out.save(tmp, "JPEG", quality=88)
+            os.replace(tmp, path)
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/original")

@@ -24,6 +24,8 @@ function makePhotos(dir) {
   execFileSync('python3', ['-c', `
 import os, random, sys
 from PIL import Image, ImageDraw
+sys.path.insert(0, sys.argv[2])
+from iccgen import rgb_profile
 out = sys.argv[1]; os.makedirs(out, exist_ok=True); random.seed(4)
 for m in range(12):
     for i in range(3):
@@ -34,8 +36,9 @@ for m in range(12):
             x, y, r = random.randint(0, w), random.randint(h // 2, h), random.randint(20, 140)
             d.ellipse([x - r, y - r, x + r, y + r], fill=(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
         ex = Image.Exif(); date = f"2026:{m + 1:02d}:{10 + i:02d} 12:00:00"; ex[0x0132] = date; ex.get_ifd(0x8769)[0x9003] = date
-        im.save(os.path.join(out, f"m{m + 1:02d}_{i + 1}.jpg"), "JPEG", quality=85, exif=ex.tobytes())
-`, dir]);
+        icc = {"icc_profile": rgb_profile("Display P3")} if (m, i) == (2, 0) else {}   # ein iPhone-Foto mit großem Farbraum
+        im.save(os.path.join(out, f"m{m + 1:02d}_{i + 1}.jpg"), "JPEG", quality=85, exif=ex.tobytes(), **icc)
+`, dir, path.join(__dirname, '..', 'backend', 'tests')]);
 }
 const pid = () => JSON.parse(fs.readFileSync(path.join(TMP, 'data/projects.json')))[0].id;
 const manifest = async () => (await fetch(BASE + `api/projects/${pid()}/manifest`)).json();
@@ -134,7 +137,7 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await B.evaluate(async () => { S.doc.dpi = 100; await exportPDF(); });
     await waitFor(() => fs.existsSync(path.join(K, 'Export', 'Familienkalender-2027-Entwurf.pdf')));
 
-    step('Druck-PDF: Farbprofil, PDF/X-1a, Preflight');
+    step('Druck-PDF: Farbprofil, PDF/X-1a, Preflight, Display-P3-Foto aus dem Original');
     await B.evaluate(() => setView('print'));
     await B.waitForSelector('#prn');
     await B.evaluate(async () => { await exportPDF('print'); });
@@ -143,6 +146,8 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     const printPdf = fs.readFileSync(path.join(K, 'Export', 'Familienkalender-2027-Druck.pdf'));
     assert.equal(printPdf.subarray(0, 8).toString(), '%PDF-1.3');
     assert.ok(printPdf.includes('GTS_PDFX') && printPdf.includes('PDF/X-1a:2001') && printPdf.includes('FOGRA39'));
+    assert.ok((await B.textContent('.report')).includes('Display P3'), 'P3-Foto nicht aus dem Original umgerechnet');
+    assert.ok(!printPdf.includes('LJSource'));
 
     step('Sperre verloren: Stand wird gesichert und beim nächsten Öffnen angeboten');
     const lockFile = path.join(K, '.lichtjahr', 'lock.json');

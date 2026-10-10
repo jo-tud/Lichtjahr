@@ -203,6 +203,8 @@ ganze Familie Fotos mit der Nextcloud-App vom Handy in die Monatsordner legen, u
 Mit dem lokalen Dienst erzeugt Lichtjahr ein **Druck-PDF nach PDF/X-1a:2001 oder PDF/X-4**:
 
 1. Die Oberfläche setzt die Seiten; Text, Kalendarium und Flächen sind CMYK-Vektoren, die Fotos gehen als sRGB an den Dienst.
+   Fotos mit **größerem Farbraum** (Display P3 vom iPhone, Adobe RGB von der Kamera) rendert der Dienst stattdessen direkt
+   aus dem Original, damit ihre kräftigen Farben nicht vorher auf sRGB beschnitten werden.
 2. Der Dienst rechnet die Fotos mit **LittleCMS** über das ICC-Profil der Druckerei nach CMYK um (wahrnehmungsorientiert oder relativ farbmetrisch mit Tiefenkompensierung).
 3. Er schreibt PDF/X-1a (PDF 1.3, am breitesten akzeptiert) oder PDF/X-4 (PDF 1.6 mit XMP-Metadaten, nimmt auch Profile der ICC-Version 4) mit Ausgabebedingung (OutputIntent samt eingebettetem Profil), Beschnitt- und Endformatrahmen.
 4. Ein **Preflight** prüft die fertige Datei und zeigt den Bericht in der App; das PDF landet in `Export/`.
@@ -227,7 +229,7 @@ dürfen wir die ECI- und Adobe-Profile nicht, ins PDF einbetten schon.
 **Ehrliche Grenzen:**
 - Geprüft wird mit dem eigenen Preflight, nicht mit einem zertifizierten Prüfwerkzeug wie Acrobat Preflight.
 - Format, Seitenzahl, Bindung und Papier legt die Druckerei fest; das gleicht Lichtjahr nicht ab.
-- Fotos gelten als sRGB. Was der Browser an größerem Farbraum (Display P3 vom iPhone) mitbringt, wird auf sRGB begrenzt.
+- Formate, die der Dienst nicht lesen kann (HEIC, RAW), vorher in JPEG umwandeln; Fotos ohne Farbprofil gelten als sRGB.
 - Die Druckansicht ist nur so genau wie der Bildschirm. Auf einem unkalibrierten Laptop zeigt sie die Richtung (stumpfer, dunkler, Papierton), nicht den exakten Farbton.
 
 **Druckansicht am Bildschirm (Softproof):** Unter *Am Bildschirm prüfen* zeigen Gestaltung und Wandansicht die Fotos so,
@@ -310,6 +312,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Druck-PDF im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X-1a, Druckprofile, Preflight
 - [x] Englische Oberfläche, eigene Spracheinstellung für den gedruckten Kalender
 - [x] Softproof am Bildschirm mit Farbumfang-Warnung, PDF/X-4
+- [x] Großer Farbraum (Display P3, Adobe RGB) direkt aus dem Original gedruckt
 - [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).

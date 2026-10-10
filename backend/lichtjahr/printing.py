@@ -2,7 +2,12 @@
 
 Die Oberfläche setzt die Seiten wie gewohnt (Text und Flächen als CMYK-Vektoren), liefert die Fotos aber
 als sRGB-JPEG. Hier werden sie mit LittleCMS (Pillow ImageCms) über das Farbprofil der Druckerei nach CMYK
-umgerechnet; dann entsteht ein PDF/X-1a:2001 mit OutputIntent. Zum Schluss prüft der Preflight die fertige
+umgerechnet; dann entsteht ein PDF/X-1a:2001 oder PDF/X-4 mit OutputIntent.
+
+Fotos mit eigenem, größerem Farbraum (Display P3 vom iPhone, Adobe RGB von Kameras) würde der Browser beim
+Setzen auf sRGB beschneiden. Für sie schreibt die Oberfläche in das Bild, aus welchem Foto und welchem
+Ausschnitt es stammt (``/LJSource``); der Dienst rendert den Ausschnitt dann aus dem Original und rechnet
+direkt aus dessen Farbraum nach CMYK um. Zum Schluss prüft der Preflight die fertige
 Datei selbst – nicht die Annahmen, mit denen sie gebaut wurde.
 
 Druckprofile beschreiben die Vorgaben einer Druckerei: ICC-Profil, Druckbedingung, Rendering Intent,
@@ -24,9 +29,10 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
 import pikepdf
-from PIL import Image, ImageChops, ImageCms
+from PIL import Image, ImageChops, ImageCms, ImageOps
 
 from .i18n import _t
+from .media import rgb_profile
 
 PT_PER_MM = 72 / 25.4
 PDFX_VERSION = "PDF/X-1:2001"
@@ -232,17 +238,82 @@ def max_tac(im: Image.Image) -> float:
     return max(map(sum, pixels), default=0) / 2.55
 
 
-def _transform(profile: PrinterProfile):
-    src = ImageCms.createProfile("sRGB")
-    dst = ImageCms.getOpenProfile(profile.path)
-    intent = ImageCms.Intent.PERCEPTUAL if profile.intent == "perceptual" else ImageCms.Intent.RELATIVE_COLORIMETRIC
-    flags = ImageCms.Flags.BLACKPOINTCOMPENSATION if profile.intent != "perceptual" else ImageCms.Flags.NONE
-    return ImageCms.buildTransform(src, dst, "RGB", "CMYK", renderingIntent=intent, flags=flags)
+@functools.lru_cache(maxsize=16)
+def _rgb_source(icc: bytes | None):
+    """Quellprofil: eingebettetes ICC-Profil des Fotos oder sRGB."""
+    return ImageCms.ImageCmsProfile(io.BytesIO(icc)) if icc else ImageCms.createProfile("sRGB")
+
+
+@functools.lru_cache(maxsize=16)
+def _cmyk_transform(path: str, intent: str, mtime: float, icc: bytes | None = None):
+    dst = ImageCms.getOpenProfile(path)
+    render = ImageCms.Intent.PERCEPTUAL if intent == "perceptual" else ImageCms.Intent.RELATIVE_COLORIMETRIC
+    flags = ImageCms.Flags.BLACKPOINTCOMPENSATION if intent != "perceptual" else ImageCms.Flags.NONE
+    return ImageCms.buildTransform(_rgb_source(icc), dst, "RGB", "CMYK", renderingIntent=render, flags=flags)
+
+
+def _transform(profile: PrinterProfile, icc: bytes | None = None):
+    return _cmyk_transform(profile.path, profile.intent, _mtime(profile), icc)
+
+
+def _source_spec(xo) -> dict | None:
+    """Herkunftsangabe der Oberfläche aus dem Bildobjekt lesen (und entfernen, sie gehört nicht ins Druck-PDF)."""
+    src = xo.get("/LJSource")
+    if src is None:
+        return None
+    del xo["/LJSource"]
+    try:
+        panels = [float(v) for v in src.get("/Panels", [])]
+        return {
+            "asset": str(src.Asset),
+            "m": [float(v) for v in src.M][:6],
+            "photo": [float(v) for v in src.Photo][:2],
+            "bg": tuple(max(0, min(255, int(v))) for v in src.BG)[:3],
+            "panels": [panels[i:i + 8] for i in range(0, len(panels) - 7, 8)],
+        }
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def render_wide(original: bytes, spec: dict, size: tuple[int, int]) -> tuple[Image.Image, bytes, str] | None:
+    """Ausschnitt aus dem Original rendern, im Farbraum des Originals. ``None``, wenn das Foto sRGB ist oder
+    kein eigenes Profil hat – dann ist die Fassung der Oberfläche schon richtig."""
+    with Image.open(io.BytesIO(original)) as im:
+        icc, name = rgb_profile(im)
+        if not icc:
+            return None
+        a, b, c, d, e, f = spec["m"]                      # Zielpixel → Fotopixel (wie angezeigt)
+        pw, ph = spec["photo"]
+        step = math.sqrt(abs(a * e - b * d)) or 1.0       # Fotopixel je Zielpixel
+        if step > 2:                                      # JPEG gleich verkleinert dekodieren (schnell)
+            im.draft("RGB", (math.ceil(im.width / step), math.ceil(im.height / step)))
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        sx, sy = im.width / pw, im.height / ph
+        a, b, c, d, e, f = a * sx, b * sx, c * sx, d * sy, e * sy, f * sy
+        r = int(math.sqrt(abs(a * e - b * d)))            # weiter verkleinern, damit bikubisch nicht flimmert
+        if r > 1:
+            im = im.reduce(r)
+            a, b, c, d, e, f = a / r, b / r, c / r, d / r, e / r, f / r
+        to_src = ImageCms.buildTransform(_rgb_source(None), _rgb_source(icc), "RGB", "RGB")
+
+        def own(rgb):                                     # sRGB-Farbe der Oberfläche im Farbraum des Fotos
+            rgb = tuple(max(0, min(255, int(round(v)))) for v in rgb)
+            return ImageCms.applyTransform(Image.new("RGB", (1, 1), rgb), to_src).getpixel((0, 0))
+        out = im.transform(size, Image.Transform.AFFINE, (a, b, c, d, e, f), resample=Image.Resampling.BICUBIC,
+                           fillcolor=own(spec["bg"]))
+        for x, y, w, h, pr, pg, pb, alpha in spec["panels"]:
+            box = tuple(int(round(v)) for v in (x, y, x + w, y + h))
+            box = (max(0, box[0]), max(0, box[1]), min(size[0], box[2]), min(size[1], box[3]))
+            if box[2] > box[0] and box[3] > box[1]:
+                part = out.crop(box)
+                out.paste(Image.blend(part, Image.new("RGB", part.size, own((pr, pg, pb))), max(0.0, min(1.0, alpha))), box)
+        return out, icc, name
 
 
 def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender", progress=None,
-                   standard: str = "x1a") -> tuple[bytes, dict]:
-    """sRGB-Bilder nach CMYK umrechnen, PDF/X-Merkmale setzen (X-1a oder X-4), Preflight auf das Ergebnis."""
+                   standard: str = "x1a", original=None) -> tuple[bytes, dict]:
+    """sRGB-Bilder nach CMYK umrechnen, PDF/X-Merkmale setzen (X-1a oder X-4), Preflight auf das Ergebnis.
+    ``original(asset_id)`` liefert die Originaldatei (oder ``None``) für Fotos mit eigenem Farbraum."""
     std = STANDARDS.get(standard)
     if not std:
         raise PrintError(_t("Unbekannter PDF/X-Standard."))
@@ -256,15 +327,36 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
     images = [(n, xo) for page in pdf.pages for n, xo in (page.Resources.get("/XObject") or {}).items()
               if xo.get("/Subtype") == pikepdf.Name.Image]
     tacs: dict = {}
+    wide: dict[str, set] = {}                              # Farbraum → Fotos, die aus dem Original kamen
+    originals: dict = {}
     for idx, (_, xo) in enumerate(images):
         if progress:
             progress(idx / max(1, len(images)))
         if xo.objgen in tacs:
             continue
+        spec = _source_spec(xo)
         cs = xo.get("/ColorSpace")
         if cs == pikepdf.Name.DeviceRGB:
-            rgb = pikepdf.PdfImage(xo).as_pil_image().convert("RGB")
-            cmyk = ImageCms.applyTransform(rgb, transform)
+            rendered = None
+            if spec and original:
+                if spec["asset"] not in originals:
+                    try:
+                        originals[spec["asset"]] = original(spec["asset"])
+                    except Exception:                      # Original nicht lesbar: Fassung der Oberfläche nehmen
+                        originals[spec["asset"]] = None
+                src = originals[spec["asset"]]
+                if src:
+                    try:
+                        rendered = render_wide(src, spec, (int(xo.Width), int(xo.Height)))
+                    except (OSError, ValueError, ImageCms.PyCMSError):
+                        rendered = None
+            if rendered:
+                rgb, icc, name = rendered
+                cmyk = ImageCms.applyTransform(rgb, _transform(profile, icc))
+                wide.setdefault(name, set()).add(spec["asset"])
+            else:
+                rgb = pikepdf.PdfImage(xo).as_pil_image().convert("RGB")
+                cmyk = ImageCms.applyTransform(rgb, transform)
             tacs[xo.objgen] = max_tac(cmyk)
             xo.write(cmyk_jpeg(cmyk, profile.quality), filter=pikepdf.Name.DCTDecode)
             xo.ColorSpace = pikepdf.Name.DeviceCMYK
@@ -319,6 +411,13 @@ def make_print_pdf(data: bytes, profile: PrinterProfile, title: str = "Kalender"
              compress_streams=True, qdf=False)
     result = out.getvalue()
     report = preflight(result, profile, image_tac=list(tacs.values()), standard=standard)
+    if wide:
+        n = len(set().union(*wide.values()))
+        names = ", ".join(sorted(wide))
+        text = (_t("1 Foto mit großem Farbraum ({names}) direkt aus dem Original umgerechnet", names=names) if n == 1
+                else _t("{n} Fotos mit großem Farbraum ({names}) direkt aus dem Original umgerechnet", n=n, names=names))
+        report["summary"].insert(2, {"level": "ok", "code": "wide", "text": text})
+        report["wide"] = {k: len(v) for k, v in wide.items()}
     if progress:
         progress(1.0)
     return result, report
@@ -496,13 +595,14 @@ GAMUT_COLOR = (128, 128, 128)
 
 
 @functools.lru_cache(maxsize=32)
-def _proof_transform(path: str, intent: str, paper: bool, mtime: float):
+def _proof_transform(path: str, intent: str, paper: bool, mtime: float, icc: bytes | None = None):
     srgb = ImageCms.createProfile("sRGB")
     prof = ImageCms.getOpenProfile(path)
     render = ImageCms.Intent.PERCEPTUAL if intent == "perceptual" else ImageCms.Intent.RELATIVE_COLORIMETRIC
     proof = ImageCms.Intent.ABSOLUTE_COLORIMETRIC if paper else ImageCms.Intent.RELATIVE_COLORIMETRIC
     flags = ImageCms.Flags.SOFTPROOFING | (ImageCms.Flags.BLACKPOINTCOMPENSATION if intent != "perceptual" else ImageCms.Flags.NONE)
-    return ImageCms.buildProofTransform(srgb, srgb, prof, "RGB", "RGB", renderingIntent=render, proofRenderingIntent=proof, flags=flags)
+    return ImageCms.buildProofTransform(_rgb_source(icc), srgb, prof, "RGB", "RGB", renderingIntent=render,
+                                        proofRenderingIntent=proof, flags=flags)
 
 
 @functools.lru_cache(maxsize=32)
@@ -514,9 +614,9 @@ def _cmyk_to_screen(path: str, paper: bool, mtime: float):
     return ImageCms.buildTransform(prof, srgb, "CMYK", "RGB", renderingIntent=intent, flags=flags)
 
 
-@functools.lru_cache(maxsize=1)
-def _to_lab():
-    return ImageCms.buildTransform(ImageCms.createProfile("sRGB"), ImageCms.createProfile("LAB"), "RGB", "LAB")
+@functools.lru_cache(maxsize=8)
+def _to_lab(icc: bytes | None = None):
+    return ImageCms.buildTransform(_rgb_source(icc), ImageCms.createProfile("LAB"), "RGB", "LAB")
 
 
 def _mtime(profile: PrinterProfile) -> float:
@@ -526,11 +626,10 @@ def _mtime(profile: PrinterProfile) -> float:
         return 0.0
 
 
-def gamut_mask(original: Image.Image, printed: Image.Image, threshold: float = GAMUT_DE) -> Image.Image:
+def gamut_mask(original: Image.Image, printed: Image.Image, threshold: float = GAMUT_DE, icc: bytes | None = None) -> Image.Image:
     """Maske (Modus „L“) der Stellen, an denen sich die Farbe im Druck um mehr als ``threshold`` ΔE76 ändert.
     Ohne numpy: jeder Lab-Kanal wird so skaliert, dass die gekappte Summe genau bei ΔE² = threshold² 255 erreicht."""
-    lab = _to_lab()
-    la, lb = ImageCms.applyTransform(original, lab), ImageCms.applyTransform(printed, lab)
+    la, lb = ImageCms.applyTransform(original, _to_lab(icc)), ImageCms.applyTransform(printed, _to_lab())
     t2 = threshold * threshold
     scales = (1 / 2.55, 1.0, 1.0)                      # L liegt in Pillow auf 0–255 für 0–100, a/b in Einheiten
     terms = []
@@ -555,11 +654,13 @@ def _stripes(size: tuple[int, int], period: int = 9, width: int = 4) -> Image.Im
 
 
 def proof_image(src: Image.Image, profile: PrinterProfile, paper: bool = True, gamut: bool = False) -> Image.Image:
+    """Ergebnis in sRGB. Hat das Bild ein eigenes Farbprofil (Display P3 …), wird von diesem aus gerechnet."""
+    icc, _ = rgb_profile(src)
     rgb = src.convert("RGB")
-    out = ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, paper, _mtime(profile)))
+    out = ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, paper, _mtime(profile), icc))
     if gamut:
-        rel = out if not paper else ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, False, _mtime(profile)))
-        mask = ImageChops.multiply(gamut_mask(rgb, rel), _stripes(out.size))
+        rel = out if not paper else ImageCms.applyTransform(rgb, _proof_transform(profile.path, profile.intent, False, _mtime(profile), icc))
+        mask = ImageChops.multiply(gamut_mask(rgb, rel, icc=icc), _stripes(out.size))
         out = Image.composite(Image.new("RGB", out.size, GAMUT_COLOR), out, mask)
     return out
 

@@ -20,6 +20,7 @@ import io
 import json
 import os
 import posixpath
+import threading
 from dataclasses import dataclass, field
 
 from pydantic import ValidationError
@@ -398,7 +399,7 @@ class Project:
     def thumbnail(self, asset: Asset, size: int) -> str:
         """Pfad zur Vorschau im lokalen Cache; wird bei Bedarf erzeugt. Schlüssel ist die Prüfsumme."""
         size = max(64, min(2400, size))
-        cached = lambda s: os.path.join(self.cache_dir, "thumbs", asset.contentHash[:2], f"{asset.contentHash}_{s}.jpg")  # noqa: E731
+        cached = lambda s: os.path.join(self.cache_dir, "thumbs", asset.contentHash[:2], f"{asset.contentHash}_{s}.v2.jpg")  # noqa: E731 (v2: mit Farbprofil)
         path = cached(size)
         if not os.path.exists(path):
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -411,7 +412,7 @@ class Project:
                 if s != size and os.path.exists(target):
                     continue
                 data = make_thumbnail(io.BytesIO(original), s)
-                tmp = target + ".tmp"
+                tmp = f"{target}.{os.getpid()}.{threading.get_ident()}.tmp"   # gleichzeitige Anfragen für dieselbe Vorschau
                 with open(tmp, "wb") as out:
                     out.write(data)
                 os.replace(tmp, target)
