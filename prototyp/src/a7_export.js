@@ -160,6 +160,10 @@ async function loadSaved() {
   try {
     const o = JSON.parse(json);
     S = { doc: { ...defaultDoc(), ...o.doc }, pages: o.pages || {}, photos: o.photos || {}, demo: !!o.demo };
+    // Älterer Stand: „Rückseiten mit Fotos“ entspricht beidseitig mit freien Rückseiten
+    if (o.doc && o.doc.backs && o.doc.duplex == null) { S.doc.duplex = true; S.doc.viewMode = 'free'; }
+    delete S.doc.backs;
+    for (const [k, p] of Object.entries(S.pages)) if (isBack(k) && p.cal && p.cal.style === 'off' && Object.keys(p.cal).length === 1) p.cal = {};
   } catch (e) { return false; }
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {

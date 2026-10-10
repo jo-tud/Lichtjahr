@@ -16,7 +16,8 @@ Was der Prototyp kann:
 - Fotos tauschen: mit der Maus ein Foto auf einen anderen Rahmen ziehen; beim Ziehen aus der Fotoleiste zeigt der Rahmen vorher, was er ersetzt
 - Jedes Foto gehört zu genau einem Monat: Einsetzen auf einer anderen Monatsseite ordnet es um; steht es dort schon, fragt die App nach (verschieben oder Kopie)
 - Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft, Feiertage nach Bundesland
-- Titelblatt, optionale Rückseiten
+- Ein- oder beidseitiger Druck. Rückseiten aufgeklappt (oben Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten. Zusätzliche Blätter für weitere Motive oder freie Seiten. Leuchttisch mit Monatsansichten und Druckbogen
+- Titelblatt
 - Bildregister in drei Arten: Bilder je Seite (Bildtexte, Nummern und Miniaturen wählbar), Text je Seite oder freier Text mit Zwischenüberschriften; fließt über beliebig viele Seiten
 - Lochung und Aufhänger-Ausschnitt als Richtwerte oder mit eigenen Maßen aus dem Datenblatt
 - PDF-Entwurf mit Beschnitt, TrimBox, eingebetteter Schrift, CMYK-Bildern und ohne Transparenz (Flächen werden eingerechnet)
