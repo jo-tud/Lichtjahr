@@ -216,6 +216,7 @@ async function loadSaved() {
 }
 async function init() {
   injectFonts();
+  applyStaticTexts();
   $('#undo').innerHTML = ICON.undo; $('#redo').innerHTML = ICON.redo;
   try { downloadsCap = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); } catch (e) { downloadsCap = Promise.resolve(null); }
   $('#vcfIn').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importContacts(await f.text()); });

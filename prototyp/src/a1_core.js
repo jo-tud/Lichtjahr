@@ -1,15 +1,16 @@
 'use strict';
 /* ---------- Grundlagen ---------- */
 const MM = 72 / 25.4;
-const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-const MONTHS_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
-const WD2 = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+// Monats- und Wochentagsnamen in der Sprache der Oberfläche (für den gedruckten Kalender: MONTH_NAMES[calLang()])
+Object.defineProperty(globalThis, 'MONTHS', { get: () => MONTH_NAMES[LANG] });
+Object.defineProperty(globalThis, 'MONTHS_SHORT', { get: () => MONTH_NAMES_SHORT[LANG] });
+Object.defineProperty(globalThis, 'WD2', { get: () => WEEKDAYS2[LANG] });
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString('de-DE');
+const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString(locale());
 const sleep0 = () => new Promise(r => setTimeout(r, 0));
 
 const FORMATS = [

@@ -36,6 +36,7 @@ function renderAll() {
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
   $('#banner').hidden = !(S.demo && ui.banner);
+  const ls = $('#langSlot'); if (ls) ls.innerHTML = langButton('btn small');
   // Höhe von Kopfleiste und Hinweis, damit der Editor genau in den Bildschirm passt
   const sb = $('#svcBanner');
   document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight) + (sb && !sb.hidden ? sb.offsetHeight : 0)) + 'px');

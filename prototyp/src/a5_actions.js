@@ -91,6 +91,7 @@ document.addEventListener('change', (e) => {
 const CHANGE_ACTIONS = {};   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
 const ACTIONS = {
   go: (el) => setView(el.dataset.v),
+  lang: (el) => setLang(el.dataset.v),
   format: async (el) => {
     const f = FORMATS.find(f => f.id === el.dataset.v);
     if (f.id === S.doc.format) return;
