@@ -60,3 +60,41 @@ class Registry:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fh:
             json.dump(items, fh, ensure_ascii=False, indent=2)
+
+
+class Credentials:
+    """Zugangsdaten für WebDAV-Projekte, nur auf diesem Rechner: ``credentials.json`` im Datenordner mit
+    Rechten 0600. Nie im Manifest, nie in der Projektliste, nie im Browser. Empfohlen ist ein
+    App-Passwort (in Nextcloud unter Einstellungen → Sicherheit), das sich jederzeit widerrufen lässt."""
+
+    def __init__(self, settings: Settings) -> None:
+        self.path = os.path.join(settings.data_dir, "credentials.json")
+
+    def _all(self) -> dict:
+        try:
+            with open(self.path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def get(self, location: str) -> dict:
+        return self._all().get(location, {})
+
+    def set(self, location: str, username: str, password: str) -> None:
+        items = self._all()
+        items[location] = {"username": username, "password": password}
+        self._write(items)
+
+    def forget(self, location: str) -> None:
+        items = self._all()
+        if items.pop(location, None) is not None:
+            self._write(items)
+
+    def _write(self, items: dict) -> None:
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        tmp = self.path + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # von Anfang an nur für den Besitzer lesbar
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(items, fh, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.path)

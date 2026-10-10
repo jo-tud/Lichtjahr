@@ -43,6 +43,8 @@ jobs:
         run: |
           node -e "const h=require('fs').readFileSync('prototyp/dist/kalenderwerkstatt.html','utf8');require('fs').writeFileSync('/tmp/app.js',h.match(/<script>([\s\S]*)<\/script>/)[1])"
           node --check /tmp/app.js
+      - name: Übersetzungen vollständig
+        run: node tools/i18n-keys.cjs
       - name: Gebaute Dateien sind aktuell
         run: |
           git diff --exit-code -- prototyp/dist || {

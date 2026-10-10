@@ -8,6 +8,7 @@ nicht, antwortet der Dienst mit 409 und dem aktuellen Stand, statt Änderungen z
 from __future__ import annotations
 
 import getpass
+import mimetypes
 import os
 import secrets
 from typing import Any
@@ -19,20 +20,28 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
-from .config import Registry, Settings
+from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
 from .printing import PrinterRegistry, PrintError, make_print_pdf
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
+from .storage.webdav import WebDavStorage
 
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-class CreateProject(BaseModel):
-    path: str
+class StorageRequest(BaseModel):
+    """Lokaler Ordner (``path``) oder WebDAV-Ordner (``url`` mit Benutzername und App-Passwort)."""
+    path: str | None = None
+    url: str | None = None
+    username: str | None = None
+    password: str | None = None
+
+
+class CreateProject(StorageRequest):
     title: str | None = None
     language: str | None = None                       # Ordnernamen; Standard: Sprache der Anfrage
     calendarYear: int
@@ -40,8 +49,8 @@ class CreateProject(BaseModel):
     format: dict[str, Any] | None = None
 
 
-class OpenProject(BaseModel):
-    path: str
+class OpenProject(StorageRequest):
+    pass
 
 
 class LockRequest(BaseModel):
@@ -63,6 +72,7 @@ class SaveRequest(BaseModel):
 def create_app(settings: Settings | None = None, static_dir: str | None = None) -> FastAPI:
     settings = settings or Settings.default()
     registry = Registry(settings)
+    credentials = Credentials(settings)
     printers = PrinterRegistry(settings.data_dir)
     app = FastAPI(title="Lichtjahr", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json")
     projects: dict[str, Project] = {}
@@ -122,12 +132,35 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         entry = registry.get(project_id)
         if not entry:
             raise HTTPException(404, _t("Projekt unbekannt. Bitte über „Projekt öffnen“ hinzufügen."))
-        storage = entry["storage"]
-        if storage.get("kind") != "local":
-            raise HTTPException(400, _t("Speicherart {kind} wird noch nicht unterstützt.", kind=storage.get("kind")))
-        p = Project.open(LocalStorage(storage["location"]), cache_for(project_id))
+        p = Project.open(storage_of(entry["storage"]), cache_for(project_id))
         projects[project_id] = p
         return p
+
+    def storage_of(entry: dict):
+        kind = entry.get("kind")
+        if kind == "local":
+            return LocalStorage(entry["location"])
+        if kind == "webdav":
+            cred = credentials.get(entry["location"])
+            return WebDavStorage(entry["location"], cred.get("username", ""), cred.get("password", ""))
+        raise HTTPException(400, _t("Speicherart {kind} wird noch nicht unterstützt.", kind=kind))
+
+    def storage_for(req: StorageRequest):
+        """Speicher aus der Anfrage; bei WebDAV Verbindung prüfen und Zugangsdaten lokal ablegen."""
+        if req.url:
+            try:
+                st = WebDavStorage(req.url, req.username or "", req.password or "")
+                st.check()
+            except StorageError as e:                 # falsche Adresse oder Anmeldung: Klartext statt „Speicherfehler“
+                raise HTTPException(400, str(e)) from e
+            if req.username:
+                credentials.set(st.describe(), req.username, req.password or "")
+            return st
+        if not req.path:
+            raise HTTPException(400, _t("Bitte einen Ordner oder eine WebDAV-Adresse angeben."))
+        st = LocalStorage(req.path)
+        os.makedirs(st.root, exist_ok=True)
+        return st
 
     def session_header(x_lichtjahr_session: str | None = Header(default=None)) -> str | None:
         return x_lichtjahr_session
@@ -143,8 +176,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.post("/api/projects")
     def create_project(req: CreateProject, request: Request):
-        storage = LocalStorage(req.path)
-        os.makedirs(storage.root, exist_ok=True)
+        storage = storage_for(req)
         lang = req.language if req.language in ("de", "en") else pick(request.headers.get("accept-language"))
         p = Project.create(storage, "", title=req.title or (_t("Familienkalender")), calendar_year=req.calendarYear,
                            source_year=req.sourceYear or req.calendarYear - 1, format=req.format, language=lang)
@@ -155,8 +187,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.post("/api/projects/open")
     def open_project(req: OpenProject):
-        storage = LocalStorage(req.path)
-        p = Project.open(storage, "")
+        p = Project.open(storage_for(req), "")
         man, _ = p.load()
         p.cache_dir = cache_for(man.id)
         projects[man.id] = p
@@ -168,9 +199,15 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.delete("/api/projects/{project_id}")
     def forget_project(project_id: str):
-        """Entfernt das Projekt nur aus der Liste dieses Rechners; der Ordner bleibt unberührt."""
+        """Entfernt das Projekt nur aus der Liste dieses Rechners; der Ordner bleibt unberührt.
+        Zugangsdaten eines WebDAV-Ordners werden mit entfernt, wenn kein anderes Projekt sie braucht."""
         projects.pop(project_id, None)
+        entry = registry.get(project_id)
         registry.forget(project_id)
+        if entry and entry["storage"].get("kind") == "webdav":
+            loc = entry["storage"]["location"]
+            if not any(e["storage"].get("location") == loc for e in registry.all()):
+                credentials.forget(loc)
         return {"ok": True}
 
     # -- Sperre ---------------------------------------------------------------------------
@@ -318,7 +355,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             data, _ = p.storage.read(a.path)
         except NotFound:
             raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
-        return Response(data)
+        return Response(data, media_type=mimetypes.guess_type(a.path)[0] or "application/octet-stream")
 
     @app.post("/api/projects/{project_id}/assets")
     async def upload(project_id: str, file: UploadFile = File(...), month: str | None = Form(default=None),

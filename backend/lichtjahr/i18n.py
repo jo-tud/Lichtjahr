@@ -82,6 +82,14 @@ EN = {
     "Verschiebung nicht ausgeführt, Datei liegt weiter in {src}": "Move not carried out, the file is still in {src}",
     "Unklarer Stand, bitte prüfen: {src} / {dst}": "Unclear state, please check: {src} / {dst}",
     "Pfad außerhalb des Projektordners: {path}": "Path outside the project folder: {path}",
+    "Bitte einen Ordner oder eine WebDAV-Adresse angeben.": "Please enter a folder or a WebDAV address.",
+    # WebDAV
+    "Die WebDAV-Adresse muss mit https:// beginnen.": "The WebDAV address must start with https://.",
+    "Bitte eine https://-Adresse verwenden; http:// geht nur im eigenen Netz.": "Please use an https:// address; http:// only works on your own network.",
+    "Der WebDAV-Server ist nicht erreichbar: {error}": "The WebDAV server can’t be reached: {error}",
+    "Anmeldung am WebDAV-Server abgelehnt. Benutzername und App-Passwort prüfen.": "The WebDAV server rejected the login. Check user name and app password.",
+    "WebDAV-Fehler {status} bei {path}": "WebDAV error {status} at {path}",
+    "Unter dieser Adresse gibt es keinen WebDAV-Ordner ({status}).": "There is no WebDAV folder at this address ({status}).",
     # Druckprofile
     "Unbekanntes Druckprofil.": "Unknown print profile.",
     "Für „{name}“ fehlt die ICC-Datei {icc}.": "The ICC file {icc} for “{name}” is missing.",

@@ -123,7 +123,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 
 ### All features at a glance
 
-- **Project folder:** With the local service, the calendar is a folder containing `Photos/01 January` through `12 December`. Put photos in there whenever and with whatever you like; the app syncs automatically. Changing a photo's month moves the file, saving happens on its own, and the PDF ends up in `Export/`. One window can edit at a time; others can watch.
+- **Project folder:** With the local service, the calendar is a folder containing `Photos/01 January` through `12 December`. Put photos in there whenever and with whatever you like; the app syncs automatically. Changing a photo's month moves the file, saving happens on its own, and the PDF ends up in `Export/`. One window can edit at a time; others can watch. The folder can be on your computer or directly in your [Nextcloud](#in-your-nextcloud).
 - **Formats:** 29.7 × 29.7 cm, A3 landscape and portrait, A4 landscape, 30 × 30 cm, 21 × 21 cm or a custom size. You can change the format later; the pages adapt.
 - **Sheets:** 12 months, a cover, a photo index at the end and as many extra sheets as you like.
 - **Single- or double-sided:** Back sides *unfolded* (the back of the previous sheet on top, the month below, one shared calendar grid), as a second picture per month or as free photo pages.
@@ -182,8 +182,21 @@ Calendar-2027/
 └── .lichtjahr/           lock, journal, internal data
 ```
 
-The folder is the project: you can copy it, back it up and share it via Nextcloud, Syncthing or a network
-drive. Photos are recognized by their SHA-256 hash, even after they have been renamed or moved.
+The folder is the project: you can copy it, back it up and share it via Syncthing or a network drive.
+Photos are recognized by their SHA-256 hash, even after they have been renamed or moved.
+
+### In your Nextcloud
+
+The project folder can also live directly in **Nextcloud** (or on another WebDAV server). In the project
+picker, choose *Nextcloud / WebDAV* and enter the folder's WebDAV address, your user name and an
+**app password** (Nextcloud → Settings → Security; revocable at any time). Everyone in the family can then
+drop photos into the month folders from the Nextcloud app on their phone, and the calendar picks them up.
+
+- The editing lock works across devices because Nextcloud checks it on the server (conditional requests with ETags).
+- The app password stays on the computer running the service (`credentials.json`, readable only by you), never in
+  the project, the project list or the browser.
+- A folder synced by the Nextcloud desktop client works too, but then the lock is only as reliable as the sync;
+  the direct WebDAV connection is the safer choice when several people edit.
 
 ## Print PDF and color management
 
@@ -248,7 +261,7 @@ GitHub Pages), it works in the browser only, as before.
 | [`prototyp/`](prototyp) | The user interface: vanilla JavaScript with no framework and no build dependencies. Pages are described in millimeters and drawn from that as SVG (editor) and as PDF (export). Its own CMYK JPEG encoder and PDF writer. |
 | [`backend/`](backend) | The local service: Python, FastAPI, Pillow. Storage adapter with atomic operations, project lock with lease, manifest with revision and ETag, journal for file moves. |
 | [`docs/`](docs) | UX review and the images for this README. |
-| [`tools/`](tools) | `screenshots.cjs` and `screenshots-dienst.cjs` create the images in `docs/images/` (English) and `docs/images/de/` (German), `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations. |
+| [`tools/`](tools) | `screenshots.cjs` and `screenshots-dienst.cjs` create the images in `docs/images/` (English) and `docs/images/de/` (German), `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations in the browser, `i18n-keys.cjs` checks them in CI. |
 
 <details>
 <summary>Prototype files</summary>
@@ -287,7 +300,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Local service with project folder, lock and journal
 - [x] UX review by independent agents ([results](docs/UX-PRUEFUNG.md), in German)
 - [x] App connected to the local service (project selection, sync, month folders as the source, export into the folder)
-- [ ] Nextcloud/WebDAV as a second storage adapter
+- [x] Nextcloud/WebDAV as a second storage location (lock checked on the server, app password stored locally)
 - [x] Print PDF in the service: ICC color management (LittleCMS), PDF/X-1a, print profiles, preflight
 - [x] English user interface, with a separate language setting for the printed calendar
 - [ ] On-screen soft proof, PDF/X-4
