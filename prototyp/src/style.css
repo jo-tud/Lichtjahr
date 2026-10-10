@@ -379,3 +379,15 @@ a.btn.primary { color: var(--accent-ink); }
 .proof-opts { gap: 8px; }
 .field.proof-opts > label.check { font-size: 14px; font-weight: 400; color: var(--ink); text-transform: none; letter-spacing: 0; }
 .proof-opts .check .hint { font-size: 12.5px; margin-top: 2px; }
+
+/* ----- Gestaltung des Kalendariums ----- */
+.caltiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.caltile { display: grid; gap: 4px; padding: 8px 8px 6px; border: 1px solid var(--line); border-radius: var(--r); background: #fff; color: #1a2028; text-align: left; cursor: pointer; }
+.caltile svg { width: 100%; height: 46px; display: block; }
+.caltile span { font-size: 12px; color: #5b6470; }
+.caltile[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.caltile[aria-pressed="true"] span { color: #1a2028; font-weight: 600; }
+.caldetails { margin-top: 8px; }
+.caldetails > summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 0; }
+.caldetails[open] > summary { margin-bottom: 6px; }
+.caldetails .field { margin-bottom: 10px; }

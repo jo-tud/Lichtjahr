@@ -329,6 +329,32 @@ function panelPhotos(p) {
     <div class="pool">${list.map(ph => photoThumb(ph, u)).join('') || `<p class="empty-note">${_t('Keine Fotos in dieser Auswahl. Unter „Fotos“ hinzufügen.')}</p>`}</div>
     <p class="hint">${coarse() ? _t('Foto antippen, dann den Rahmen antippen. Oder lange drücken und auf den Rahmen ziehen.') : _t('Foto in einen Rahmen ziehen oder anklicken und dann den Rahmen anklicken.')}${pageMonth(p.key) != null ? ' ' + _t('Ein Foto aus einem anderen Monat wird dabei {month} zugeordnet.', { month: MONTHS[pageMonth(p.key)] }) : ''}</p>`;
 }
+// Vorschau einer Gestaltungsvariante: das Kalendarium dieses Monats, klein und angeschnitten
+function miniCal(style, design, m) {
+  const c = { ...calSettings(curPage()), ...CAL_DESIGNS[design], style, color: 'black', names: false, kw: false, school: false, bd: 'off', width: 'auto', maxW: 0 };
+  const lay = (style === 'v' ? calV : style === 'g' ? calG : calH)(S.doc.year, m, 1, c);
+  const vw = Math.min(lay.w, style === 'h' ? 74 : 62), vh = Math.min(lay.h, style === 'v' ? 46 : 46);
+  const el = lay.items.map(it => it.t === 'text'
+    ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
+    : it.t === 'rect' ? `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGBraw(it.fill)}"/>` : it.t === 'circle' ? `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGBraw(it.fill)}"/>` : '').join('');
+  return `<svg viewBox="-2 -2 ${vw + 4} ${vh + 4}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" aria-hidden="true">${el}</svg>`;
+}
+const CAL_DESIGN_NAMES = () => ({ classic: _t('Klassisch'), modern: _t('Modern'), minimal: _t('Ruhig'), bold: _t('Kräftig') });
+// Gestaltung des Kalendariums: vier Varianten als Vorschau, Feinheiten aufklappbar. Gilt für alle Monate.
+function calDesignBox(p, c) {
+  const o = calOpts(c), m = pageMonth(p.key) ?? 0, names = CAL_DESIGN_NAMES();
+  const cur = Object.keys(CAL_DESIGNS).find(k => Object.entries(CAL_DESIGNS[k]).every(([x, v]) => o[x] === v));
+  const tiles = Object.keys(CAL_DESIGNS).map(k => `<button class="caltile" data-act="caldesign" data-v="${k}" aria-pressed="${k === cur}">${miniCal(c.style, k, m)}<span>${names[k]}</span></button>`).join('');
+  return `<div class="field"><span class="lbl">${_t('Gestaltung')}</span><div class="caltiles">${tiles}</div>
+    <details class="caldetails" id="calDetails" ${ui.calDetails ? 'open' : ''}><summary>${_t('Feinheiten')}</summary>
+      <div class="field"><span class="lbl">${_t('Monatsname')}</span>${seg([['classic', _t('Fett')], ['caps', _t('Versalien')], ['light', _t('Leicht')], ['number', _t('Mit Zahl')]], o.title, 'caltitle')}</div>
+      <div class="field"><span class="lbl">${_t('Wochentage')}</span>${seg([['2', WEEKDAYS2[calLang()][1]], ['1', WEEKDAYS2[calLang()][1].slice(0, 1)], ['0', _t('Aus')]], String(o.wd), 'calwd')}</div>
+      <div class="field"><span class="lbl">${_t('Wochen trennen')}</span>${seg([['gap', _t('Abstand')], ['line', _t('Linie')], ['none', _t('Nicht')]], o.weeks, 'calweeks')}</div>
+      <div class="field"><span class="lbl">${_t('Tageszahlen')}</span>${seg([['regular', _t('Normal')], ['bold', _t('Kräftig')]], o.num, 'calnum')}</div>
+      ${c.style === 'h' ? `<div class="field"><span class="lbl">${_t('Breite der Leiste')}</span>${seg([['auto', _t('Passend')], ['full', _t('Ganze Seitenbreite')]], o.width, 'calwidth')}</div>` : ''}
+    </details>
+    <p class="hint">${_t('Gilt für alle Monate. Abstände, Mindestgrößen und gleich breite Ziffern regelt die App, damit es immer ordentlich aussieht.')}</p></div>`;
+}
 function panelCal(p) {
   const c = calSettings(p);
   const custom = p.cal && p.cal.pos && p.cal.pos[c.style];
@@ -345,6 +371,7 @@ function panelCal(p) {
     <div class="row"><button class="btn primary small" data-act="placehere">${_t('Für diese Seite')}</button><button class="btn small" data-act="placeall">${_t('Für alle Monate')}</button></div></div>` : '';
   return where + auto + bdBox + `<div class="field"><span class="lbl">${_t('Kalendarium auf dieser Seite')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['off', _t('Aus')]], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
+    ${calDesignBox(p, c)}
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', _t('Größe'))}
     <div class="field"><span class="lbl">${_t('Schriftfarbe')}</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
     <div class="field"><span class="lbl">${_t('Fläche dahinter')}</span>${seg([['none', _t('Keine')], ['light', _t('Hell')], ['dark', _t('Dunkel')], ['paper', _t('Papier')]], c.panel, 'calpanel')}</div>

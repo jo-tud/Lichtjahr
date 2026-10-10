@@ -102,9 +102,10 @@ async function exportPDF(mode = 'draft') {
         } else if (it.t === 'frame') {
           ops.push(`q 0 0 0 .4 K .3 w ${X(it.x)} ${Y(it.y + it.h)} ${pdfNum(it.w * MM)} ${pdfNum(it.h * MM)} re S Q`);
         } else if (it.t === 'text') {
-          const w = textWidth(it.text, it.font, it.size);
+          const w = it.ls ? trackedWidth(it.text, it.font, it.size, it.ls) : textWidth(it.text, it.font, it.size);
           const x = it.anchor === 'middle' ? it.x - w / 2 : it.anchor === 'end' ? it.x - w : it.x;
-          ops.push(`BT /${it.font === 'bold' ? 'F2' : 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`);
+          const bt = `BT /${it.font === 'bold' ? 'F2' : 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`;
+          ops.push(it.ls ? `q ${pdfNum(it.ls * MM)} Tc ${bt} Q` : bt);   // Laufweite gehört zum Grafikzustand: mit q/Q begrenzen
         } else if (it.t === 'img') {
           bar.update(done / nImg, _t('Seite {n} von {total} · {page} · Bild wird umgerechnet', { n: pi + 1, total: keys.length, page: pageLabel(k) }));
           await sleep0();

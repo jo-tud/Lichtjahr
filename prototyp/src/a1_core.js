@@ -122,6 +122,7 @@ function defaultDoc() {
     cover: true, index: true, duplex: false, viewMode: 'opened', viewCal: {}, extraSheets: [], backRotate: false, region: lastRegion(), cropMarks: false,
     bind: { type: 'wire31', cut: true, cutW: 40, cutD: 8, p: 8.47, hw: 4, hh: 3.2, cy: 5.5 },
     cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true, school: false, kw: false, bd: 'dot',
+           design: 'classic', title: 'classic', wd: 2, weeks: 'gap', num: 'regular', width: 'auto',
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
     birthdays: [], indexBirthdays: true,
     indexTitle: _t('Die Fotos des Jahres'), indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
