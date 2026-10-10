@@ -201,4 +201,3 @@ async function init() {
   renderAll();
   window.addEventListener('resize', () => { if (ui.view === 'design') renderEditor(); });
 }
-init();
