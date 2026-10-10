@@ -12,6 +12,12 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt1 = (v) => (Math.round(v * 10) / 10).toLocaleString(locale());
 const sleep0 = () => new Promise(r => setTimeout(r, 0));
+// Anzeigenamen in Tabellen: der deutsche Text bleibt stehen, gelesen wird er übersetzt (Getter, damit ein
+// Sprachwechsel ohne Neuladen wirkt und auch Stellen in anderen Dateien die Übersetzung bekommen)
+function localized(o, ...keys) {
+  for (const k of keys) { const de = o[k]; Object.defineProperty(o, k, { get: () => _t(de), enumerable: true, configurable: true }); }
+  return o;
+}
 
 const FORMATS = [
   { id: 'sq297', name: 'Quadratisch', sub: '29,7 × 29,7 cm', w: 297, h: 297 },
@@ -21,7 +27,7 @@ const FORMATS = [
   { id: 'a4l', name: 'DIN A4 quer', sub: '29,7 × 21 cm', w: 297, h: 210 },
   { id: 'a3p', name: 'DIN A3 hoch', sub: '29,7 × 42 cm', w: 297, h: 420 },
   { id: 'custom', name: 'Eigenes', sub: 'Maße frei', w: 0, h: 0 },
-];
+].map(f => localized(f, 'name', 'sub'));
 
 // Druckfarben: CMYK für das PDF, RGB nur als Bildschirmannäherung
 const COLORS = {
@@ -35,6 +41,7 @@ const COLORS = {
   sand:   { name: 'Sand',        cmyk: [0, .06, .18, .06],  rgb: '#f0e6d2' },
   rich:   { name: 'Tiefschwarz', cmyk: [.5, .4, .4, 1],     rgb: '#0e0e0e' },
 };
+for (const c of Object.values(COLORS)) localized(c, 'name');
 const TEXT_COLORS = ['black', 'white', 'gray', 'navy', 'forest', 'red', 'ochre'];
 const BG_COLORS = ['white', 'sand', 'gray', 'navy', 'forest', 'rich'];
 
@@ -43,7 +50,7 @@ const REGIONS = [
   ['BB', 'Brandenburg'], ['HB', 'Bremen'], ['HH', 'Hamburg'], ['HE', 'Hessen'], ['MV', 'Mecklenburg-Vorpommern'],
   ['NI', 'Niedersachsen'], ['NW', 'Nordrhein-Westfalen'], ['RP', 'Rheinland-Pfalz'], ['SL', 'Saarland'], ['SN', 'Sachsen'],
   ['ST', 'Sachsen-Anhalt'], ['SH', 'Schleswig-Holstein'], ['TH', 'Thüringen'],
-];
+].map(r => localized(r, 1));
 
 function easter(y) {
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
@@ -102,13 +109,14 @@ const LAYOUTS = [
   { id: 'cols2in', name: 'Zwei + Einleger',         slots: [[0, 0, .5, 1], [.5, 0, .5, 1]], ov: [[.34, .27, .32, .42]] },
   { id: 'rows2in', name: 'Übereinander + Einleger', slots: [[0, 0, 1, .5], [0, .5, 1, .5]], ov: [[.6, .28, .32, .44]] },
   { id: 'blank',   name: 'Leere Seite',             slots: [] },
-];
+].map(l => localized(l, 'name'));
 const layoutById = (id) => LAYOUTS.find(l => l.id === id) || LAYOUTS[0];
 const slotCount = (id) => { const l = layoutById(id); return l.slots.length + (l.ov ? l.ov.length : 0); };
 
 /* ---------- Zustand ---------- */
 function defaultDoc() {
   return {
+    calLang: LANG,   // Sprache des gedruckten Kalenders; neue Projekte drucken in der Sprache der Oberfläche
     year: new Date().getFullYear() + 1, format: 'sq297', w: 297, h: 297,
     bleed: 3, gap: 3, margin: 0, ovBorder: 3, bg: 'white',
     cover: true, index: true, duplex: false, viewMode: 'opened', viewCal: {}, extraSheets: [], backRotate: false, region: lastRegion(), cropMarks: false,
@@ -116,7 +124,7 @@ function defaultDoc() {
     cal: { style: 'h', color: 'black', hi: 'red', panel: 'none', opacity: .85, size: 1, names: true, school: false, kw: false, bd: 'dot',
            def: { h: { ax: .5, ay: .955 }, v: { ax: .965, ay: .5 }, g: { ax: .95, ay: .95 } } },
     birthdays: [], indexBirthdays: true,
-    indexTitle: 'Die Fotos des Jahres', indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
+    indexTitle: _t('Die Fotos des Jahres'), indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
     dpi: 300, quality: 90,
   };
 }
@@ -195,34 +203,38 @@ function partnerOf(key) {
   if (v.part === 'lower') { const m = viewMap(); return Object.keys(m).find(k => m[k].part === 'upper' && m[k].lower === key) || null; }
   return null;
 }
-function pageLabel(key) {
-  if (isIndex(key)) return 'Bildregister' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Rückseite Register';
-  const v = viewOf(key), mn = v.month != null ? MONTHS[v.month] : '';
+// Bezeichnung einer Seite; pageLabel für die Oberfläche, pageLabelCal für Gedrucktes (Register)
+function pageLabelIn(key, lang) {
+  const t = (s, vars) => translate(lang, s, vars);
+  if (isIndex(key)) return indexNo(key) > 1 ? t('Bildregister {n}', { n: indexNo(key) }) : t('Bildregister');
+  if (isBack(key) && isIndex(key.slice(0, -2))) return t('Rückseite Register');
+  const v = viewOf(key), m = v.month != null ? MONTH_NAMES[lang][v.month] : '';
   switch (v.part) {
-    case 'cover': return 'Titelblatt';
-    case 'blank': return 'Freies Blatt';
-    case 'lower': return `${mn} unten`;
-    case 'upper': return `${mn} oben`;
-    case 'more': return `${mn}, weiteres Motiv`;
-    case 'altB': return `${mn}, Motiv B`;
-    case 'front': return viewModeOf() === 'alternative' ? `${mn}, Motiv A` : mn;
-    default: return 'Rückseite ' + pageLabel(key.slice(0, -2));
+    case 'cover': return t('Titelblatt');
+    case 'blank': return t('Freies Blatt');
+    case 'lower': return t('{m} unten', { m });
+    case 'upper': return t('{m} oben', { m });
+    case 'more': return t('{m}, weiteres Motiv', { m });
+    case 'altB': return t('{m}, Motiv B', { m });
+    case 'front': return viewModeOf() === 'alternative' ? t('{m}, Motiv A', { m }) : m;
+    default: return t('Rückseite {page}', { page: pageLabelIn(key.slice(0, -2), lang) });
   }
 }
+function pageLabel(key) { return pageLabelIn(key, LANG); }
+function pageLabelCal(key) { return pageLabelIn(key, calLang()); }
 function pageShort(key) {
-  if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
-  if (isBack(key) && isIndex(key.slice(0, -2))) return 'Reg. R';
+  if (isIndex(key)) return indexNo(key) > 1 ? _t('Reg. {n}', { n: indexNo(key) }) : _t('Reg.');
+  if (isBack(key) && isIndex(key.slice(0, -2))) return _t('Reg. R');
   const v = viewOf(key), mn = v.month != null ? MONTHS_SHORT[v.month] : '';
   switch (v.part) {
-    case 'cover': return 'Titel';
-    case 'blank': return 'Frei';
+    case 'cover': return _t('Titel');
+    case 'blank': return _t('Frei');
     case 'lower': return `${mn} ↓`;
     case 'upper': return `${mn} ↑`;
     case 'more': return `${mn} +`;
     case 'altB': return `${mn} B`;
     case 'front': return viewModeOf() === 'alternative' ? `${mn} A` : mn;
-    default: return pageShort(key.slice(0, -2)) + ' R';
+    default: return _t('{page} R', { page: pageShort(key.slice(0, -2)) });
   }
 }
 // Ein Rahmen: Foto mit Ausschnitt (zoom, cx/cy = Bildpunkt in der Rahmenmitte, rot = Bilddrehung, fit).
@@ -237,7 +249,7 @@ function newPage(key) {
   if (isIndex(key)) p.layout = 'index';
   if (isBack(key) && isIndex(key.slice(0, -2))) p.layout = 'blank';   // Rückseite des Registers bleibt zunächst leer
   // Titel mit heller Fläche: lesbar auf Foto und auf leerem Papier
-  if (key === 'cover') p.title = { text: 'Familienkalender', sub: String(S.doc.year), color: 'navy', size: 1, panel: 'light', opacity: .85, ax: .08, ay: .9 };
+  if (key === 'cover') p.title = { text: _t('Familienkalender'), sub: String(S.doc.year), color: 'navy', size: 1, panel: 'light', opacity: .85, ax: .08, ay: .9 };
   return p;
 }
 function ensurePages() {
@@ -296,12 +308,13 @@ function travel(dir) {
   if (!from.length) return;
   const before = hist.last; to.push(before); hist.last = from.pop();
   restore(hist.last);
-  const w = changedWhere(before, hist.last), word = dir < 0 ? 'Rückgängig gemacht' : 'Wiederholt';
+  const w = changedWhere(before, hist.last), back = dir < 0;
   if (w.page && pageKeys().includes(w.page)) {
     if (ui.view !== 'design' && ui.view !== 'photos') ui.view = 'design';
     if (ui.view === 'design') ui.page = w.page;
-    toast(`${word}: ${pageLabel(w.page)}`);
-  } else toast(`${word}${w.photos ? ': Fotos' : ': Einstellungen'}`);
+    toast(_t(back ? 'Rückgängig gemacht: {page}' : 'Wiederholt: {page}', { page: pageLabel(w.page) }));
+  } else if (w.photos) toast(_t(back ? 'Rückgängig gemacht: Fotos' : 'Wiederholt: Fotos'));
+  else toast(_t(back ? 'Rückgängig gemacht: Einstellungen' : 'Wiederholt: Einstellungen'));
   renderAll(); scheduleSave(); updateUndo();
 }
 function undo() { travel(-1); }
@@ -343,13 +356,13 @@ let saveTimer = null;
 function scheduleSave() {
   if (SVC.on) { scheduleServiceSave(); return; }      // Projektordner über den lokalen Dienst
   clearTimeout(saveTimer);
-  const s = $('#saveState'); if (s) s.textContent = 'Ungespeichert …';
+  const s = $('#saveState'); if (s) s.textContent = _t('Ungespeichert …');
   saveTimer = setTimeout(async () => {
     const ok = await DB.put('kv', 'state', snap());
     // Die letzten Schritte überdauern das Neuladen, damit Rückgängig auch danach noch geht
     await DB.put('kv', 'hist', JSON.stringify(hist.past.slice(-15)));
     try { localStorage.setItem('kw-page', ui.page); } catch (e) { /* egal */ }
-    if (s) s.textContent = DB.db ? 'Im Browser gespeichert' : 'Speichern nicht möglich';
+    if (s) s.textContent = DB.db ? _t('Im Browser gespeichert') : _t('Speichern nicht möglich');
     return ok;
   }, 700);
 }

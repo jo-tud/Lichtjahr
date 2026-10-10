@@ -66,7 +66,7 @@ let lastPdf = null;
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
-  const bar = busy(print ? 'Druck-PDF wird erstellt' : 'PDF-Entwurf wird erstellt', 'Vorbereitung …');
+  const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;
   try {
     const pdf = new PDFWriter(); pdf.begin(); await pdf.addFonts();
@@ -96,7 +96,7 @@ async function exportPDF(mode = 'draft') {
           const x = it.anchor === 'middle' ? it.x - w / 2 : it.anchor === 'end' ? it.x - w : it.x;
           ops.push(`BT /${it.font === 'bold' ? 'F2' : 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`);
         } else if (it.t === 'img') {
-          bar.update(done / nImg, `Seite ${pi + 1} von ${keys.length} · ${pageLabel(k)} · Bild wird umgerechnet`);
+          bar.update(done / nImg, _t('Seite {n} von {total} · {page} · Bild wird umgerechnet', { n: pi + 1, total: keys.length, page: pageLabel(k) }));
           await sleep0();
           const dpi = print ? (it.mini ? 200 : 300) : it.mini ? Math.min(d.dpi, 200) : d.dpi;
           const r = await renderCrop(it, dpi, panels, print);
@@ -122,24 +122,25 @@ async function exportPDF(mode = 'draft') {
       await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [] });
     }
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
-    const name = `Familienkalender-${d.year}-${print ? 'Druck' : 'Entwurf'}.pdf`;
-    const blob = pdf.finish(`Familienkalender ${d.year}`);
+    // Titel und Dateiname in der Sprache des Kalenders
+    const name = print ? _tc('Familienkalender-{year}-Druck.pdf', { year: d.year }) : _tc('Familienkalender-{year}-Entwurf.pdf', { year: d.year });
+    const blob = pdf.finish(_tc('Familienkalender {year}', { year: d.year }));
     if (print) { await printExport(blob, name, bar); return; }
     lastPdf = { blob, name, path: null };
-    if (SVC.pid) { bar.update(1, 'Wird im Projektordner abgelegt …'); lastPdf.path = await serviceExport(blob, name); }
+    if (SVC.pid) { bar.update(1, _t('Wird im Projektordner abgelegt …')); lastPdf.path = await serviceExport(blob, name); }
     bar.close();
     showPdfResult();
     if (!lastPdf.path) await savePdf();
   } catch (err) {
     bar.close(); console.error(err);
-    toast('Das PDF konnte nicht erstellt werden: ' + (err && err.message || err), 8000);
+    toast(_t('Das PDF konnte nicht erstellt werden: {error}', { error: err && err.message || err }), 8000);
   }
 }
 function showPdfResult() {
   const o = $('#exportOut'); if (!o || !lastPdf) return;
-  const where = lastPdf.path ? `Im Projektordner: ${lastPdf.path}` : lastPdf.name;
-  o.innerHTML = `<div class="done-box"><b>Geschafft: dein Kalender ${S.doc.year} ist fertig.</b><span class="muted small">${esc(where)} · ${fmt1(lastPdf.blob.size / 1048576)} MB</span>
-    <div class="row"><button class="btn small" data-act="savepdf">${lastPdf.path ? 'Zusätzlich herunterladen' : 'Erneut speichern'}</button><button class="btn small primary" data-act="wall">An der Wand ansehen</button></div></div>`;
+  const where = lastPdf.path ? _t('Im Projektordner: {path}', { path: lastPdf.path }) : lastPdf.name;
+  o.innerHTML = `<div class="done-box"><b>${esc(_t('Geschafft: dein Kalender {year} ist fertig.', { year: S.doc.year }))}</b><span class="muted small">${esc(where)} · ${fmt1(lastPdf.blob.size / 1048576)} MB</span>
+    <div class="row"><button class="btn small" data-act="savepdf">${lastPdf.path ? _t('Zusätzlich herunterladen') : _t('Erneut speichern')}</button><button class="btn small primary" data-act="wall">${_t('An der Wand ansehen')}</button></div></div>`;
   celebrate();
 }
 // Kleiner Moment der Freude nach dem Export: Papierschnipsel in den Druckfarben
@@ -162,11 +163,11 @@ async function savePdf() {
   if (!lastPdf) return;
   const dl = await downloadsCap;
   if (dl) {
-    try { await dl.save({ filename: lastPdf.name, data: lastPdf.blob }); toast('PDF gespeichert.'); }
+    try { await dl.save({ filename: lastPdf.name, data: lastPdf.blob }); toast(_t('PDF gespeichert.')); }
     catch (e) {
       const c = e && e.code;
-      if (c === 'declined') toast('Speichern abgebrochen. „Erneut speichern“ öffnet den Dialog wieder.');
-      else if (c === 'rate_limited') toast('Bitte einen Moment warten und erneut speichern.');
+      if (c === 'declined') toast(_t('Speichern abgebrochen. „Erneut speichern“ öffnet den Dialog wieder.'));
+      else if (c === 'rate_limited') toast(_t('Bitte einen Moment warten und erneut speichern.'));
       else fallbackSave();
     }
     return;
@@ -195,6 +196,8 @@ async function loadSaved() {
     // Älterer Stand: „Rückseiten mit Fotos“ entspricht beidseitig mit freien Rückseiten
     if (o.doc && o.doc.backs && o.doc.duplex == null) { S.doc.duplex = true; S.doc.viewMode = 'free'; }
     delete S.doc.backs;
+    // Stand aus der Zeit, als es nur Deutsch gab: Kalender bleibt deutsch
+    if (o.doc && !o.doc.calLang) S.doc.calLang = 'de';
     for (const [k, p] of Object.entries(S.pages)) if (isBack(k) && p.cal && p.cal.style === 'off' && Object.keys(p.cal).length === 1) p.cal = {};
   } catch (e) { return false; }
   // Gespeicherter Verlauf: Fotos, die er noch kennt, bleiben erhalten (Rückgängig nach dem Neuladen)
@@ -243,11 +246,11 @@ async function init() {
   const had = SVC.on ? true : await loadSaved();
   ensurePages();
   if (SVC.on) { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } if (!Object.keys(S.photos).length) ui.view = 'photos'; }
-  else if (!had) { await setupDemo(); ui.view = 'design'; }
+  else if (!had) { await setupDemo(); if (!S.doc.calLang) S.doc.calLang = LANG; ui.view = 'design'; }
   else { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } }
   if (!SVC.on) { hist.last = snap(); scheduleSave(); }
   updateUndo();
-  if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(`Willkommen zurück. Weiter bei ${pageLabel(pg)}.`), 600); } } catch (e) { /* egal */ } }
+  if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(_t('Willkommen zurück. Weiter bei {page}.', { page: pageLabel(pg) })), 600); } } catch (e) { /* egal */ } }
   if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalJost'), document.fonts.load('600 16px CalJost')]); } catch (e) { /* egal */ } }
   const hv = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (hv) ui.view = hv;   // Direktlink auf einen Schritt
   try { history.replaceState({ view: ui.view }, '', '#' + VIEW_HASH[ui.view]); } catch (e) { /* egal */ }
@@ -265,11 +268,17 @@ function importContacts(text) {
   }
   for (const ev of un.split(/BEGIN:VEVENT/i).slice(1)) {
     const sum = (/^SUMMARY[^:]*:(.+)$/im.exec(ev) || [])[1], dt = (/^DTSTART[^:]*:(\d{4})(\d{2})(\d{2})/im.exec(ev) || []);
-    if (sum && dt[2] && /RRULE:FREQ=YEARLY/i.test(ev)) found.push({ name: sum.trim().replace(/^Geburtstag( von)?:?\s*/i, ''), y: '', m: +dt[2], d: +dt[3] });
+    if (sum && dt[2] && /RRULE:FREQ=YEARLY/i.test(ev)) found.push({ name: birthdayName(sum), y: '', m: +dt[2], d: +dt[3] });
   }
   const have = new Set((S.doc.birthdays || []).map(b => b.name + '|' + b.d + '|' + b.m));
   const add = found.filter(b => !have.has(b.name + '|' + b.d + '|' + b.m));
   for (const b of add) (S.doc.birthdays ||= []).push({ id: uid(), ...b });
   commit(); renderAll();
-  toast(add.length ? `${plural(add.length, 'Geburtstag', 'Geburtstage')} übernommen.` : 'In der Datei wurden keine neuen Geburtstage gefunden.', 5000, add.length ? { label: 'Rückgängig', fn: undo } : null);
+  toast(add.length ? (add.length === 1 ? _t('1 Geburtstag übernommen.') : _t('{n} Geburtstage übernommen.', { n: add.length })) : _t('In der Datei wurden keine neuen Geburtstage gefunden.'), 5000, add.length ? { label: _t('Rückgängig'), fn: undo } : null);
 }
+// „Geburtstag von Anna“, „Geburtstag: Anna“, „Birthday of Anna“, „Anna's birthday“ → „Anna“
+const birthdayName = (s) => {
+  const t = s.trim().replace(/\\,/g, ',');
+  const n = t.replace(/^(Geburtstag|Birthday)\b(\s+(von|of)\b)?\s*[:\-–]?\s*/i, '').replace(/['’]s\s+birthday$/i, '').replace(/\s*[-–:]?\s*(Geburtstag|Birthday)$/i, '').trim();
+  return n || t;
+};

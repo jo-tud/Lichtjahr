@@ -335,7 +335,7 @@ function highlightSlot(key, photoId, mode = 'place') {
   if (ph) h += `<g clip-path="url(#drophlc)"><image href="${RT.prev[ph.id] || RT.thumb[ph.id]}" ${imgAttrs(placeImage(r, ph, newSlot()))} preserveAspectRatio="none" opacity=".9"/></g>`;
   h += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="#c2185b" stroke-width="1.4"/>`;
   const vis = intersect(r, { x: 0, y: 0, w: S.doc.w, h: S.doc.h }) || r, fs = Math.max(3.5, Math.min(7, vis.w / 14));
-  const label = mode === 'swap' ? 'Fotos tauschen' : replaces ? 'Ersetzt das Foto' : 'Hier einsetzen';
+  const label = esc(mode === 'swap' ? _t('Fotos tauschen') : replaces ? _t('Ersetzt das Foto') : _t('Hier einsetzen'));
   h += `<rect x="${vis.x + vis.w / 2 - fs * 4.6}" y="${vis.y + vis.h / 2 - fs * .95}" width="${fs * 9.2}" height="${fs * 1.6}" rx="${fs * .3}" fill="#c2185b"/><text x="${vis.x + vis.w / 2}" y="${vis.y + vis.h / 2 + fs * .2}" font-size="${fs}" fill="#fff" text-anchor="middle" font-weight="600">${label}</text>`;
   gEl.innerHTML = h; svg.appendChild(gEl);
 }
@@ -365,7 +365,7 @@ function photoTap(id, e) {
     if (ui.sel != null && slotOf(curPage(), ui.sel) && !ui.armed) { placePhoto(ui.sel, id); return; }
     ui.armed = ui.armed === id ? null : id;
     renderPanelKeepScroll(); renderFrameBar();
-    if (ui.armed) toast('Jetzt auf einen Rahmen tippen.');
+    if (ui.armed) toast(_t('Jetzt auf einen Rahmen tippen.'));
   }
 }
 

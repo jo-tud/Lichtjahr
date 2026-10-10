@@ -97,8 +97,9 @@ const ACTIONS = {
     if (f.id === S.doc.format) return;
     const used = Object.keys(usage()).length;
     if (used && f.w && (f.w !== S.doc.w || f.h !== S.doc.h)) {
-      const ok = await ask({ title: `Auf ${f.name} ${f.sub} wechseln?`, text: `Auf den Seiten stehen ${used} Fotos. Rahmen und Kalendarium passen sich dem neuen Format an, Bildausschnitte bleiben so weit wie möglich erhalten. Danach die Seiten bitte einmal durchsehen. Rückgängig ist jederzeit möglich.`,
-        buttons: [{ label: 'Format wechseln', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      const ok = await ask({ title: _t('Auf {format} wechseln?', { format: `${f.name} ${f.sub}` }),
+        text: (used === 1 ? _t('Auf den Seiten steht 1 Foto.') : _t('Auf den Seiten stehen {n} Fotos.', { n: used })) + ' ' + _t('Rahmen und Kalendarium passen sich dem neuen Format an, Bildausschnitte bleiben so weit wie möglich erhalten. Danach die Seiten bitte einmal durchsehen. Rückgängig ist jederzeit möglich.'),
+        buttons: [{ label: _t('Format wechseln'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
       if (!ok) return;
     }
     S.doc.format = f.id;
@@ -124,13 +125,14 @@ const ACTIONS = {
     const after = visibleSlots(p).filter(s => s.photo && S.photos[s.photo]).length;
     const filled = autoFill(p.key);
     ui.sel = null; ui.crop = null; commit(); renderStage(); renderPanel(); updateThumb();
-    if (filled) toast(`${filled} ${filled > 1 ? 'freie Fotos' : 'freies Foto'} des Monats eingesetzt.`);
-    if (after < before) toast(`${before - after} ${before - after > 1 ? 'Fotos haben' : 'Foto hat'} im neuen Layout keinen Rahmen. Ein Wechsel zurück holt ${before - after > 1 ? 'sie' : 'es'} wieder.`, 5000);
+    if (filled) toast(filled > 1 ? _t('{n} freie Fotos des Monats eingesetzt.', { n: filled }) : _t('1 freies Foto des Monats eingesetzt.'));
+    const lost = before - after;
+    if (lost > 0) toast(lost > 1 ? _t('{n} Fotos haben im neuen Layout keinen Rahmen. Ein Wechsel zurück holt sie wieder.', { n: lost }) : _t('1 Foto hat im neuen Layout keinen Rahmen. Ein Wechsel zurück holt es wieder.'), 5000);
   },
   resetframes: () => {
     const p = curPage(); delete p.ov; p.extra = [];
     for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
-    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb(); toast('Rahmen stehen wieder wie in der Vorlage.');
+    ui.sel = null; commit(); renderStage(); renderPanel(); updateThumb(); toast(_t('Rahmen stehen wieder wie in der Vorlage.'));
   },
   addframe: () => {
     const p = curPage(), W = S.doc.w, H = S.doc.h, w = Math.round(W * .32), h = Math.round(H * .32);
@@ -143,7 +145,7 @@ const ACTIONS = {
     const sl = { ...newSlot(), id: 'f' + uid(), box: { x: r.x + 8, y: r.y + 8, w: r.w, h: r.h }, border: r.border };
     if (src.fit === 'contain') sl.fit = 'contain';
     (p.extra ||= []).push(sl);
-    ui.sel = sl.id; commit(); renderStage(); updateThumb(); toast('Leere Kopie des Rahmens angelegt.');
+    ui.sel = sl.id; commit(); renderStage(); updateThumb(); toast(_t('Leere Kopie des Rahmens angelegt.'));
   },
   front: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.max(...zs) + 1; commit(); renderEditor(); updateThumb(); },
   back: () => { const p = curPage(), zs = slotRects(p).map(r => r.z); slotOf(p, ui.sel).z = Math.min(...zs) - 1; commit(); renderEditor(); updateThumb(); },
@@ -156,7 +158,7 @@ const ACTIONS = {
   rot90: () => { const sl = slotOf(curPage(), ui.sel); sl.rot = (((sl.rot || 0) + 90 + 180) % 360) - 180; commit(); refresh(); },
   fitmode: (el) => { const sl = slotOf(curPage(), ui.sel); sl.fit = el.dataset.v; sl.zoom = 1; sl.cx = .5; sl.cy = .5; commit(); refresh(); },
   pagegapon: () => { const p = curPage(); if (p.gap == null) p.gap = S.doc.gap; else delete p.gap; commit(); refresh(); renderPanelKeepScroll(); },
-  autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n ? `${plural(n, 'Foto', 'Fotos')} eingesetzt.` : 'Keine passenden freien Fotos für diesen Monat.'); },
+  autofill: () => { const n = autoFill(ui.page); commit(); renderDesign(); toast(n > 1 ? _t('{n} Fotos eingesetzt.', { n }) : n ? _t('1 Foto eingesetzt.') : _t('Keine passenden freien Fotos für diesen Monat.')); },
   clearpage: () => { for (const s of visibleSlots(curPage())) Object.assign(s, newSlot()); ui.sel = null; ui.crop = null; commit(); renderDesign(); },
   calstyle: (el) => { (curPage().cal ||= {}).style = el.dataset.v; commit(); refresh(); renderPanel(); },
   calcolor: (el) => { curPage().cal.color = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -166,14 +168,14 @@ const ACTIONS = {
   caldefault: () => {
     const p = curPage(), st = calSettings(p).style, pos = p.cal.pos && p.cal.pos[st];
     if (pos) { S.doc.cal.def[st] = { ...pos }; delete p.cal.pos[st]; }
-    commit(); renderDesign(); toast('Standardposition übernommen. Seiten mit eigener Position bleiben, wie sie sind.');
+    commit(); renderDesign(); toast(_t('Standardposition übernommen. Seiten mit eigener Position bleiben, wie sie sind.'));
   },
   calall: () => {
     const p = curPage(), c = calSettings(p);
     const keep = { style: c.style, size: c.size, color: c.color, panel: c.panel, hi: c.hi };
     Object.assign(S.doc.cal, keep);
     for (const k of pageKeys()) if (viewOf(k).cal) { const pc = S.pages[k].cal || {}; S.pages[k].cal = pc.pos ? { pos: pc.pos } : {}; }
-    commit(); renderDesign(); toast('Für alle Monate übernommen.');
+    commit(); renderDesign(); toast(_t('Für alle Monate übernommen.'));
   },
   titlecolor: (el) => { curPage().title.color = el.dataset.v; commit(); refresh(); renderPanel(); },
   titlepanel: (el) => { curPage().title.panel = el.dataset.v; commit(); refresh(); renderPanel(); },
@@ -189,14 +191,20 @@ const ACTIONS = {
     for (const id of Object.keys(S.photos)) if (S.photos[id].demo) delete S.photos[id];
     S.pages = {}; S.doc.extraSheets = []; ensurePages();
     S.demo = false; ui.photoSel.clear(); ui.banner = false; commit(); renderAll();
-    toast(Object.keys(S.photos).length ? 'Beispiel entfernt. Mit „Kalender automatisch gestalten“ kommen deine Fotos auf die Seiten.' : 'Beispiel entfernt. Jetzt eigene Fotos hinzufügen.', 6000);
+    toast(Object.keys(S.photos).length ? _t('Beispiel entfernt. Mit „Kalender automatisch gestalten“ kommen deine Fotos auf die Seiten.') : _t('Beispiel entfernt. Jetzt eigene Fotos hinzufügen.'), 6000);
   },
   fav: () => { const ids = [...ui.photoSel], on = !ids.every(id => S.photos[id].fav); ids.forEach(id => S.photos[id].fav = on); commit(); renderPhotos(); },
   delphotos: async () => {
     const ids = [...ui.photoSel], u = usage(), used = ids.filter(id => u[id]);
-    const ok = await ask({ title: `${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} aus dem Projekt entfernen?`,
-      text: (used.length ? `${used.length} davon ${used.length > 1 ? 'stehen' : 'steht'} auf Kalenderseiten (${[...new Set(used.flatMap(id => u[id]))].map(pageLabel).join(', ')}) und ${used.length > 1 ? 'werden' : 'wird'} dort herausgenommen. ` : '') + 'Die Dateien auf deinem Rechner bleiben unberührt' + (SVC.pid ? ' und lassen sich unter „Fotos“ wieder zurückholen.' : '. Rückgängig ist möglich.'),
-      buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+    const pages = [...new Set(used.flatMap(id => u[id]))].map(pageLabel).join(', ');
+    const onPages = !used.length ? ''
+      : ids.length === 1 ? _t('Es steht auf Kalenderseiten ({pages}) und wird dort herausgenommen.', { pages })
+      : used.length > 1 ? _t('{n} davon stehen auf Kalenderseiten ({pages}) und werden dort herausgenommen.', { n: used.length, pages })
+      : _t('1 davon steht auf Kalenderseiten ({pages}) und wird dort herausgenommen.', { pages });
+    const files = SVC.pid ? _t('Die Dateien auf deinem Rechner bleiben unberührt und lassen sich unter „Fotos“ wieder zurückholen.') : _t('Die Dateien auf deinem Rechner bleiben unberührt. Rückgängig ist möglich.');
+    const ok = await ask({ title: ids.length > 1 ? _t('{n} Fotos aus dem Projekt entfernen?', { n: ids.length }) : _t('1 Foto aus dem Projekt entfernen?'),
+      text: (onPages ? onPages + ' ' : '') + files,
+      buttons: [{ label: _t('Entfernen'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
     if (!ok) return;
     for (const id of ids) delete S.photos[id];
     for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) Object.assign(s, newSlot());
@@ -205,17 +213,17 @@ const ACTIONS = {
   clearsel: () => { ui.photoSel.clear(); renderPhotos(); },
   newdemo: async () => { await resetProject(true); },
   reset: async () => {
-    const ok = await ask({ title: 'Leeres Projekt beginnen?', text: 'Alle Seiten, Fotos und Einstellungen dieses Projekts werden aus dem Browser gelöscht. Das lässt sich nicht rückgängig machen. Deine Fotodateien auf dem Rechner bleiben unberührt.',
-      buttons: [{ label: 'Alles löschen und neu beginnen', value: true }, { label: 'Abbrechen', value: false, primary: true }] });
+    const ok = await ask({ title: _t('Leeres Projekt beginnen?'), text: _t('Alle Seiten, Fotos und Einstellungen dieses Projekts werden aus dem Browser gelöscht. Das lässt sich nicht rückgängig machen. Deine Fotodateien auf dem Rechner bleiben unberührt.'),
+      buttons: [{ label: _t('Alles löschen und neu beginnen'), value: true }, { label: _t('Abbrechen'), value: false, primary: true }] });
     if (ok) await resetProject(false);
   },
   export: async () => {
     const bad = checks().filter(c => c[0] === 'bad');
     if (bad.length) {
       const pages = [...new Set(bad.map(c => c[2]).filter(Boolean))];
-      const r = await ask({ title: `${bad.length} ${bad.length > 1 ? 'Probleme' : 'Problem'} vor dem Export`,
-        text: `Betroffen: ${pages.map(pageLabel).join(', ')}. Leere Rahmen bleiben im PDF weiß, zu kleine Fotos werden unscharf.`,
-        buttons: [...(pages.length ? [{ label: `Zu ${pageLabel(pages[0])}`, value: 'go', primary: true }] : []), { label: 'Trotzdem als Entwurf exportieren', value: 'export' }, { label: 'Abbrechen', value: null }] });
+      const r = await ask({ title: bad.length > 1 ? _t('{n} Probleme vor dem Export', { n: bad.length }) : _t('1 Problem vor dem Export'),
+        text: _t('Betroffen: {pages}. Leere Rahmen bleiben im PDF weiß, zu kleine Fotos werden unscharf.', { pages: pages.map(pageLabel).join(', ') }),
+        buttons: [...(pages.length ? [{ label: _t('Zu {page}', { page: pageLabel(pages[0]) }), value: 'go', primary: true }] : []), { label: _t('Trotzdem als Entwurf exportieren'), value: 'export' }, { label: _t('Abbrechen'), value: null }] });
       if (r === 'go') { ui.page = pages[0]; setView('design'); return; }
       if (r !== 'export') return;
     }
@@ -233,14 +241,16 @@ const ACTIONS = {
     const m = el.dataset.v === 'month' ? pageMonth(ui.page) : null, id = 'x' + uid();
     (S.doc.extraSheets ||= []).push({ id, after: sh.id, month: m });
     ensurePages(); ui.page = id; ui.sel = null; commit(); renderAll();
-    toast(m != null ? `Weiteres Motiv für ${MONTHS[m]} eingefügt.` : 'Freies Blatt eingefügt.');
+    toast(m != null ? _t('Weiteres Motiv für {month} eingefügt.', { month: MONTHS[m] }) : _t('Freies Blatt eingefügt.'));
   },
   delsheet: async (el) => {
     const id = el.dataset.v || (sheetOf(ui.page) || {}).id, sh = sheetList().find(s => s.id === id);
     if (!sh || !sh.extra) return;
     const used = [sh.front, sh.back].filter(Boolean).flatMap(k => visibleSlots(S.pages[k] || { layout: 'index' })).filter(s => s.photo).length;
     if (used) {
-      const ok = await ask({ title: 'Blatt entfernen?', text: `Auf dem Blatt stehen ${used} Fotos. Sie bleiben im Fotopool erhalten. Rückgängig ist möglich.`, buttons: [{ label: 'Entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+      const ok = await ask({ title: _t('Blatt entfernen?'),
+        text: used === 1 ? _t('Auf dem Blatt steht 1 Foto. Es bleibt im Fotopool erhalten. Rückgängig ist möglich.') : _t('Auf dem Blatt stehen {n} Fotos. Sie bleiben im Fotopool erhalten. Rückgängig ist möglich.', { n: used }),
+        buttons: [{ label: _t('Entfernen'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
       if (!ok) return;
     }
     // Blätter, die nach diesem eingefügt waren, rücken an seine Stelle
@@ -263,11 +273,14 @@ const ACTIONS = {
   clearerr: () => { ui.importErrors = []; renderPhotos(); },
   bdquick: (el) => {
     const n = $('#bdqn').value.trim(), d = +$('#bdqd').value;
-    if (!n || !(d >= 1 && d <= 31)) { toast('Bitte Name und Tag eintragen.'); return; }
+    if (!n || !(d >= 1 && d <= 31)) { toast(_t('Bitte Name und Tag eintragen.')); return; }
     (S.doc.birthdays ||= []).push({ id: uid(), name: n, d, m: +el.dataset.v, y: '' });
-    commit(); refresh(); renderPanelKeepScroll(); toast(`Geburtstag von ${n} eingetragen.`);
+    commit(); refresh(); renderPanelKeepScroll(); toast(_t('Geburtstag von {name} eingetragen.', { name: n }));
   },
-  fixpage: (el) => { const n = autoFill(el.dataset.v); commit(); renderAll(); toast(n ? `${n} Fotos auf ${pageLabel(el.dataset.v)} eingesetzt.` : `Für ${pageLabel(el.dataset.v)} gibt es keine freien Fotos mehr.`); },
+  fixpage: (el) => {
+    const n = autoFill(el.dataset.v), page = pageLabel(el.dataset.v); commit(); renderAll();
+    toast(n > 1 ? _t('{n} Fotos auf {page} eingesetzt.', { n, page }) : n ? _t('1 Foto auf {page} eingesetzt.', { page }) : _t('Für {page} gibt es keine freien Fotos mehr.', { page }));
+  },
   vcf: () => $('#vcfIn').click(),
 };
 function renderPanelKeepScroll() { const b = $('#tabBody'), s = b ? b.scrollTop : 0; renderPanel(); if (b) $('#tabBody').scrollTop = s; }
@@ -356,16 +369,18 @@ function copyPhoto(id, m) {
 async function placePhoto(slot, id) {
   const p = curPage(), m = pageMonth(p.key), ph = S.photos[id];
   if (m == null || ph.month === m) { assignPhoto(slot, id); return; }
-  const other = usedInOtherMonths(id, m), from = ph.month < 0 ? 'keinem Monat' : MONTHS[ph.month];
+  const other = usedInOtherMonths(id, m), noMonth = ph.month < 0, from = noMonth ? '' : MONTHS[ph.month], to = MONTHS[m];
   if (!other.length) {
     ph.month = m; ph.src = 'von Hand';
     assignPhoto(slot, id);
-    toast(`Foto von ${from} nach ${MONTHS[m]} verschoben.`);
+    toast(noMonth ? _t('Foto nach {to} verschoben.', { to }) : _t('Foto von {from} nach {to} verschoben.', { from, to }));
     return;
   }
-  const r = await ask({ title: 'Foto wird schon verwendet',
-    text: `Das Foto gehört zu ${from} und steht auf: ${other.map(pageLabel).join(', ')}. Jedes Foto gehört zu genau einem Monat.`,
-    buttons: [{ label: `Nach ${MONTHS[m]} verschieben, dort entfernen`, value: 'move', primary: true }, { label: `Kopie für ${MONTHS[m]} anlegen`, value: 'copy' }, { label: 'Abbrechen', value: null }] });
+  const pages = other.map(pageLabel).join(', ');
+  const r = await ask({ title: _t('Foto wird schon verwendet'),
+    text: noMonth ? _t('Das Foto gehört zu keinem Monat und steht auf: {pages}. Jedes Foto gehört zu genau einem Monat.', { pages })
+      : _t('Das Foto gehört zu {from} und steht auf: {pages}. Jedes Foto gehört zu genau einem Monat.', { from, pages }),
+    buttons: [{ label: _t('Nach {month} verschieben, dort entfernen', { month: to }), value: 'move', primary: true }, { label: _t('Kopie für {month} anlegen', { month: to }), value: 'copy' }, { label: _t('Abbrechen'), value: null }] });
   if (r === 'move') { clearPhotoFrom(id, other); ph.month = m; ph.src = 'von Hand'; assignPhoto(slot, id); renderStrip(); }
   else if (r === 'copy') { const c = copyPhoto(id, m); assignPhoto(slot, c.id); }
 }
@@ -375,15 +390,17 @@ async function moveToMonth(ids, m) {
   const conflicts = ids.filter(id => usedInOtherMonths(id, m).length);
   if (conflicts.length) {
     const pages = [...new Set(conflicts.flatMap(id => usedInOtherMonths(id, m)))];
-    const ok = await ask({ title: `${conflicts.length} ${conflicts.length > 1 ? 'Fotos stehen' : 'Foto steht'} schon auf Seiten`,
-      text: `Betroffen: ${pages.map(pageLabel).join(', ')}. Beim Verschieben werden ${conflicts.length > 1 ? 'sie' : 'es'} dort aus den Rahmen genommen.`,
-      buttons: [{ label: 'Verschieben und dort entfernen', value: true, primary: true }, { label: 'Abbrechen', value: false }] });
+    const many = conflicts.length > 1, list = pages.map(pageLabel).join(', ');
+    const ok = await ask({ title: many ? _t('{n} Fotos stehen schon auf Seiten', { n: conflicts.length }) : _t('1 Foto steht schon auf Seiten'),
+      text: many ? _t('Betroffen: {pages}. Beim Verschieben werden sie dort aus den Rahmen genommen.', { pages: list }) : _t('Betroffen: {pages}. Beim Verschieben wird es dort aus dem Rahmen genommen.', { pages: list }),
+      buttons: [{ label: _t('Verschieben und dort entfernen'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
     if (!ok) return false;
     for (const id of conflicts) clearPhotoFrom(id, usedInOtherMonths(id, m));
   }
   for (const id of ids) { S.photos[id].month = m; S.photos[id].src = 'von Hand'; }
   commit(); if (ui.view === 'photos') renderPhotos();
-  toast(`${ids.length} ${ids.length > 1 ? 'Fotos' : 'Foto'} nach ${m < 0 ? '„Ohne Monat“' : MONTHS[m]} verschoben.`);
+  const to = m < 0 ? _t('„Ohne Monat“') : MONTHS[m];
+  toast(ids.length > 1 ? _t('{n} Fotos nach {to} verschoben.', { n: ids.length, to }) : _t('1 Foto nach {to} verschoben.', { to }));
   return true;
 }
 
@@ -413,7 +430,7 @@ function layoutFor(photos, m) {
 }
 async function autoDesign() {
   const keys = pageKeys().filter(k => S.pages[k] && S.pages[k].layout !== 'index' && S.pages[k].layout !== 'blank');
-  if (!Object.keys(S.photos).length) { toast('Zuerst Fotos hinzufügen, dann gestaltet die App den Kalender.'); setView('photos'); return; }
+  if (!Object.keys(S.photos).length) { toast(_t('Zuerst Fotos hinzufügen, dann gestaltet die App den Kalender.')); setView('photos'); return; }
   const used = new Set(Object.keys(usage()));
   let pages = 0, photos = 0;
   for (const k of keys) {
@@ -426,12 +443,17 @@ async function autoDesign() {
     }
     photos += autoFill(k, used);
   }
-  if (!photos && !pages) { toast('Alle Rahmen sind schon gefüllt oder es gibt keine freien Fotos mehr.'); return; }
-  const bar = busy('Kalender wird gestaltet', 'Kalendarien suchen ruhige Stellen …');
+  if (!photos && !pages) { toast(_t('Alle Rahmen sind schon gefüllt oder es gibt keine freien Fotos mehr.')); return; }
+  const bar = busy(_t('Kalender wird gestaltet'), _t('Kalendarien suchen ruhige Stellen …'));
   const calKeys = keys.filter(k => pageMonth(k) != null && calSettings(S.pages[k]).style !== 'off');
   let i = 0;
   for (const k of calKeys) { const s = await suggestPlacement(k, { tryStyles: false }); if (s) applyPlacement(S.pages[k], s); bar.update(++i / calKeys.length); }
   bar.close();
   commit(); setView('design');
-  toast(`${photos} ${photos === 1 ? 'Foto' : 'Fotos'} auf ${pages ? pages + ' neu gestaltete und weitere ' : ''}Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.`, 6000, { label: 'Rückgängig', fn: undo });
+  const msg = pages
+    ? (photos === 1 ? _t('1 Foto auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.', { pages })
+      : _t('{n} Fotos auf {pages} neu gestaltete und weitere Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.', { n: photos, pages }))
+    : (photos === 1 ? _t('1 Foto auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.')
+      : _t('{n} Fotos auf Seiten verteilt, Kalendarien an ruhige Stellen gesetzt.', { n: photos }));
+  toast(msg, 6000, { label: _t('Rückgängig'), fn: undo });
 }

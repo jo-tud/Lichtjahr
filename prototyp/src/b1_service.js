@@ -17,7 +17,7 @@ const SVC = {
 const SVC_BEAT = 30000, SVC_RETRY = 20000;
 
 async function api(path, { method = 'GET', body, form, keepalive = false } = {}) {
-  const headers = {};
+  const headers = { 'Accept-Language': LANG };   // Fehlermeldungen und Prüfbericht des Dienstes in der Sprache der Oberfläche
   if (SVC.token) headers.Authorization = 'Bearer ' + SVC.token;
   if (SVC.session) headers['X-Lichtjahr-Session'] = SVC.session;
   let payload;
@@ -27,7 +27,7 @@ async function api(path, { method = 'GET', body, form, keepalive = false } = {})
   let data = null;
   try { data = await r.json(); } catch (e) { /* keine JSON-Antwort */ }
   if (!r.ok) {
-    const err = new Error((data && data.detail) || `Der Dienst meldet Fehler ${r.status}.`);
+    const err = new Error((data && data.detail) || _t('Der Dienst meldet Fehler {status}.', { status: r.status }));
     err.status = r.status; err.data = data; throw err;
   }
   return data;
@@ -48,11 +48,11 @@ async function detectService() {
 }
 function deviceName() {
   const ua = navigator.userAgent;
-  const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Gerät';
+  const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : _t('Gerät');
   const br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-  return `${br} auf ${dev}`;
+  return _t('{browser} auf {device}', { browser: br, device: dev });
 }
-const ago = (t) => { const s = Math.max(0, Math.round(Date.now() / 1000 - t)); return s < 60 ? `vor ${s} s` : s < 3600 ? `vor ${Math.round(s / 60)} min` : `vor ${Math.round(s / 3600)} h`; };
+const ago = (t) => { const s = Math.max(0, Math.round(Date.now() / 1000 - t)); return s < 60 ? _t('vor {n} s', { n: s }) : s < 3600 ? _t('vor {n} min', { n: Math.round(s / 60) }) : _t('vor {n} h', { n: Math.round(s / 3600) }); };
 function setSaveState(text) { const s = $('#saveState'); if (s) s.textContent = text; }
 
 /* ----- Fotos aus dem Projekt ----- */
@@ -94,7 +94,7 @@ async function serviceStart() {
   const params = new URLSearchParams(location.search);
   SVC.token = params.get('token');
   let list = [];
-  try { list = await api('projects'); } catch (e) { if (e.status === 401) { showServiceError('Zugriffsschlüssel fehlt oder ist falsch. Bitte die vollständige Adresse aus dem Terminal öffnen, in der „?token=…“ steht.'); return 'stop'; } }
+  try { list = await api('projects'); } catch (e) { if (e.status === 401) { showServiceError(_t('Zugriffsschlüssel fehlt oder ist falsch. Bitte die vollständige Adresse aus dem Terminal öffnen, in der „?token=…“ steht.')); return 'stop'; } }
   let want = params.get('projekt');
   if (!want) { try { want = localStorage.getItem('lj-project'); } catch (e) { /* egal */ } }
   if (!want && list.length === 1) want = list[0].id;     // nur ein Projekt: gleich öffnen (z. B. neues Gerät)
@@ -116,8 +116,8 @@ async function openProject(pid) {
   try { history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* egal */ }
   clearInterval(SVC.beat); SVC.beat = setInterval(heartbeat, SVC_BEAT);
   renderServiceBanner();
-  setSaveState(SVC.readOnly ? 'Nur ansehen' : 'Im Projektordner gespeichert');
-  if (notes && notes.length) setTimeout(() => toast(`Unterbrochene Dateiverschiebung aufgeräumt: ${notes.join(' · ')}`, 9000), 800);
+  setSaveState(SVC.readOnly ? _t('Nur ansehen') : _t('Im Projektordner gespeichert'));
+  if (notes && notes.length) setTimeout(() => toast(_t('Unterbrochene Dateiverschiebung aufgeräumt: {notes}', { notes: notes.join(' · ') }), 9000), 800);
   // Erst die Oberfläche zeigen, dann einen gesicherten Stand anbieten und neue Fotos aus den Ordnern holen
   if (!SVC.readOnly) setTimeout(async () => { await offerDraft(man); serviceScan(false); }, 400);
 }
@@ -139,7 +139,12 @@ function applyManifest(man) {
   const ed = man.editor || {}, fmt = FORMATS.find(f => f.id === man.format.id);
   const doc = { ...defaultDoc(), year: man.calendarYear };
   if (!ed.doc && fmt) Object.assign(doc, { format: fmt.id, w: fmt.w || man.format.widthMm, h: fmt.h || man.format.heightMm });
+  // Kalendersprache: neues Projekt in der Sprache, in der es angelegt wurde (sonst der Oberfläche);
+  // gespeicherte Stände ohne Angabe stammen aus der Zeit, als es nur Deutsch gab
+  const projLang = man.language || (SVC.info && SVC.info.language);
+  if (!ed.doc) doc.calLang = LANGS[projLang] ? projLang : LANG;
   S = { doc: { ...doc, ...(ed.doc || {}) }, pages: ed.pages || {}, photos: {}, demo: false };
+  if (ed.doc && !ed.doc.calLang) S.doc.calLang = 'de';
   for (const a of man.assets) { gotAsset(a); if (!a.excluded && usable(a)) S.photos[a.id] = photoFromAsset(a); }
   for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) s.photo = null;
   ui.photoSel.clear(); ui.sel = null; ui.crop = null; ui.banner = false;
@@ -159,7 +164,7 @@ async function leaveProject() {
 async function heartbeat() {
   if (!SVC.pid || SVC.readOnly || !SVC.session) return;
   try { SVC.lock = (await api(PP('/lock/heartbeat'), { method: 'POST' })).lock; if (SVC.offline) { SVC.offline = false; scheduleServiceSave(); } }
-  catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState('Dienst nicht erreichbar'); } }
+  catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState(_t('Dienst nicht erreichbar')); } }
 }
 async function retryLock() {
   if (!SVC.readOnly || !SVC.pid) return;
@@ -170,8 +175,8 @@ async function retryLock() {
     clearInterval(SVC.retry); SVC.retry = null;
     applyManifest(await api(PP('/manifest')));      // erst den Stand des anderen Fensters laden, dann bearbeiten
     SVC.readOnly = false; SVC.warnedRO = false;
-    renderServiceBanner(); renderAll(); setSaveState('Im Projektordner gespeichert');
-    toast('Das Projekt ist jetzt frei. Du kannst weiterarbeiten.', 6000);
+    renderServiceBanner(); renderAll(); setSaveState(_t('Im Projektordner gespeichert'));
+    toast(_t('Das Projekt ist jetzt frei. Du kannst weiterarbeiten.'), 6000);
     serviceScan(false);
   } catch (e) {
     if (e.status === 423) { SVC.lock = e.data && e.data.lock; renderServiceBanner(); }
@@ -184,23 +189,25 @@ async function lockLost() {
   try { await api(PP('/draft'), { method: 'PUT', body: { savedAt: new Date().toISOString(), editor: editorState(), assets: photoMeta(true) } }); } catch (e) { /* egal */ }
   try { const r = await api(PP('/lock')); SVC.lock = r.lock; } catch (e) { /* egal */ }
   clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
-  renderServiceBanner(); setSaveState('Nur ansehen');
-  await ask({ title: 'Bearbeitung an anderer Stelle',
-    text: `${SVC.lock ? `Ein anderes Fenster (${SVC.lock.holder})` : 'Ein anderes Fenster'} bearbeitet das Projekt jetzt. Dein letzter Stand ist auf diesem Rechner gesichert und wird beim nächsten Öffnen angeboten.`,
-    buttons: [{ label: 'Verstanden', value: true, primary: true }] });
+  renderServiceBanner(); setSaveState(_t('Nur ansehen'));
+  await ask({ title: _t('Bearbeitung an anderer Stelle'),
+    text: SVC.lock ? _t('Ein anderes Fenster ({holder}) bearbeitet das Projekt jetzt. Dein letzter Stand ist auf diesem Rechner gesichert und wird beim nächsten Öffnen angeboten.', { holder: SVC.lock.holder })
+      : _t('Ein anderes Fenster bearbeitet das Projekt jetzt. Dein letzter Stand ist auf diesem Rechner gesichert und wird beim nächsten Öffnen angeboten.'),
+    buttons: [{ label: _t('Verstanden'), value: true, primary: true }] });
 }
 async function offerDraft(man) {
   let d = null;
   try { d = await api(PP('/draft')); } catch (e) { return; }
   if (!d || !d.savedAt || !d.editor || Date.parse(d.savedAt) <= Date.parse(man.updated)) return;
-  const when = new Date(d.savedAt).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-  const r = await ask({ title: 'Gesicherten Stand gefunden',
-    text: `Vom ${when} gibt es einen Stand, der nicht mehr ins Projekt gespeichert werden konnte (die Bearbeitung lief zwischenzeitlich woanders). Übernehmen ersetzt die aktuelle Gestaltung.`,
-    buttons: [{ label: 'Übernehmen', value: true, primary: true }, { label: 'Verwerfen', value: false }] });
+  const when = new Date(d.savedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+  const r = await ask({ title: _t('Gesicherten Stand gefunden'),
+    text: _t('Vom {when} gibt es einen Stand, der nicht mehr ins Projekt gespeichert werden konnte (die Bearbeitung lief zwischenzeitlich woanders). Übernehmen ersetzt die aktuelle Gestaltung.', { when }),
+    buttons: [{ label: _t('Übernehmen'), value: true, primary: true }, { label: _t('Verwerfen'), value: false }] });
   if (r) {
     S.doc = { ...defaultDoc(), ...d.editor.doc }; S.pages = d.editor.pages || {};
+    if (!(d.editor.doc || {}).calLang) S.doc.calLang = 'de';
     for (const [id, m] of Object.entries(d.assets || {})) if (S.photos[id]) { if ('caption' in m) S.photos[id].caption = m.caption; if ('favorite' in m) S.photos[id].fav = m.favorite; }
-    ensurePages(); commit(); renderAll(); toast('Gesicherter Stand übernommen.', 5000, { label: 'Rückgängig', fn: undo });
+    ensurePages(); commit(); renderAll(); toast(_t('Gesicherter Stand übernommen.'), 5000, { label: _t('Rückgängig'), fn: undo });
   }
   try { await api(PP('/draft'), { method: 'DELETE' }); } catch (e) { /* egal */ }
 }
@@ -223,11 +230,11 @@ function photoMeta(all = false) {
 function scheduleServiceSave() {
   if (!SVC.pid) return;
   if (SVC.readOnly) {
-    setSaveState('Nur ansehen – nicht gespeichert');
-    if (!SVC.warnedRO) { SVC.warnedRO = true; toast('Nur ansehen: Änderungen werden nicht gespeichert, solange das Projekt woanders bearbeitet wird.', 7000); }
+    setSaveState(_t('Nur ansehen – nicht gespeichert'));
+    if (!SVC.warnedRO) { SVC.warnedRO = true; toast(_t('Nur ansehen: Änderungen werden nicht gespeichert, solange das Projekt woanders bearbeitet wird.'), 7000); }
     return;
   }
-  SVC.pending = true; setSaveState('Ungespeichert …');
+  SVC.pending = true; setSaveState(_t('Ungespeichert …'));
   clearTimeout(SVC.timer); SVC.timer = setTimeout(() => serial(serviceSave), 800);
 }
 function flushSave() {
@@ -245,15 +252,15 @@ async function serviceSave() {
       format: { id: S.doc.format, widthMm: S.doc.w, heightMm: S.doc.h, bleedMm: S.doc.bleed }, assets: meta, printerProfileId: S.doc.printer || '' } });
     for (const [id, m] of Object.entries(meta)) Object.assign(SVC.assets[id], m);
     if (SVC.offline) SVC.offline = false;
-    setSaveState(SVC.pending ? 'Ungespeichert …' : 'Im Projektordner gespeichert');
+    setSaveState(SVC.pending ? _t('Ungespeichert …') : _t('Im Projektordner gespeichert'));
     if (touched && ui.view === 'photos') renderPhotos();
   } catch (e) {
     if (e.status === 423) { lockLost(); return; }
     SVC.pending = true;
     if (e instanceof TypeError) {               // Dienst nicht erreichbar: später noch einmal
-      SVC.offline = true; setSaveState('Dienst nicht erreichbar – wird nachgeholt');
+      SVC.offline = true; setSaveState(_t('Dienst nicht erreichbar – wird nachgeholt'));
       clearTimeout(SVC.timer); SVC.timer = setTimeout(() => serial(serviceSave), 5000);
-    } else { setSaveState('Speichern fehlgeschlagen'); toast(`Speichern fehlgeschlagen: ${e.message}`, 8000, { label: 'Noch einmal', fn: () => serial(serviceSave) }); }
+    } else { setSaveState(_t('Speichern fehlgeschlagen')); toast(_t('Speichern fehlgeschlagen: {error}', { error: e.message }), 8000, { label: _t('Noch einmal'), fn: () => serial(serviceSave) }); }
   }
 }
 // Monatswechsel und Kopien der Oberfläche als Dateioperationen nachziehen
@@ -269,7 +276,7 @@ async function syncPhotoFiles() {
       try {
         const c = gotAsset(await api(PP(`/assets/${src}/copy`), { method: 'POST', body: { month: want } }));
         renamePhoto(ph.id, c.id); Object.assign(S.photos[c.id], fileFacts(c)); facts[c.id] = fileFacts(c); touched = true;
-      } catch (e) { if (e.status === 423) throw e; toast(`Kopie konnte nicht angelegt werden: ${e.message}`, 7000); }
+      } catch (e) { if (e.status === 423) throw e; toast(_t('Kopie konnte nicht angelegt werden: {error}', { error: e.message }), 7000); }
       continue;
     }
     if ((a.month ?? null) === want || a.status === 'missing') continue;
@@ -279,7 +286,7 @@ async function syncPhotoFiles() {
     } catch (e) {
       if (e.status === 423) throw e;
       ph.month = a.month ?? -1;                 // Datei liegt weiter im alten Ordner
-      toast(`„${ph.name}“ konnte nicht verschoben werden: ${e.message}`, 8000);
+      toast(_t('„{name}“ konnte nicht verschoben werden: {error}', { name: ph.name, error: e.message }), 8000);
     }
   }
   // Nur die Dateiangaben nachtragen, nicht den ganzen Zustand: ein gerade laufendes Ziehen bleibt so ein eigener Schritt
@@ -290,11 +297,11 @@ async function syncPhotoFiles() {
 /* ----- Abgleich mit den Monatsordnern ----- */
 function serviceScan(manual) {
   if (!SVC.pid) return Promise.resolve();
-  if (SVC.readOnly) { if (manual) toast('Nur ansehen: Abgleichen geht erst, wenn das Projekt frei ist.'); return Promise.resolve(); }
+  if (SVC.readOnly) { if (manual) toast(_t('Nur ansehen: Abgleichen geht erst, wenn das Projekt frei ist.')); return Promise.resolve(); }
   clearTimeout(SVC.timer);
   return serial(async () => {
     await serviceSave();
-    setSaveState('Ordner wird abgeglichen …');
+    setSaveState(_t('Ordner wird abgeglichen …'));
     SVC.lastScan = Date.now();
     try {
       const rep = await api(PP('/scan'), { method: 'POST' });
@@ -312,18 +319,18 @@ function serviceScan(manual) {
         rebaseHistory(o => { for (const id of ids) { const a = byId[id]; if (!a || a.excluded || !usable(a)) continue; o.photos[id] = o.photos[id] ? { ...o.photos[id], ...fileFacts(a) } : photoFromAsset(a); } });
         renderAll();
       }
-      setSaveState('Im Projektordner gespeichert');
+      setSaveState(_t('Im Projektordner gespeichert'));
       const parts = [];
-      if (rep.added.length) parts.push(plural(rep.added.length, 'neues Foto', 'neue Fotos'));
+      if (rep.added.length) parts.push(plural(rep.added.length, _t('neues Foto'), _t('neue Fotos')));
       const resorted = new Set([...rep.moved, ...rep.reassigned]).size;
-      if (resorted) parts.push(`${resorted} umsortiert`);
-      if (rep.changed.length) parts.push(`${rep.changed.length} geändert`);
-      if (rep.missing.length) parts.push(`${rep.missing.length} fehlen`);
-      if (parts.length) toast(`Projektordner: ${parts.join(', ')}.`, 7000, rep.added.length && ui.view !== 'photos' ? { label: 'Ansehen', fn: () => setView('photos') } : null);
-      else if (manual) toast('Alles aktuell: Die Monatsordner und das Projekt stimmen überein.');
+      if (resorted) parts.push(_t('{n} umsortiert', { n: resorted }));
+      if (rep.changed.length) parts.push(_t('{n} geändert', { n: rep.changed.length }));
+      if (rep.missing.length) parts.push(_t('{n} fehlen', { n: rep.missing.length }));
+      if (parts.length) toast(_t('Projektordner: {changes}.', { changes: parts.join(', ') }), 7000, rep.added.length && ui.view !== 'photos' ? { label: _t('Ansehen'), fn: () => setView('photos') } : null);
+      else if (manual) toast(_t('Alles aktuell: Die Monatsordner und das Projekt stimmen überein.'));
     } catch (e) {
       if (e.status === 423) { lockLost(); return; }
-      setSaveState('Abgleich fehlgeschlagen'); if (manual) toast(`Abgleich fehlgeschlagen: ${e.message}`, 7000);
+      setSaveState(_t('Abgleich fehlgeschlagen')); if (manual) toast(_t('Abgleich fehlgeschlagen: {error}', { error: e.message }), 7000);
     }
   });
 }
@@ -353,7 +360,7 @@ async function serviceExport(blob, name) {
 }
 async function restoreExcluded() {
   for (const a of Object.values(SVC.assets)) if (usable(a) && !S.photos[a.id]) S.photos[a.id] = photoFromAsset(a);
-  commit(); renderAll(); toast('Aussortierte Fotos sind wieder da.', 4000, { label: 'Rückgängig', fn: undo });
+  commit(); renderAll(); toast(_t('Aussortierte Fotos sind wieder da.'), 4000, { label: _t('Rückgängig'), fn: undo });
 }
 // Aussortiert = im Projekt vorhanden, aber nicht (mehr) in der Fotoübersicht
 const excludedCount = () => Object.values(SVC.assets).filter(a => usable(a) && !S.photos[a.id]).length;
@@ -365,20 +372,30 @@ function renderServiceBanner() {
   else {
     const l = SVC.lock;
     b.hidden = false;
-    b.innerHTML = `<p><b>Nur ansehen.</b> ${l ? `${esc(l.holder)} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv ${ago(l.heartbeat)}).` : 'Das Projekt wird gerade woanders bearbeitet.'}
-      Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.</p>
-      <button class="btn small" data-act="svcretry">Jetzt prüfen</button>`;
+    b.innerHTML = `<p><b>${_t('Nur ansehen.')}</b> ${l ? esc(_t('{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).', { holder: l.holder, ago: ago(l.heartbeat) })) : _t('Das Projekt wird gerade woanders bearbeitet.')}
+      ${_t('Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.')}</p>
+      <button class="btn small" data-act="svcretry">${_t('Jetzt prüfen')}</button>`;
   }
   if (typeof renderAll === 'function' && document.body.dataset.view) document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight) + (b.hidden ? 0 : b.offsetHeight)) + 'px');
 }
+// Ordnernamen des Projekts (der Dienst legt sie in der Sprache an, in der das Projekt entstand)
+const SVC_FOLDERS_DE = { photos: 'Fotos', months: ['01 Januar', '02 Februar', '03 März', '04 April', '05 Mai', '06 Juni', '07 Juli', '08 August', '09 September', '10 Oktober', '11 November', '12 Dezember'], noMonth: 'Ohne Monat', export: 'Export' };
+function svcFolders() {
+  const f = (SVC.info && SVC.info.storage && SVC.info.storage.folders) || {};
+  return { photos: f.photos || SVC_FOLDERS_DE.photos, months: Array.isArray(f.months) && f.months.length === 12 ? f.months : SVC_FOLDERS_DE.months,
+    noMonth: f.noMonth || SVC_FOLDERS_DE.noMonth, export: f.export || SVC_FOLDERS_DE.export };
+}
 function serviceCard() {
   const i = SVC.info || {}, loc = i.storage ? i.storage.location : '', shown = shortPath(i.storage ? i.storage.display || loc : '');
-  const ex = excludedCount();
-  return `<section class="card svc-card"><header><h2>Projektordner</h2><p>${esc(i.title || 'Kalender')} ${esc(String(S.doc.year))}</p></header>
+  const ex = excludedCount(), fo = svcFolders(), code = (t) => `<code>${esc(t)}</code>`;
+  const state = SVC.readOnly ? _t('<b>Nur ansehen</b>, das Projekt ist woanders geöffnet.') : _t('Du bearbeitest das Projekt ({device}). Andere Fenster können es so lange nur ansehen.', { device: esc(deviceName()) });
+  const missing = !i.missing ? '' : ' ' + (i.missing === 1 ? _t('<b>1 Foto fehlt</b> im Ordner.') : _t('<b>{n} Fotos fehlen</b> im Ordner.', { n: i.missing }));
+  return `<section class="card svc-card"><header><h2>${_t('Projektordner')}</h2><p>${esc(i.title || _t('Kalender'))} ${esc(String(S.doc.year))}</p></header>
     <div class="svc-path" title="${esc(loc)}">${ICON_FOLDER}<code>${esc(shown)}</code></div>
-    <p class="hint">Fotos liegen in <code>Fotos/01 Januar</code> bis <code>Fotos/12 Dezember</code>. Neue Dateien in diesen Ordnern übernimmt der Abgleich; die Gestaltung steht in <code>lichtjahr.json</code>, PDFs landen in <code>Export/</code>.</p>
-    <p class="hint">${SVC.readOnly ? '<b>Nur ansehen</b>, das Projekt ist woanders geöffnet.' : `Du bearbeitest das Projekt (${esc(deviceName())}). Andere Fenster können es so lange nur ansehen.`}${i.missing ? ` <b>${plural(i.missing, 'Foto fehlt', 'Fotos fehlen')}</b> im Ordner.` : ''}</p>
-    <div class="row"><button class="btn" data-act="svcscan">Ordner abgleichen</button>${ex ? `<button class="btn" data-act="svcrestore">${plural(ex, 'aussortiertes Foto', 'aussortierte Fotos')} zurückholen</button>` : ''}<button class="btn" data-act="svcswitch">Anderes Projekt …</button></div>
+    <p class="hint">${_t('Fotos liegen in {first} bis {last}. Neue Dateien in diesen Ordnern übernimmt der Abgleich; die Gestaltung steht in {json}, PDFs landen in {export}.',
+      { first: code(`${fo.photos}/${fo.months[0]}`), last: code(`${fo.photos}/${fo.months[11]}`), json: code('lichtjahr.json'), export: code(fo.export + '/') })}</p>
+    <p class="hint">${state}${missing}</p>
+    <div class="row"><button class="btn" data-act="svcscan">${_t('Ordner abgleichen')}</button>${ex ? `<button class="btn" data-act="svcrestore">${ex === 1 ? _t('1 aussortiertes Foto zurückholen') : _t('{n} aussortierte Fotos zurückholen', { n: ex })}</button>` : ''}<button class="btn" data-act="svcswitch">${_t('Anderes Projekt …')}</button></div>
   </section>`;
 }
 // Lange Pfade in der Mitte kürzen: Anfang und der aussagekräftige Schluss bleiben sichtbar
@@ -386,33 +403,36 @@ const shortPath = (p, n = 44) => p.length <= n ? p : p.slice(0, 12) + '…' + p.
 const ICON_FOLDER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>';
 function showServiceError(msg) {
   const el = document.createElement('div'); el.className = 'picker';
-  el.innerHTML = `<div class="picker-box"><div class="picker-brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Lichtjahr</div><h1>Kein Zugriff</h1><p class="hint">${esc(msg)}</p></div>`;
+  el.innerHTML = `<div class="picker-box"><div class="picker-brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Lichtjahr</div><h1>${_t('Kein Zugriff')}</h1><p class="hint">${esc(msg)}</p></div>`;
   document.body.appendChild(el);
 }
 
 /* ----- Projekt wählen ----- */
 function projectPicker(list, error = '') {
   return new Promise((resolve) => {
-    const el = document.createElement('div'); el.className = 'picker'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Projekt wählen');
+    const el = document.createElement('div'); el.className = 'picker'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
     const year = new Date().getFullYear() + 1;
     let tab = list.length ? 'list' : 'new', msg = error;
+    const vals = {};                          // Eingaben bleiben beim Wechsel von Reiter oder Sprache erhalten
+    const val = (k, def) => esc(k in vals ? vals[k] : def);
     const draw = () => {
+      el.setAttribute('aria-label', _t('Projekt wählen'));
       el.innerHTML = `<div class="picker-box">
         <div class="picker-brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Lichtjahr</div>
-        <h1>${list.length ? 'Welcher Kalender?' : 'Dein erster Kalender'}</h1>
-        <p class="hint">Ein Projekt ist ein Ordner auf diesem Rechner, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.</p>
-        ${list.length ? `<div class="seg picker-tabs">${[['list', 'Zuletzt'], ['new', 'Neu anlegen'], ['open', 'Öffnen']].map(([v, l]) => `<button aria-pressed="${tab === v}" data-tab="${v}">${l}</button>`).join('')}</div>` : ''}
+        <h1>${list.length ? _t('Welcher Kalender?') : _t('Dein erster Kalender')}</h1>
+        <p class="hint">${_t('Ein Projekt ist ein Ordner auf diesem Rechner, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.')}</p>
+        ${list.length ? `<div class="seg picker-tabs">${[['list', _t('Zuletzt')], ['new', _t('Neu anlegen')], ['open', _t('Öffnen')]].map(([v, l]) => `<button aria-pressed="${tab === v}" data-tab="${v}">${l}</button>`).join('')}</div>` : ''}
         ${msg ? `<p class="picker-err" role="alert">${esc(msg)}</p>` : ''}
         ${tab === 'list' ? `<div class="picker-list">${list.map(p => `<button class="picker-item" data-pid="${esc(p.id)}"><b>${esc(p.title)} ${esc(String(p.calendarYear))}</b><span title="${esc(p.storage && p.storage.location || '')}">${esc(shortPath(p.storage && (p.storage.display || p.storage.location) || '', 60))}</span></button>`).join('')}</div>` : ''}
         ${tab === 'new' ? `<form class="picker-form" data-form="new">
-          <div class="field"><label for="pk-path">Ordner</label><input type="text" id="pk-path" name="path" required value="~/Bilder/Kalender-${year}" spellcheck="false" autocomplete="off"><span class="hint">Wird angelegt, falls es ihn noch nicht gibt. <code>~</code> ist dein Benutzerordner.</span></div>
-          <div class="row"><div class="field" style="flex:1"><label for="pk-title">Titel</label><input type="text" id="pk-title" name="title" value="Familienkalender"></div>
-          <div class="field" style="width:110px"><label for="pk-year">Kalenderjahr</label><input id="pk-year" name="year" type="number" min="2000" max="2100" value="${year}"></div></div>
-          <button class="btn primary" type="submit">Projekt anlegen</button></form>` : ''}
+          <div class="field"><label for="pk-path">${_t('Ordner')}</label><input type="text" id="pk-path" name="path" required value="${val('new:path', _t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Wird angelegt, falls es ihn noch nicht gibt. {tilde} ist dein Benutzerordner.', { tilde: '<code>~</code>' })}</span></div>
+          <div class="row"><div class="field" style="flex:1"><label for="pk-title">${_t('Titel')}</label><input type="text" id="pk-title" name="title" value="${val('new:title', _t('Familienkalender'))}"></div>
+          <div class="field" style="width:110px"><label for="pk-year">${_t('Kalenderjahr')}</label><input id="pk-year" name="year" type="number" min="2000" max="2100" value="${val('new:year', year)}"></div></div>
+          <button class="btn primary" type="submit">${_t('Projekt anlegen')}</button></form>` : ''}
         ${tab === 'open' ? `<form class="picker-form" data-form="open">
-          <div class="field"><label for="pk-open">Ordner mit <code>lichtjahr.json</code></label><input type="text" id="pk-open" name="path" required placeholder="~/Bilder/Kalender-${year}" spellcheck="false" autocomplete="off"><span class="hint">Auch ein Ordner, den ihr über Nextcloud, Syncthing oder ein Netzlaufwerk teilt.</span></div>
-          <button class="btn primary" type="submit">Öffnen</button></form>` : ''}
-        <div class="picker-foot">${SVC.pid ? '<button class="btn" data-cancel>Abbrechen</button>' : ''}<button class="linkish" data-browser>Ohne Projektordner im Browser ausprobieren</button></div>
+          <div class="field"><label for="pk-open">${_t('Ordner mit {file}', { file: '<code>lichtjahr.json</code>' })}</label><input type="text" id="pk-open" name="path" required value="${val('open:path', '')}" placeholder="${esc(_t('~/Bilder/Kalender-{year}', { year }))}" spellcheck="false" autocomplete="off"><span class="hint">${_t('Auch ein Ordner, den ihr über Nextcloud, Syncthing oder ein Netzlaufwerk teilt.')}</span></div>
+          <button class="btn primary" type="submit">${_t('Öffnen')}</button></form>` : ''}
+        <div class="picker-foot">${SVC.pid ? `<button class="btn" data-cancel>${_t('Abbrechen')}</button>` : ''}<button class="linkish" data-browser>${_t('Ohne Projektordner im Browser ausprobieren')}</button>${langButton('linkish')}</div>
       </div>`;
       const f = el.querySelector('input'); if (f && !coarse()) f.focus();
     };
@@ -422,7 +442,16 @@ function projectPicker(list, error = '') {
       try { const s = await fn(); await openProject(s.id); finish('open'); }
       catch (e) { msg = e.message; el.classList.remove('working'); draw(); }
     };
+    el.addEventListener('input', (e) => { const fm = e.target.closest('form'); if (fm && e.target.name) vals[fm.dataset.form + ':' + e.target.name] = e.target.value; });
     el.addEventListener('click', (e) => {
+      // Sprache hier selbst umschalten und neu zeichnen; der allgemeine Klick-Handler (data-act) soll nicht noch einmal laufen
+      const lg = e.target.closest('[data-act="lang"]');
+      if (lg) {
+        e.stopPropagation();
+        try { setLang(lg.dataset.v); } catch (err) { console.error(err); }
+        draw(); const b = el.querySelector('[data-act="lang"]'); if (b) b.focus();
+        return;
+      }
       const t = e.target.closest('[data-tab]'); if (t) { tab = t.dataset.tab; msg = ''; draw(); return; }
       const it = e.target.closest('[data-pid]'); if (it) { tryOpen(async () => ({ id: it.dataset.pid })); return; }
       if (e.target.closest('[data-browser]')) finish('browser');
@@ -432,7 +461,8 @@ function projectPicker(list, error = '') {
       e.preventDefault();
       const fd = new FormData(e.target), kind = e.target.dataset.form, path = String(fd.get('path') || '').trim();
       if (!path) return;
-      if (kind === 'new') tryOpen(() => api('projects', { method: 'POST', body: { path, title: String(fd.get('title') || 'Familienkalender').trim() || 'Familienkalender', calendarYear: +fd.get('year') || year } }));
+      // language: Sprache der Ordnernamen im neuen Projekt (Fotos/01 Januar oder Photos/01 January)
+      if (kind === 'new') tryOpen(() => api('projects', { method: 'POST', body: { path, title: String(fd.get('title') || '').trim() || _t('Familienkalender'), calendarYear: +fd.get('year') || year, language: LANG } }));
       else tryOpen(() => api('projects/open', { method: 'POST', body: { path } }));
     });
     draw();
@@ -462,7 +492,7 @@ Object.assign(ACTIONS, {
     const list = Object.values(S.photos).filter(p => p.month < 0 && p.suggested != null);
     for (const p of list) { p.month = p.suggested; p.src = 'Aufnahmedatum'; }
     commit(); renderPhotos();
-    toast(`${plural(list.length, 'Foto', 'Fotos')} nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.`, 6000, { label: 'Rückgängig', fn: undo });
+    toast(list.length === 1 ? _t('1 Foto nach Aufnahmedatum einsortiert; die Datei wandert in den Monatsordner.') : _t('{n} Fotos nach Aufnahmedatum einsortiert; die Dateien wandern in die Monatsordner.', { n: list.length }), 6000, { label: _t('Rückgängig'), fn: undo });
   },
   svcswitch: async () => {
     await flushSave();
