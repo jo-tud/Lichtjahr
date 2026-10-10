@@ -60,7 +60,7 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
 
 (async () => {
   makePhotos(path.join(TMP, 'fotos'));
-  const server = spawn('python3', ['-m', 'lichtjahr', '--data-dir', path.join(TMP, 'data'), '--cache-dir', path.join(TMP, 'cache'), 'serve', '--port', String(PORT)],
+  const server = spawn('python3', ['-m', 'lichtjahr', '--data-dir', path.join(TMP, 'data'), '--cache-dir', path.join(TMP, 'cache'), 'serve', '--no-browser', '--port', String(PORT)],
     { cwd: path.join(ROOT, 'backend'), env: { ...process.env, PYTHONPATH: path.join(ROOT, 'backend') }, stdio: 'inherit' });
   const browser = await pw.chromium.launch();
   try {

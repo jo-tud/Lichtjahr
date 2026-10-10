@@ -11,10 +11,11 @@ und ein CMYK-PDF für die Druckerei erzeugen. Im Browser, am Desktop wie auf dem
 
 [![CI](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml/badge.svg)](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
-![Status: Prototyp](https://img.shields.io/badge/Status-Prototyp-orange.svg)
+[![Release](https://img.shields.io/github/v/release/jo-tud/Lichtjahr)](https://github.com/jo-tud/Lichtjahr/releases/latest)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 
 [**▶ Im Browser ausprobieren**](https://jo-tud.github.io/Lichtjahr/) ·
+[**⬇ Herunterladen**](https://github.com/jo-tud/Lichtjahr/releases/latest) ·
 [Schnellstart](#schnellstart) ·
 [Funktionen](#was-lichtjahr-kann) ·
 [Roadmap](#roadmap) ·
@@ -151,10 +152,31 @@ Eigene Fotos bleiben im Browser (IndexedDB) und werden nirgendwohin hochgeladen.
 
 Ohne Internet geht es genauso: Repository klonen und `prototyp/dist/index.html` im Browser öffnen.
 
-### Mit Projektordner (empfohlen)
+### Auf dem eigenen Rechner (empfohlen)
 
 Für den echten Kalender läuft auf deinem Rechner ein kleiner Dienst, der die App ausliefert und direkt in
-einem Ordner arbeitet. Voraussetzung ist Python 3.11 oder neuer.
+einem Ordner arbeitet.
+
+1. **`Lichtjahr-<version>.zip`** aus dem [aktuellen Release](https://github.com/jo-tud/Lichtjahr/releases/latest) herunterladen und entpacken.
+2. **`Lichtjahr.command`** (macOS) oder **`Lichtjahr.bat`** (Windows) doppelklicken, unter Linux `./lichtjahr.sh` starten.
+3. Lichtjahr öffnet sich im Browser. Das Fenster offen lassen, solange du arbeitest; zum Beenden schließen.
+
+Beim ersten Start richtet das Skript das Hilfsprogramm [uv](https://docs.astral.sh/uv/) ein (es fragt vorher),
+dazu Python und alle Pakete in deinem Benutzerordner, etwa 150 MB; systemweit wird nichts installiert. Spätere
+Starts dauern wenige Sekunden. Falls macOS das Skript nicht öffnet: Systemeinstellungen → Datenschutz &
+Sicherheit → „Dennoch öffnen“. Unter Windows fragt eventuell SmartScreen: „Weitere Informationen“ →
+„Trotzdem ausführen“.
+
+<details>
+<summary>Mit dem Terminal</summary>
+
+Wer uv schon hat, braucht nur einen Befehl (die Versionsnummer steht im Release):
+
+```sh
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.0.0/lichtjahr-1.0.0-py3-none-any.whl lichtjahr
+```
+
+Aus dem Repository, mit Python 3.11 oder neuer:
 
 ```sh
 git clone https://github.com/jo-tud/Lichtjahr.git
@@ -162,8 +184,10 @@ cd Lichtjahr/backend
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 
-lichtjahr serve                                      # → http://localhost:8470/
+lichtjahr serve                                      # → http://localhost:8470/, öffnet den Browser
 ```
+
+</details>
 
 Beim ersten Öffnen legst du den Projektordner an, zum Beispiel `~/Bilder/Kalender-2027`. Danach Fotos in
 die Monatsordner legen, auch nach und nach, von mehreren Leuten und mit anderen Programmen; beim Öffnen
@@ -171,8 +195,8 @@ der App sind sie da.
 
 <img src="docs/images/de/projekt.webp" alt="Projektwahl beim Start und Projektordner-Karte" width="720">
 
-Vom Handy im Heimnetz geht es mit `lichtjahr serve --host 0.0.0.0`; der Dienst zeigt dann eine Adresse mit
-Zugriffsschlüssel. Mehr dazu in [`backend/README.de.md`](backend/README.de.md).
+Vom Handy im Heimnetz geht es mit dem Zusatz `--host 0.0.0.0` (zum Beispiel `./lichtjahr.sh --host 0.0.0.0`);
+das Fenster zeigt dann eine Adresse mit Zugriffsschlüssel. Mehr dazu in [`backend/README.de.md`](backend/README.de.md).
 
 ## Projektordner
 
@@ -329,6 +353,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Fotos für den Druck optimieren: Automatik, Looks, Regler, Monate angleichen, Druckausgleich
 - [x] Wer ist wie oft auf den Fotos (lokale Gesichtserkennung)
 - [x] Serienbilder: bestes Foto vorgeschlagen
+- [x] Version 1.0: Download mit Startskripten für macOS, Windows und Linux ([Änderungen](CHANGELOG.md), auf Englisch)
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
 

@@ -6,11 +6,16 @@ The service works directly in a **project folder** on your computer. It reads th
 folders, creates thumbnails, saves the design state and protects the project with an editing lock. The
 app in the browser talks to it through an HTTP API.
 
-The service also serves the app itself: start `lichtjahr serve`, open the address in your browser, done.
+The service also serves the app itself: start `lichtjahr serve` and the app opens in your browser.
 
 ## Installation
 
-Requirement: Python 3.11 or newer (usually already installed on Linux).
+Without a terminal: download the ZIP from the [latest release](https://github.com/jo-tud/Lichtjahr/releases/latest)
+and double-click the start script (see the [main README](../README.md#quick-start)). The scripts use
+[uv](https://docs.astral.sh/uv/), which also provides Python, and run the packaged service including the app
+and HEIC support.
+
+For development, with Python 3.11 or newer (usually already installed on Linux):
 
 ```sh
 cd backend
@@ -25,8 +30,11 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF photos from the iPhone (pillo
 ```sh
 # Start the service – reachable from this computer only
 lichtjahr serve
-# → Lichtjahr 0.1.0 running: http://localhost:8470/
+# → Lichtjahr 1.0.0 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
 ```
+
+Starting it a second time only opens the browser again. If port 8470 is taken by another program, the
+service picks the next free port and says so.
 
 The first time you open it, the app asks for the project folder: create a new one (the month folders are
 created along with it) or open an existing one. Alternatively, on the command line:
@@ -56,7 +64,7 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 0.1.0 running: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.0.0 running: http://192.168.178.20:8470/?token=…
 ```
 
 As soon as the service is reachable on the network, it requires an access key. The key is generated
@@ -91,8 +99,16 @@ Calendar-2027/
     └── journal.jsonl       journal for file moves
 ```
 
-Thumbnails are not stored in the project folder but in the cache (`~/.cache/lichtjahr`). The list of known
-projects and rescued drafts live under `~/.local/share/lichtjahr`.
+Thumbnails are not stored in the project folder but in a cache; the list of known projects, rescued drafts and
+the face recognition model live in a data folder on this computer (`--data-dir` and `--cache-dir` change them):
+
+| System  | Data                                   | Cache                              |
+|---------|----------------------------------------|------------------------------------|
+| Linux   | `~/.local/share/lichtjahr`             | `~/.cache/lichtjahr`               |
+| macOS   | `~/Library/Application Support/Lichtjahr` | `~/Library/Caches/Lichtjahr`    |
+| Windows | `%LOCALAPPDATA%\Lichtjahr`             | `%LOCALAPPDATA%\Lichtjahr\Cache`   |
+
+If `~/.local/share/lichtjahr` already exists (earlier versions used it everywhere), it keeps being used.
 
 ## Print PDF
 

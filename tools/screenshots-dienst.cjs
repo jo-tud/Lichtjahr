@@ -47,7 +47,7 @@ bg.thumbnail((${maxW}, 2000), Image.LANCZOS); bg.save(${JSON.stringify(out)}, 'W
 
 async function shoot(browser, lang, port) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), `lj-home-${lang}-`));
-  const srv = spawn('python3', ['-m', 'lichtjahr', '--data-dir', path.join(home, '.data'), '--cache-dir', path.join(home, '.cache'), 'serve', '--port', String(port)],
+  const srv = spawn('python3', ['-m', 'lichtjahr', '--data-dir', path.join(home, '.data'), '--cache-dir', path.join(home, '.cache'), 'serve', '--no-browser', '--port', String(port)],
     { cwd: path.join(ROOT, 'backend'), env: { ...process.env, PYTHONPATH: path.join(ROOT, 'backend'), HOME: home }, stdio: 'ignore' });
   try {
     for (let i = 0; i < 50; i++) { try { if ((await fetch(`http://localhost:${port}/api/health`)).ok) break; } catch (e) { /* startet noch */ } await sleep(200); }

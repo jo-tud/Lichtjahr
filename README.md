@@ -11,10 +11,11 @@ and create a CMYK PDF for the print shop. In the browser, on desktop and phone a
 
 [![CI](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml/badge.svg)](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Status: Prototype](https://img.shields.io/badge/Status-Prototype-orange.svg)
+[![Release](https://img.shields.io/github/v/release/jo-tud/Lichtjahr)](https://github.com/jo-tud/Lichtjahr/releases/latest)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 
 [**▶ Try it in your browser**](https://jo-tud.github.io/Lichtjahr/) ·
+[**⬇ Download**](https://github.com/jo-tud/Lichtjahr/releases/latest) ·
 [Quick start](#quick-start) ·
 [Features](#what-lichtjahr-can-do) ·
 [Roadmap](#roadmap) ·
@@ -151,10 +152,30 @@ Your own photos stay in the browser (IndexedDB) and are never uploaded anywhere.
 
 It works just the same without internet: clone the repository and open `prototyp/dist/index.html` in your browser.
 
-### With a project folder (recommended)
+### On your computer (recommended)
 
 For the real calendar, a small service runs on your computer. It serves the app and works directly in a
-folder. You need Python 3.11 or newer.
+folder.
+
+1. Download **`Lichtjahr-<version>.zip`** from the [latest release](https://github.com/jo-tud/Lichtjahr/releases/latest) and unpack it.
+2. Double-click **`Lichtjahr.command`** (macOS), **`Lichtjahr.bat`** (Windows) or run `./lichtjahr.sh` (Linux).
+3. Lichtjahr opens in your browser. Keep the window open while you work; close it to quit.
+
+The first start sets up the helper program [uv](https://docs.astral.sh/uv/) (it asks first), Python and all
+packages in your user folder, about 150 MB; nothing is installed system-wide. Later starts take a few seconds.
+If macOS refuses to open the script: System Settings → Privacy & Security → “Open Anyway”. On Windows,
+SmartScreen may ask: “More info” → “Run anyway”.
+
+<details>
+<summary>With a terminal</summary>
+
+If you already have uv, one command is enough (the version number is in the release):
+
+```sh
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.0.0/lichtjahr-1.0.0-py3-none-any.whl lichtjahr
+```
+
+From the repository, with Python 3.11 or newer:
 
 ```sh
 git clone https://github.com/jo-tud/Lichtjahr.git
@@ -162,8 +183,10 @@ cd Lichtjahr/backend
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 
-lichtjahr serve                                      # → http://localhost:8470/
+lichtjahr serve                                      # → http://localhost:8470/, opens the browser
 ```
+
+</details>
 
 The first time you open it, you create the project folder, for example `~/Pictures/Calendar-2027`. Then put
 photos into the month folders – bit by bit, from several people and with other programs; they will be there
@@ -171,8 +194,8 @@ when you open the app.
 
 <img src="docs/images/projekt.webp" alt="Project selection at startup and project folder card" width="720">
 
-To use it from your phone on your home network, run `lichtjahr serve --host 0.0.0.0`; the service then
-shows an address with an access key. More in [`backend/README.md`](backend/README.md).
+To use it from your phone on your home network, start it with `--host 0.0.0.0` (for example
+`./lichtjahr.sh --host 0.0.0.0`); the window then shows an address with an access key. More in [`backend/README.md`](backend/README.md).
 
 ## Project folder
 
@@ -328,6 +351,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Optimize photos for print: automatic mode, looks, manual sliders, matching months, print adaptation
 - [x] Who appears how often in the photos (local face recognition)
 - [x] Burst series: best photo suggested
+- [x] Version 1.0: download with start scripts for macOS, Windows and Linux ([changelog](CHANGELOG.md))
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).
 
