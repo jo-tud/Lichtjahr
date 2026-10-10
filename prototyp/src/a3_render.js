@@ -1,7 +1,7 @@
 /* ---------- Geometrie (alles in mm, Ursprung = Endformat oben links) ---------- */
-function slotRects(p, doc = S.doc) {
-  if (p.layout === 'index') return [];
-  const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = doc.gap;
+// Rahmen der Vorlage; Abstand der Seite (falls gesetzt) oder der globale
+function templateRects(p, doc) {
+  const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = p.gap ?? doc.gap;
   const cw = W - 2 * m, ch = H - 2 * m, X = (u) => m + u * cw, Y = (v) => m + v * ch, e = 1e-6;
   const out = [];
   L.slots.forEach(([x, y, w, h], i) => {
@@ -13,15 +13,36 @@ function slotRects(p, doc = S.doc) {
   });
   (L.ov || []).forEach(([x, y, w, h], j) => {
     const i = L.slots.length + j, o = (p.ov || {})[i] || {}, s = o.s ?? 1;
-    out.push({ i, x: X(o.x ?? x), y: Y(o.y ?? y), w: w * cw * s, h: h * ch * s, overlay: true, border: doc.ovBorder });
+    out.push({ i, x: X(o.x ?? x), y: Y(o.y ?? y), w: w * cw * s, h: h * ch * s, overlay: true });
   });
   return out;
 }
+// Alle sichtbaren Rahmen einer Seite, nach Ebene sortiert (unten zuerst)
+function slotRects(p, doc = S.doc) {
+  if (p.layout === 'index') return [];
+  const out = [];
+  for (const r of templateRects(p, doc)) {
+    const sl = p.slots[r.i] || {};
+    if (sl.hidden) continue;
+    out.push({ ...r, ...(sl.box || {}), custom: !!sl.box, border: sl.border ?? (r.overlay ? doc.ovBorder : 0), z: sl.z ?? (r.overlay ? 50 + r.i : r.i) });
+  }
+  (p.extra || []).forEach((sl, j) => out.push({ i: sl.id, ...sl.box, overlay: true, extra: true, custom: true, border: sl.border ?? doc.ovBorder, z: sl.z ?? 100 + j }));
+  return out.sort((a, b) => a.z - b.z);
+}
+const rectOf = (p, key) => slotRects(p).find(r => r.i === key);
+// Lage des Fotos im Rahmen. Füllen (cover): das gedrehte Foto deckt den Rahmen immer ganz ab.
+// Ganz zeigen (contain): das Foto passt hinein, der Rest zeigt den Hintergrund.
 function placeImage(r, ph, sl) {
-  const s = Math.max(r.w / ph.w, r.h / ph.h) * (sl.zoom || 1);
-  const dw = ph.w * s, dh = ph.h * s;
-  const cx = clamp(sl.cx ?? .5, r.w / 2 / dw, 1 - r.w / 2 / dw), cy = clamp(sl.cy ?? .5, r.h / 2 / dh, 1 - r.h / 2 / dh);
-  return { x: r.x + r.w / 2 - cx * dw, y: r.y + r.h / 2 - cy * dh, w: dw, h: dh, cx, cy };
+  const rot = sl.rot || 0, th = rot * Math.PI / 180, c = Math.abs(Math.cos(th)), s = Math.abs(Math.sin(th));
+  const bw = r.w * c + r.h * s, bh = r.w * s + r.h * c;   // Rahmen, gesehen im Koordinatensystem des Fotos
+  const contain = sl.fit === 'contain';
+  const k = (contain ? Math.min(r.w / ph.w, r.h / ph.h) : Math.max(bw / ph.w, bh / ph.h)) * (sl.zoom || 1);
+  const dw = ph.w * k, dh = ph.h * k;
+  let cx = sl.cx ?? .5, cy = sl.cy ?? .5;
+  if (contain) { cx = clamp(cx, 0, 1); cy = clamp(cy, 0, 1); }
+  else { const ex = Math.min(.5, bw / 2 / dw), ey = Math.min(.5, bh / 2 / dh); cx = clamp(cx, ex, 1 - ex); cy = clamp(cy, ey, 1 - ey); }
+  const fx = r.x + r.w / 2, fy = r.y + r.h / 2;
+  return { x: fx - cx * dw, y: fy - cy * dh, w: dw, h: dh, fx, fy, cx, cy, rot };
 }
 // effektive Auflösung eines Fotos im Rahmen
 const dpiOf = (ph, place) => ph.w / (place.w / 25.4);
@@ -146,8 +167,9 @@ function pageItems(p, opt = {}) {
   items.push({ t: 'rect', x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b, fill: doc.bg, role: 'bg' });
   if (p.layout === 'index') return items.concat(indexItems(p, opt));
   for (const r of slotRects(p)) {
-    const sl = p.slots[r.i] || newSlot(), ph = sl.photo && S.photos[sl.photo];
-    if (r.overlay && r.border > 0) items.push({ t: 'rect', x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border, fill: doc.bg, slot: r.i, role: 'ovb' });
+    const sl = slotOf(p, r.i) || newSlot(), ph = sl.photo && S.photos[sl.photo];
+    if (r.border > 0) items.push({ t: 'rect', x: r.x - r.border, y: r.y - r.border, w: r.w + 2 * r.border, h: r.h + 2 * r.border, fill: doc.bg, slot: r.i, role: 'ovb' });
+    if (ph && sl.fit === 'contain') items.push({ t: 'rect', ...r, fill: doc.bg, slot: r.i, role: 'ovb' });
     if (ph) items.push({ t: 'img', slot: r.i, clip: r, place: placeImage(r, ph, sl), photo: ph.id, overlay: r.overlay });
     else items.push({ t: 'empty', slot: r.i, clip: r, overlay: r.overlay });
   }
@@ -167,7 +189,7 @@ function miniPage(p, tx, ty, s) {
   const tr = (r) => ({ x: tx + r.x * s, y: ty + r.y * s, w: r.w * s, h: r.h * s });
   for (const it of pageItems(p, { noBlocks: true })) {
     if (it.t === 'rect') { const c = intersect(it, trim); if (c) out.push({ ...it, ...tr(c), role: 'mini' }); }
-    else if (it.t === 'img') { const c = intersect(it.clip, trim); if (c) out.push({ ...it, clip: tr(c), place: tr(it.place), mini: true }); }
+    else if (it.t === 'img') { const c = intersect(it.clip, trim); if (c) out.push({ ...it, clip: tr(c), place: { ...it.place, ...tr(it.place), fx: tx + it.place.fx * s, fy: ty + it.place.fy * s }, mini: true }); }
     else if (it.t === 'empty') { const c = intersect(it.clip, trim); if (c) out.push({ t: 'rect', ...tr(c), fill: 'sand', opacity: 1 }); }
   }
   out.push({ t: 'frame', x: tx, y: ty, w: S.doc.w * s, h: S.doc.h * s });
@@ -183,7 +205,7 @@ function indexLayout() {
   const entries = indexEntries().map(k => {
     const pg = S.pages[k], caps = []; let num = 0;
     for (const r of slotRects(pg)) {
-      const sl = pg.slots[r.i]; if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
+      const sl = slotOf(pg, r.i); if (!sl || !sl.photo || !S.photos[sl.photo]) continue;
       caps.push([++num, S.photos[sl.photo].caption, r]);
     }
     const lines = caps.flatMap(([i, cap]) => cap ? wrap(cap, 'regular', ls, tw - 4 * f).map((l, j) => [j === 0 ? i : null, l]) : []);
@@ -230,6 +252,7 @@ function indexItems(p) {
 
 /* ---------- SVG ---------- */
 const cRGB = (id) => (COLORS[id] || COLORS.black).rgb;
+const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}"${pl.rot ? ` transform="rotate(${pl.rot} ${pl.fx} ${pl.fy})"` : ''}`;
 let svgN = 0;
 function svgPage(p, o = {}) {
   // o.mode: 'editor' | 'thumb' | 'proof'
@@ -249,13 +272,13 @@ function svgPage(p, o = {}) {
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}">${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place;
-        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" preserveAspectRatio="none"/></g>`;
+        return `<g clip-path="url(#${cid})"${ed && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"/></g>`;
       }
       case 'empty': {
         const r = it.clip;
         if (!ed) return `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#dfe3e7"/>`;
         const vis = intersect(r, { x: 0, y: 0, w: W, h: H }) || r, cx = vis.x + vis.w / 2, cy = vis.y + vis.h / 2, s = Math.min(vis.w, vis.h) * .08;
-        return `<g class="empty" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
+        return `<g class="empty${ui.sel === it.slot ? ' selframe' : ''}" data-slot="${it.slot}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#e3e7eb"/>` +
           `<rect x="${vis.x + 2}" y="${vis.y + 2}" width="${Math.max(0, vis.w - 4)}" height="${Math.max(0, vis.h - 4)}" fill="none" stroke="#a7b0ba" stroke-width="0.6" stroke-dasharray="3 2"/>` +
           `<path d="M${cx - s} ${cy}h${2 * s}M${cx} ${cy - s}v${2 * s}" stroke="#7d8793" stroke-width="${s * .18}" stroke-linecap="round"/>` +
           (vis.w > 60 ? `<text x="${cx}" y="${cy + s * 2.2}" font-size="${Math.min(5, s * .7)}" fill="#6b7580" text-anchor="middle">Foto hierher ziehen</text>` : '') + `</g>`;
@@ -295,7 +318,7 @@ function svgPage(p, o = {}) {
     if (ci) {
       const c = ci.clip, pl = ci.place, gid = `${id}g`;
       defs.push(`<clipPath id="${gid}"><path clip-rule="evenodd" d="M${-pad} ${-pad}h${W + 2 * pad}v${H + 2 * pad}h${-(W + 2 * pad)}zM${c.x} ${c.y}v${c.h}h${c.w}v${-c.h}z"/></clipPath>`);
-      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}" opacity=".38" preserveAspectRatio="none"/></g>`;
+      over += `<g clip-path="url(#${gid})" data-slot="${ui.crop}" class="cropghost"><image href="${url(ci.photo)}" ${imgAttrs(pl)} opacity=".38" preserveAspectRatio="none"/></g>`;
     }
     if (ui.selBlock) {
       const bl = items.find(i => i.t === 'block' && i.kind === ui.selBlock);
@@ -307,10 +330,11 @@ function svgPage(p, o = {}) {
       if (r) {
         over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" stroke="var(--accent)" stroke-width="1.1"${ui.crop === r.i ? ' stroke-dasharray="3 2"' : ''} pointer-events="none"/>`;
         if (ui.swapFrom != null) over += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="var(--accent)" fill-opacity=".18" pointer-events="none"/>`;
-        if (r.overlay && ui.crop == null) {
-          const hs = Math.max(5, Math.min(W, H) * .022);
-          over += `<g data-handle="ov" data-slot-h="${r.i}" style="cursor:move"><circle cx="${r.x}" cy="${r.y}" r="${hs}" fill="var(--accent)"/><path d="M${r.x - hs * .6} ${r.y}h${hs * 1.2}M${r.x} ${r.y - hs * .6}v${hs * 1.2}M${r.x - hs * .38} ${r.y - hs * .22}l${-hs * .22} ${hs * .22}l${hs * .22} ${hs * .22}M${r.x + hs * .38} ${r.y - hs * .22}l${hs * .22} ${hs * .22}l${-hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y - hs * .38}l${hs * .22} ${-hs * .22}l${hs * .22} ${hs * .22}M${r.x - hs * .22} ${r.y + hs * .38}l${hs * .22} ${hs * .22}l${hs * .22} ${-hs * .22}" stroke="#fff" stroke-width="${hs * .13}" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>`;
-          over += `<g data-handle="ovs" data-slot-h="${r.i}" style="cursor:nwse-resize"><rect x="${r.x + r.w - hs * .8}" y="${r.y + r.h - hs * .8}" width="${hs * 1.6}" height="${hs * 1.6}" rx="${hs * .3}" fill="var(--accent)"/></g>`;
+        if (ui.crop == null && ui.swapFrom == null) {
+          // Eckpunkte zum Ändern der Größe; ziehen im Rahmen verschiebt ihn
+          const hs = Math.max(2.4, Math.min(W, H) * .011);
+          for (const [h, x, y] of [['nw', r.x, r.y], ['ne', r.x + r.w, r.y], ['sw', r.x, r.y + r.h], ['se', r.x + r.w, r.y + r.h]])
+            over += `<rect data-handle="${h}" data-slot-h="${r.i}" x="${x - hs}" y="${y - hs}" width="${2 * hs}" height="${2 * hs}" rx="${hs * .3}" fill="#fff" stroke="var(--accent)" stroke-width="${hs * .35}" style="cursor:${h === 'nw' || h === 'se' ? 'nwse' : 'nesw'}-resize"/>`;
         }
       }
     }

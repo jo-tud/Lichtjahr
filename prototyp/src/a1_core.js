@@ -155,7 +155,12 @@ function pageShort(key) {
   if (isIndex(key)) return 'Reg.' + (indexNo(key) > 1 ? ' ' + indexNo(key) : '');
   return MONTHS_SHORT[pageMonth(key)] + (isBack(key) ? ' R' : '');
 }
-function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5 }; }
+// Ein Rahmen: Foto mit Ausschnitt (zoom, cx/cy = Bildpunkt in der Rahmenmitte, rot = Bilddrehung, fit).
+// Optional: box (eigene Lage in mm, dann gilt die Vorlage nicht mehr), z (Ebene), border (Rand in mm), hidden.
+function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5, rot: 0, fit: 'cover' }; }
+// Vorlagenrahmen haben Zahlen als Schlüssel, zusätzliche Rahmen eine feste ID
+const keyOf = (v) => /^\d+$/.test(String(v)) ? +v : String(v);
+function slotOf(p, key) { return typeof key === 'number' ? p.slots[key] : (p.extra || []).find(s => s.id === key); }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
   if (isIndex(key)) p.layout = 'index';
@@ -173,7 +178,7 @@ function ensurePages() {
   if (!pageKeys().includes(ui.page)) ui.page = pageKeys()[0];
 }
 const curPage = () => S.pages[ui.page];
-function visibleSlots(p) { return p.layout === 'index' ? [] : p.slots.slice(0, slotCount(p.layout)); }
+function visibleSlots(p) { return p.layout === 'index' ? [] : p.slots.slice(0, slotCount(p.layout)).filter(s => !s.hidden).concat(p.extra || []); }
 function usage() {
   const u = {};
   for (const k of pageKeys()) visibleSlots(S.pages[k]).forEach(s => { if (s.photo) (u[s.photo] ||= []).push(k); });
