@@ -1,50 +1,226 @@
+<div align="center">
+
 # Lichtjahr
 
-Web-App für den jährlichen Familien-Fotokalender: Fotos den Monaten zuordnen, Seiten layouten, Kalendarium platzieren und ein CMYK-PDF für die Druckerei erzeugen.
+**Der Familien-Fotokalender – vom Fotoordner bis zum Druck-PDF.**
 
-## Stand
+Fotos den Monaten zuordnen, Seiten gestalten, Kalendarium platzieren, an der Wand durchblättern
+und ein CMYK-PDF für die Druckerei erzeugen. Im Browser, am Desktop wie auf dem Handy.
 
-Im Ordner `prototyp/` liegt der erste klickbare Prototyp („Kalenderwerkstatt“). Er läuft komplett im Browser als einzelne HTML-Datei und dient zum Erproben der Bedienung. Er ist nicht die Ziel-Architektur (lokales Backend, Projektordner, Nextcloud/WebDAV, Druckereiprofile, ICC-Farbmanagement).
+[![CI](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml/badge.svg)](https://github.com/jo-tud/Lichtjahr/actions/workflows/ci.yml)
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
+![Status: Prototyp](https://img.shields.io/badge/Status-Prototyp-orange.svg)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)
 
-Was der Prototyp kann:
+[**▶ Im Browser ausprobieren**](https://jo-tud.github.io/Lichtjahr/) ·
+[Schnellstart](#schnellstart) ·
+[Funktionen](#was-lichtjahr-kann) ·
+[Roadmap](#roadmap) ·
+[Mitmachen](CONTRIBUTING.md) ·
+[English](#english-summary)
 
-- Fotos importieren (Dateien, Ordner, Drag & Drop); Monat aus Ordnername, EXIF-Aufnahmedatum oder Dateiname
-- „Kalender automatisch gestalten“: Layout je Monat nach Fotozahl und Format, Rahmen mit scharfen Fotos des Monats füllen, Kalendarien an ruhige Stellen setzen; danach alles frei änderbar
-- Formate 29,7 × 29,7 cm, DIN A3 quer und weitere; Formatwechsel auch später, die Seiten passen sich an
-- 15 Seitenvorlagen als Ausgangspunkt, Bildabstand 0–5 mm global oder pro Seite
-- Rahmen frei verschieben, an den Ecken skalieren (mit Einrasten an Rändern, Mitte und Nachbarrahmen), überlagern, nach vorn/hinten, duplizieren, löschen, zusätzliche Rahmen, Rand pro Rahmen; Pfeiltasten verschieben in 0,5-/5-mm-Schritten
-- Doppelklick oder zweites Antippen öffnet den Ausschnitt-Modus: Foto unter dem Rahmen verschieben, zoomen, drehen, „Füllen“ oder „Ganz zeigen“ (Mausrad und zwei Finger nur dort). Eigener Ansichtszoom
-- Fotos tauschen: mit der Maus ein Foto auf einen anderen Rahmen ziehen; beim Ziehen aus der Fotoleiste zeigt der Rahmen vorher, was er ersetzt
-- Jedes Foto gehört zu genau einem Monat: Einsetzen auf einer anderen Monatsseite ordnet es um; steht es dort schon, fragt die App nach (verschieben oder Kopie)
-- Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft, Feiertage nach Bundesland
-- „Platz automatisch finden“: Das Kalendarium sucht im Foto eine ruhige Fläche (wenig Detail, gleichmäßige Helligkeit), meidet Bindung und Rand, wählt Form und Schriftfarbe und bei Bedarf eine Fläche dahinter; für eine Seite oder alle Monate, danach frei korrigierbar
-- Schulferien als feiner Strich (Daten der OpenHolidays API, eingebettet für 2025–2028), Kalenderwochen, Geburtstage als dezenter Punkt oder mit Namen und im Register mit Alter
-- Ein- oder beidseitiger Druck. Rückseiten aufgeklappt (oben Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten. Zusätzliche Blätter für weitere Motive oder freie Seiten. Leuchttisch mit Monatsansichten und Druckbogen
-- Titelblatt
-- Bildregister in drei Arten: Bilder je Seite (Bildtexte, Nummern und Miniaturen wählbar), Text je Seite oder freier Text mit Zwischenüberschriften; fließt über beliebig viele Seiten
-- Lochung und Aufhänger-Ausschnitt als Richtwerte oder mit eigenen Maßen aus dem Datenblatt
-- „An der Wand“: der fertige Kalender hängt an einer Wand und lässt sich mit Wischen, Klick oder Pfeiltasten durchblättern; das Blatt schlägt über die Ringbindung um, in der aufgeklappten Ansicht wird seine Rückseite zum oberen Teil des nächsten Monats
-- PDF-Entwurf mit Beschnitt, TrimBox, eingebetteter Schrift, CMYK-Bildern und ohne Transparenz (Flächen werden eingerechnet)
+<br>
 
-Eine UX-Prüfung durch zwei unabhängige Agenten ist in `docs/UX-PRUEFUNG.md` beschrieben; der Prüfauftrag liegt als Skill in `.claude/skills/ux-pruefung/`.
+<img src="docs/images/wand.gif" alt="Der fertige Kalender hängt an einer Wand und wird umgeblättert" width="720">
 
-Grenzen: CMYK-Umrechnung ohne ICC-Profil, kein PDF/X, kein Druckerei-Profil. Daten liegen nur im Browser (IndexedDB). Das PDF ist deshalb **nicht** als druckfertig geprüft.
+</div>
 
-## Lokaler Dienst
+---
 
-Im Ordner `backend/` liegt der lokale Dienst (Python, FastAPI): Projektordner mit Monatsordnern, Vorschaubilder,
-Bearbeitungssperre, Journal für Dateiverschiebungen. Start mit `lichtjahr serve`, Details in `backend/README.md`.
+## Warum Lichtjahr?
 
-## Prototyp bauen
+Viele Familien gestalten einmal im Jahr einen Wandkalender mit eigenen Fotos. Mit DTP-Programmen wie
+Scribus oder Inkscape ist das mühsam: Kalendarien von Hand setzen, Feiertage nachschlagen, Bilder
+zuschneiden, Beschnitt und Bindung beachten, Farben für die Druckerei umrechnen. Die Online-Editoren
+der Fotodienste sind bequemer, binden aber an einen Anbieter und geben die Arbeit selten wieder heraus.
+
+Lichtjahr ist für genau diesen einen Ablauf gebaut:
+
+1. **Fotos sammeln** – ein Ordner je Monat, gern von mehreren Leuten und über das ganze Jahr verteilt.
+2. **Automatisch gestalten** – ein Klick verteilt Layouts, Fotos und Kalendarien. Danach ist alles frei änderbar.
+3. **An der Wand ansehen** – den fertigen Kalender durchblättern, bevor er in Druck geht.
+4. **PDF erzeugen** – mit Beschnitt, CMYK-Bildern, eingebetteter Schrift und ohne Transparenz.
+
+Die Fotos bleiben bei dir. Es gibt kein Konto und keinen Server, den man dafür braucht.
+
+## Was Lichtjahr kann
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Automatisch gestalten
+
+Layout je Monat nach Fotozahl und Seitenformat, Rahmen gefüllt mit den passenden Fotos des Monats
+(Favoriten, Seitenverhältnis, genug Auflösung), Kalendarium an einer ruhigen Bildstelle.
+Ein Ausgangspunkt in Sekunden statt in Stunden.
+
+</td>
+<td width="50%"><img src="docs/images/gestalten.webp" alt="Gestalten-Ansicht mit Seitenleiste, Seite und Layout-Vorlagen"></td>
+</tr>
+<tr>
+<td valign="top">
+
+### Rahmen frei setzen
+
+16 Vorlagen als Start, dann Rahmen verschieben, an den Ecken skalieren, überlagern, drehen und
+duplizieren – mit Einrasten an Rändern, Mitte und Nachbarrahmen. Doppelklick öffnet den
+Bildausschnitt: Foto unter dem Rahmen schieben, zoomen, „Füllen“ oder „Ganz zeigen“.
+
+</td>
+<td><img src="docs/images/rahmen.webp" alt="Ausgewählter Rahmen mit Griffen und Werkzeugleiste"></td>
+</tr>
+<tr>
+<td valign="top">
+
+### Das Kalendarium sucht sich seinen Platz
+
+„Platz automatisch finden“ analysiert das Foto: Wo ist wenig Detail, wo ist die Helligkeit
+gleichmäßig? Dort landet das Kalendarium, in passender Form (Leiste, Spalte, Raster), mit lesbarer
+Schriftfarbe und bei Bedarf einer Fläche dahinter – für eine Seite oder alle Monate auf einmal.
+
+</td>
+<td><img src="docs/images/platz.webp" alt="Analyse der ruhigen Bildbereiche mit vorgeschlagener Position"></td>
+</tr>
+<tr>
+<td valign="top">
+
+### Fotos und Monate
+
+Import von Dateien, ganzen Ordnern oder per Drag & Drop. Der Monat kommt aus dem Ordnernamen, dem
+EXIF-Aufnahmedatum oder dem Dateinamen. Jedes Foto gehört zu genau einem Monat; Umordnen ist ein Zug.
+
+</td>
+<td><img src="docs/images/fotos.webp" alt="Fotos nach Monaten sortiert"></td>
+</tr>
+<tr>
+<td valign="top">
+
+### Prüfen und drucken
+
+Vor dem Export prüft Lichtjahr leere Rahmen, Auflösung, Lesbarkeit des Kalendariums, Abstand zu
+Schnitt und Bindung sowie fehlende Bildtexte – mit Sprung zur Seite und, wo möglich, direkter
+Korrektur. Der Leuchttisch zeigt alle Monatsansichten oder die Druckbogen.
+
+</td>
+<td><img src="docs/images/druck.webp" alt="Druckansicht mit Prüfliste und Leuchttisch"></td>
+</tr>
+<tr>
+<td valign="top">
+
+### Auch auf dem Handy
+
+Die eigentliche Arbeit passiert am großen Bildschirm, aber Ansehen, Fotos tauschen und
+Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoom.
+
+</td>
+<td><img src="docs/images/handy.webp" alt="Gestalten und Wandansicht auf dem Smartphone"></td>
+</tr>
+</table>
+
+### Alle Funktionen im Überblick
+
+- **Formate:** 29,7 × 29,7 cm, DIN A3 quer und hoch, A4 quer, 30 × 30 cm, 21 × 21 cm oder eigene Maße. Formatwechsel auch später; die Seiten passen sich an.
+- **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
+- **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
+- **Kalendarium:** Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
+- **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten.
+- **Bindung:** Ringbindung und Aufhänger-Ausschnitt als Richtwerte oder mit Maßen aus dem Datenblatt der Druckerei.
+- **Bildabstand:** 0–5 mm, für alle Seiten oder pro Seite.
+- **Rückgängig/Wiederholen** mit Sprung zur geänderten Seite; der Verlauf übersteht ein Neuladen.
+- **An der Wand:** Der Kalender hängt an einer Wand und wird über die Ringbindung umgeblättert – mit Klick, Wischen oder Pfeiltasten.
+
+## Schnellstart
+
+### Nur ausprobieren
+
+Öffne die **[Online-Version](https://jo-tud.github.io/Lichtjahr/)**. Sie startet mit Beispielbildern.
+Eigene Fotos bleiben im Browser (IndexedDB) und werden nirgendwohin hochgeladen.
+
+Ohne Internet geht es genauso: Repository klonen und `prototyp/dist/index.html` im Browser öffnen.
+
+### Mit Projektordner (lokaler Dienst)
+
+Der lokale Dienst arbeitet direkt in einem Ordner auf deinem Rechner: Monatsordner, Vorschaubilder,
+Bearbeitungssperre, sichere Dateiverschiebungen. Voraussetzung ist Python 3.11 oder neuer.
 
 ```sh
-cd prototyp
-./build.sh            # erzeugt dist/kalenderwerkstatt.html
+git clone https://github.com/jo-tud/Lichtjahr.git
+cd Lichtjahr/backend
+python3 -m venv .venv && . .venv/bin/activate
+pip install -e .
+
+lichtjahr init ~/Bilder/Kalender-2027 --year 2027   # legt die Monatsordner an
+lichtjahr serve                                      # → http://localhost:8470/
 ```
 
-Die Datei `dist/kalenderwerkstatt.html` lässt sich direkt im Browser öffnen.
+Danach Fotos in die Monatsordner legen, auch nach und nach und mit anderen Programmen. Mehr dazu,
+inklusive Zugriff vom Handy im Heimnetz, steht in [`backend/README.md`](backend/README.md).
 
-Aufbau:
+> [!NOTE]
+> Die Oberfläche speichert im Moment noch im Browser. Die Anbindung an den Projektordner ist der
+> nächste Schritt der [Roadmap](#roadmap).
+
+## Projektordner
+
+```text
+Kalender-2027/
+├── lichtjahr.json        Manifest: Fotos, Gestaltungsstand, Revision
+├── Fotos/
+│   ├── 01 Januar/        ein Ordner je Monat – das ist die eigentliche Zuordnung
+│   ├── …
+│   ├── 12 Dezember/
+│   └── Ohne Monat/
+├── Export/               fertige PDFs
+└── .lichtjahr/           Sperre, Journal, interne Daten
+```
+
+Der Ordner ist das Projekt: Er lässt sich kopieren, sichern und mit Nextcloud, Syncthing oder einem
+Netzlaufwerk teilen. Fotos werden über ihren SHA-256-Hash wiedererkannt, auch wenn sie umbenannt oder
+verschoben wurden.
+
+## Stand des PDF-Exports
+
+Ehrlich gesagt: Das PDF ist ein **guter Entwurf, aber noch nicht als druckfertig geprüft.**
+
+| Bereits umgesetzt | Noch offen |
+|---|---|
+| Beschnitt, TrimBox und BleedBox | ICC-Farbmanagement (z. B. FOGRA39/51) |
+| Bilder als CMYK-JPEG (DeviceCMYK) | PDF/X-Ausgabe |
+| Schrift eingebettet (Jost) | Druckereiprofile mit deren Vorgaben |
+| Keine Transparenz – Flächen werden eingerechnet | Preflight gegen diese Profile |
+| Auflösungsprüfung je Rahmen | |
+
+Die CMYK-Umrechnung ist eine einfache Formel ohne ICC-Profil. Für den Druck lohnt ein Proof oder die
+Farbumrechnung durch die Druckerei. Echtes Farbmanagement kommt mit dem Export im lokalen Dienst.
+
+## Aufbau
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["Oberfläche<br/>prototyp/ – eine HTML-Datei"]
+    IDB[("IndexedDB")]
+  end
+  subgraph Rechner["Eigener Rechner"]
+    API["Lokaler Dienst<br/>backend/ – FastAPI"]
+    DIR[("Projektordner<br/>Fotos/01 Januar …")]
+  end
+  UI -- heute --> IDB
+  UI -. nächster Schritt .-> API
+  API --> DIR
+  UI -- Export --> PDF["PDF-Entwurf<br/>CMYK, Beschnitt"]
+```
+
+| Ordner | Inhalt |
+|---|---|
+| [`prototyp/`](prototyp) | Die Oberfläche: Vanilla JavaScript ohne Framework und ohne Build-Abhängigkeiten. Seiten werden in Millimetern beschrieben und daraus als SVG (Editor) und als PDF (Export) gezeichnet. Eigener CMYK-JPEG-Encoder und PDF-Writer. |
+| [`backend/`](backend) | Der lokale Dienst: Python, FastAPI, Pillow. Speicher-Adapter mit atomaren Operationen, Projektsperre mit Lease, Manifest mit Revision und ETag, Journal für Dateiverschiebungen. |
+| [`docs/`](docs) | UX-Prüfung und die Bilder für dieses README. |
+| [`tools/`](tools) | `screenshots.cjs` erzeugt die Bilder in `docs/images/` aus dem gebauten Prototyp. |
+
+<details>
+<summary>Dateien des Prototyps</summary>
 
 | Datei | Inhalt |
 |---|---|
@@ -56,7 +232,54 @@ Aufbau:
 | `src/a5_actions.js` | Aktionen und automatisches Verteilen |
 | `src/a6_editor.js` | Ziehen, Zoomen, Verschieben im Editor |
 | `src/a7_export.js` | PDF-Export und Start |
+| `src/a8_wall.js` | Ansicht „An der Wand“ |
+| `src/a9_place.js` | Bildanalyse für „Platz automatisch finden“ |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
+| `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |
 
-Die Schrift Jost steht unter der SIL Open Font License (`prototyp/fonts/OFL.txt`).
+</details>
+
+### Selbst bauen und testen
+
+```sh
+prototyp/build.sh                         # → prototyp/dist/index.html
+cd backend && pip install -e '.[dev]' && pytest
+```
+
+## Roadmap
+
+- [x] Klickbarer Prototyp mit Gestaltung, Register, Wandansicht und PDF-Entwurf
+- [x] Lokaler Dienst mit Projektordner, Sperre und Journal
+- [x] UX-Prüfung durch unabhängige Agenten ([Ergebnis](docs/UX-PRUEFUNG.md))
+- [ ] Oberfläche an den lokalen Dienst anbinden (Projekt öffnen, Abgleich, Monatsordner als Quelle)
+- [ ] Nextcloud/WebDAV als zweiter Speicher-Adapter
+- [ ] Export im Dienst: ICC-Farbmanagement (LittleCMS), PDF/X, Druckereiprofile, Preflight
+- [ ] Gesichter beim automatischen Zuschnitt berücksichtigen
+
+Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
+
+## Mitmachen
+
+Beiträge sind willkommen – vom Fehlerbericht über neue Layout-Vorlagen bis zum Code. Wie das Projekt
+gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Lizenz und Quellen
+
+- **Code:** [MIT-Lizenz](LICENSE)
+- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
+- **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
+- **Beispielbilder:** werden beim Start im Browser gezeichnet; es sind keine echten Fotos enthalten.
+
+---
+
+## English summary
+
+**Lichtjahr** is a web app for the yearly family photo wall calendar: assign photos to months, lay out
+pages with free frames, let the calendar grid find a calm spot in each photo, flip through the result
+on a virtual wall and export a CMYK PDF with bleed for the print shop.
+
+- **Try it:** [jo-tud.github.io/Lichtjahr](https://jo-tud.github.io/Lichtjahr/) – runs entirely in the browser, your photos never leave it. Or open `prototyp/dist/index.html` locally.
+- **Local service:** `backend/` is a small FastAPI service that works directly in a project folder with one subfolder per month (`pip install -e backend && lichtjahr serve`).
+- **Status:** working prototype, German UI. The PDF is a solid draft (CMYK images, bleed, embedded font, no transparency) but not yet colour-managed (no ICC profile, no PDF/X).
+- **Licence:** MIT for the code; Jost font under OFL 1.1; school holiday data from OpenHolidays API under ODbL 1.0.

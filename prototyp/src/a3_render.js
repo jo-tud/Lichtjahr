@@ -350,7 +350,7 @@ function indexItems(p) {
     if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? 'Noch kein Text. Rechts unter „Register“ schreiben.' : 'Noch keine Fotos auf den Seiten.', 'regular', 3.5 * f, col)); return items; }
   } else items.push(T(mg, mg + 6 * f * .74, `${doc.indexTitle || 'Bildregister'} (Fortsetzung)`, 'bold', 6 * f, col));
   // Quellenhinweis zu den Schulferien auf der letzten Registerseite
-  if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, `Schulferien laut ${SCHOOL_SOURCE.name} (${SCHOOL_SOURCE.url.replace('https://', '')}), Stand ${SCHOOL_SOURCE.fetched}, ohne Gewähr.`, 'regular', 2 * f, col));
+  if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, `Schulferien: ${SCHOOL_SOURCE.name} (${SCHOOL_SOURCE.url.replace('https://www.', '')}), ${SCHOOL_SOURCE.license}, Stand ${SCHOOL_SOURCE.fetched}, ohne Gewähr.`, 'regular', 2 * f, col));
   if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
   const { mw, ls, lh, ind, thumbs } = g;
   for (const e of list) {
