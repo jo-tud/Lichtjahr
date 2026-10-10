@@ -403,6 +403,7 @@ Object.assign(EN, {
   'Stärke des Looks': 'Look strength',
   'Weniger Regler': 'Fewer sliders',
   'Gegenlicht ausgleichen': 'Fix backlight',
+  'Stärke': 'Strength',
   'Rauschen mindern': 'Reduce noise',
   'Lichter, Tiefen, Gegenlicht …': 'Highlights, shadows, backlight …',
   'Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter': 'Exposure, white balance, contrast, color, backlight and noise automatically, with priority for faces',
