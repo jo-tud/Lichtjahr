@@ -188,6 +188,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .lay[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
 .pool { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
 .caplist { display: grid; gap: 10px; }
+.autoplace { display: grid; gap: 6px; padding: 12px; border-radius: 10px; background: var(--accent-soft); }
+.autoplace p { margin: 0; }
 .bdlist { display: grid; gap: 6px; }
 .bdrow { display: grid; grid-template-columns: minmax(0, 1fr) 58px minmax(0, 110px) 70px 34px; gap: 6px; align-items: center; }
 .caprow { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: center; }

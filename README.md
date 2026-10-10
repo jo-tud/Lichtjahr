@@ -16,6 +16,7 @@ Was der Prototyp kann:
 - Fotos tauschen: mit der Maus ein Foto auf einen anderen Rahmen ziehen; beim Ziehen aus der Fotoleiste zeigt der Rahmen vorher, was er ersetzt
 - Jedes Foto gehört zu genau einem Monat: Einsetzen auf einer anderen Monatsseite ordnet es um; steht es dort schon, fragt die App nach (verschieben oder Kopie)
 - Kalendarium als Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft, Feiertage nach Bundesland
+- „Platz automatisch finden“: Das Kalendarium sucht im Foto eine ruhige Fläche (wenig Detail, gleichmäßige Helligkeit), meidet Bindung und Rand, wählt Form und Schriftfarbe und bei Bedarf eine Fläche dahinter; für eine Seite oder alle Monate, danach frei korrigierbar
 - Schulferien als feiner Strich (Daten der OpenHolidays API, eingebettet für 2025–2028), Kalenderwochen, Geburtstage als dezenter Punkt oder mit Namen und im Register mit Alter
 - Ein- oder beidseitiger Druck. Rückseiten aufgeklappt (oben Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten. Zusätzliche Blätter für weitere Motive oder freie Seiten. Leuchttisch mit Monatsansichten und Druckbogen
 - Titelblatt

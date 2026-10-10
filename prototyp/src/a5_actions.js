@@ -238,6 +238,8 @@ const ACTIONS = {
   addbd: () => { (S.doc.birthdays ||= []).push({ id: uid(), name: '', d: '', m: 1, y: '' }); commit(); renderProject(); const ins = $$('.bdrow input[data-f="name"]'); if (ins.length) ins[ins.length - 1].focus(); },
   delbd: (el) => { S.doc.birthdays = S.doc.birthdays.filter(b => b.id !== el.dataset.v); commit(); renderProject(); },
   bdmode: (el) => { S.doc.cal.bd = el.dataset.v; commit(); renderProject(); },
+  placehere: () => placeHere(),
+  placeall: () => placeAll(),
   undo, redo,
   hidebanner: () => { ui.banner = false; renderAll(); },
   bannerphotos: () => { ui.banner = false; setView('photos'); },
