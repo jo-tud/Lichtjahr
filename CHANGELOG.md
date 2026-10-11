@@ -5,6 +5,10 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 ## [Unreleased]
 
 ### Photos
+- New automatic mode (auto-3), in linear light: exposure in stops with a soft shoulder and a range in which
+  well-exposed photos stay untouched; white balance from a majority of four estimators, as strong as they agree;
+  faces only as limits, never as a target, the same for every skin tone (tested). Earlier automatic settings keep
+  their stored values.
 - Highlights and shadows work locally with the service (edge-aware, by lighting), and there is a new Clarity
   slider (local Laplacian filter, no halos). Dark skin, hair and clothing keep their brightness, white stays white;
   a face is never lifted more than its surroundings. A test checks light and dark skin in the same scene.

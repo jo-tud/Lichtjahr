@@ -6037,6 +6037,7 @@ function adjOf(id, { noMatch = false, look } = {}) {
   }
   if (a) {                                            // Tonwertumfang und Weißabgleich nur aus der Automatik
     if (a.lvlB || a.lvlW !== undefined && a.lvlW !== 1) { out.lvlB = (a.lvlB || 0) * s; out.lvlW = 1 - (1 - (a.lvlW ?? 1)) * s; }
+    if (a.ev) out.ev = a.ev * s;
     if (a.wbR && a.wbR !== 1) out.wbR = 1 + (a.wbR - 1) * s;
     if (a.wbB && a.wbB !== 1) out.wbB = 1 + (a.wbB - 1) * s;
   }
@@ -6049,9 +6050,11 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 // Tonkurve als Funktion; alle Regler −1 … +1
 function toneCurve(r) {
   const e = r.exposure || 0, c = r.contrast || 0, sh = r.shadows || 0, hl = r.highlights || 0, g = Math.pow(2, -.75 * e);
-  const b = r.lvlB || 0, w = r.lvlW ?? 1, fade = r.fade || 0;
+  const b = r.lvlB || 0, w = r.lvlW ?? 1, fade = r.fade || 0, k = Math.pow(2, (r.ev || 0) / 2.2);
   return (v) => {
-    let x = Math.pow(clamp01((v - b) / Math.max(.05, w - b)), g);
+    let x = clamp01((v - b) / Math.max(.05, w - b));
+    if (k !== 1) { x *= k; if (x > .8) x = .8 + .2 * (1 - Math.exp(-(x - .8) / .2)); }   // Blenden (linear) mit weicher Schulter
+    x = Math.pow(x, g);
     x = c >= 0 ? x + c * .7 * (x * x * (3 - 2 * x) - x) : .5 + (x - .5) * (1 + .45 * c);
     x = clamp01(x);
     x += sh * .9 * x * (1 - x) * (1 - x);                    // Tiefen: wirkt vor allem im unteren Drittel
@@ -6120,17 +6123,24 @@ function setAdjust(id, patch) {
   if (Object.keys(r).length) S.doc.adjust[id] = r; else delete S.doc.adjust[id];
 }
 
-/* ----- Automatik ----- 
-   Analyse auf dem Vorschaubild (256 px), ohne große Modelle:
-   - Tonwertumfang über Perzentile (0,3 % / 99,7 %), nur ein Stück weit gespreizt (Nebel und Abendstimmung bleiben)
-   - Belichtung: Median der Helligkeit Richtung Mitte. Gesichter geben keinen Hautton vor (sonst würde dunkle Haut
-     aufgehellt); sie verhindern nur, dass ein Foto mit deutlich unterbelichteten Gesichtern dunkel bleibt
-   - Weißabgleich: Shades of Gray (p = 6) ohne beschnittene, sehr dunkle und stark gesättigte Pixel, nur zur Hälfte und
-     gekappt; bei warmer, satter Stimmung weniger, bei großen warmen Flächen (Sonnenuntergang) gar nicht
-   - Farbe: blasse Fotos etwas kräftiger, bunte nicht; dunkle Tiefen etwas öffnen
+/* ----- Automatik (auto-3) -----
+   Auf dem Vorschaubild (256 px), in linearem Licht, ohne Modelle, nach veröffentlichten Verfahren:
+   - Belichtung in Blenden (ev): logarithmisches Mittel der Helligkeit (getrimmt, ohne Gesichter); nur außerhalb des
+     Bereichs gut belichteter Fotos wird ausgeglichen, Abdunkeln vorsichtig; Hoch- und Low-Key-Motive (Schnee,
+     Kerzenlicht) bleiben; vorhandene Lichter begrenzen das Aufhellen; weiche Schulter statt abgeschnittener Lichter
+   - Weißabgleich: Mehrheit aus vier Schätzern (Cheng et al. 2014 PCA, Shades of Gray p = 6, Gray-Edge 1. Ordnung,
+     hellste Pixel), alle ohne Gesichter, beschnittene und sehr dunkle Pixel. Je einiger die Schätzer, desto
+     stärker, höchstens zur Hälfte und gekappt; als Verstärkung im linearen Licht (in der Farbmatrix exakt ^1/2,2).
+     Warme Stimmung (Sonnenuntergang) bleibt.
+   - Gesichter geben nie eine Zielhelligkeit oder einen Hautton vor: sie zählen in keiner Statistik und dienen nur als
+     Grenzen (nicht ausfressen; Schatten im Gesicht bleiben druckbar, L* ≥ 20). So ist die Automatik für jede
+     Hautfarbe dieselbe, und ein dunkles Gesicht wird nie weiter abgedunkelt, bis es im Druck absäuft.
+   - Farbe nach der Buntheit (Hasler und Süsstrunk 2003): nur blasse Fotos werden kräftiger.
    Die Werte werden gespeichert (autoV), damit das Foto in einem Jahr gleich gedruckt wird, auch wenn sich das Verfahren ändert. */
-const AUTO_VERSION = 'auto-2';                    // auto-2: mit Vorschlag für Gegenlicht und Rauschen
-// Belichtungsregler, der den Wert cur auf target bringt (Gamma-Modell der Tonkurve)
+const AUTO_VERSION = 'auto-3';                    // auto-3: linear, Weißabgleich-Mehrheit, Gesichter nur als Grenzen
+const SRGB_LIN = Float32Array.from({ length: 256 }, (_, i) => { const v = i / 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
+const linToEnc = (y) => (y <= .0031308 ? 12.92 * y : 1.055 * Math.pow(y, 1 / 2.4) - .055);
+// Belichtungsregler (Gamma), der den Wert cur auf target bringt (für die Angleichung der Monate)
 const adjEv = (cur, target) => (cur > .03 && cur < .97 ? -Math.log2(Math.log(target) / Math.log(cur)) / .75 : 0);
 async function photoPixels(id, size = 256, fx = '') {
   const ph = S.photos[id], src = withFx(ph && (RT.prev[id] || RT.thumb[id]), fx); if (!src) return null;
@@ -6141,51 +6151,114 @@ async function photoPixels(id, size = 256, fx = '') {
   const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
   return { w, h, data: x.getImageData(0, 0, w, h).data };
 }
+const pctOf = (sorted, q) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(q * sorted.length)))] : 0);
+const unit3 = (v) => { const n = Math.hypot(...v) || 1; return v.map(x => x / n); };
+const angle3 = (a, b) => { const u = unit3(a), v = unit3(b); return Math.acos(Math.min(1, u[0] * v[0] + u[1] * v[1] + u[2] * v[2])) * 180 / Math.PI; };
+// Hauptachse (unzentriert) per Potenzverfahren
+function principal3(rows) {
+  const M = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (const r of rows) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[i * 3 + j] += r[i] * r[j];
+  let v = [1, 1, 1];
+  for (let it = 0; it < 30; it++) v = unit3([0, 1, 2].map(i => M[i * 3] * v[0] + M[i * 3 + 1] * v[1] + M[i * 3 + 2] * v[2]));
+  return v;
+}
 function photoStats(px, faces = []) {
-  const { w, h, data } = px, n = w * h, hist = new Uint32Array(256), sum = [0, 0, 0];
-  let chroma = 0, cnt = 0, warm = 0, faceL = 0, faceN = 0;
-  const inFace = (x, y) => faces.some(f => f.score >= .8 && x >= f.x * w && x < (f.x + f.w) * w && y >= f.y * h && y < (f.y + f.h) * h);
-  for (let i = 0, p = 0; p < n; p++, i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2], L = .2126 * r + .7152 * g + .0722 * b, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    hist[Math.round(L)]++;
-    const sat = mx ? (mx - mn) / mx : 0; chroma += (mx - mn) / 255;
-    const face = faces.length && inFace(p % w, Math.floor(p / w));
-    if (face) { faceL += L; faceN++; }
-    else if (r > g * 1.15 && g > b * 1.05 && sat > .35) warm++;          // Haut zählt nicht als warme Stimmung
-    if (mx < 245 && mx > 15 && sat < .6) { sum[0] += Math.pow(r / 255, 6); sum[1] += Math.pow(g / 255, 6); sum[2] += Math.pow(b / 255, 6); cnt++; }
+  const { w, h, data } = px, n = w * h, hist = new Uint32Array(256);
+  const fmask = new Uint8Array(n), fs = faces.filter(f => (f.score ?? 1) >= .8);
+  for (const f of fs) {                                   // Gesicht um 30 % vergrößert: zählt in keiner Statistik
+    const x0 = Math.max(0, Math.floor((f.x - f.w * .15) * w)), x1 = Math.min(w, Math.ceil((f.x + f.w * 1.15) * w));
+    const y0 = Math.max(0, Math.floor((f.y - f.h * .15) * h)), y1 = Math.min(h, Math.ceil((f.y + f.h * 1.15) * h));
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) fmask[y * w + x] = 1;
+  }
+  const lin = new Float32Array(n * 3), logs = [], Ys = [];
+  let chroma = 0, warm = 0, rg = [0, 0], yb = [0, 0];
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    hist[Math.round(.2126 * r + .7152 * g + .0722 * b)]++;
+    const R = SRGB_LIN[r], G = SRGB_LIN[g], B = SRGB_LIN[b], Y = .2126 * R + .7152 * G + .0722 * B;
+    lin[p * 3] = R; lin[p * 3 + 1] = G; lin[p * 3 + 2] = B;
+    chroma += (mx - mn) / 255;
+    const a1 = r - g, a2 = .5 * (r + g) - b; rg[0] += a1; rg[1] += a1 * a1; yb[0] += a2; yb[1] += a2 * a2;
+    if (!fmask[p]) { Ys.push(Y); logs.push(Math.log2(Y + 1e-4)); if (r > g * 1.15 && g > b * 1.05 && mx && (mx - mn) / mx > .35) warm++; }
   }
   const pct = (q) => { let a = 0, t = q * n; for (let i = 0; i < 256; i++) { a += hist[i]; if (a >= t) return i / 255; } return 1; };
-  const gray = cnt > n * .05 ? sum.map(v => Math.pow(v / cnt, 1 / 6)) : null;
-  return { lo: pct(.003), p25: pct(.25), med: pct(.5), hi: pct(.997), chroma: chroma / n, warm: warm / n, gray, face: faceN > 20 ? faceL / faceN / 255 : null };
+  logs.sort((a, b) => a - b); Ys.sort((a, b) => a - b);
+  const lo = Math.floor(logs.length * .02), hi = Math.ceil(logs.length * .98), core = logs.slice(lo, Math.max(lo + 1, hi));
+  const key = core.length ? Math.pow(2, core.reduce((s, v) => s + v, 0) / core.length) : .18;
+  // Weißabgleich: Pixel ohne Gesichter, nicht beschnitten, nicht sehr dunkel
+  const ok = (p) => !fmask[p] && data[p * 4] < 250 && data[p * 4 + 1] < 250 && data[p * 4 + 2] < 250 && lin[p * 3] + lin[p * 3 + 1] + lin[p * 3 + 2] > .03;
+  const sog = [0, 0, 0], ge = [0, 0, 0], rows = [];
+  let cnt = 0, gcnt = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = y * w + x; if (!ok(p)) continue;
+    const c = [lin[p * 3], lin[p * 3 + 1], lin[p * 3 + 2]]; rows.push(c); cnt++;
+    for (let k = 0; k < 3; k++) sog[k] += Math.pow(c[k], 6);
+    if (x + 1 < w && y + 1 < h && ok(p + 1) && ok(p + w)) {
+      for (let k = 0; k < 3; k++) ge[k] += Math.pow(Math.abs(lin[(p + 1) * 3 + k] - c[k]) + Math.abs(lin[(p + w) * 3 + k] - c[k]), 6);
+      gcnt++;
+    }
+  }
+  let illum = null;
+  if (cnt > n * .05) {
+    const est = [sog.map(v => Math.pow(v / cnt, 1 / 6))];
+    if (gcnt > n * .02) est.push(ge.map(v => Math.pow(v / gcnt, 1 / 6)));
+    const bright = [...rows].sort((a, b) => (b[0] + b[1] + b[2]) - (a[0] + a[1] + a[2])).slice(0, Math.max(5, Math.round(rows.length * .02)));
+    est.push([0, 1, 2].map(k => bright.reduce((s, r) => s + r[k], 0) / bright.length));
+    const m = unit3([0, 1, 2].map(k => rows.reduce((s, r) => s + r[k], 0)));          // Cheng et al.: Pixel mit der größten
+    const byProj = rows.map(r => [r[0] * m[0] + r[1] * m[1] + r[2] * m[2], r]).sort((a, b) => a[0] - b[0]);   // und kleinsten Projektion
+    const t = Math.max(3, Math.round(byProj.length * .035));
+    est.push(principal3([...byProj.slice(0, t), ...byProj.slice(-t)].map(x => unit3(x[1]))));
+    const chrom = est.map(e => [e[0] / e[1], e[2] / e[1]]).filter(c => isFinite(c[0]) && isFinite(c[1]) && c[0] > 0 && c[1] > 0);
+    if (chrom.length >= 3) {
+      const med = [median(chrom.map(c => c[0])), median(chrom.map(c => c[1]))], e = [med[0], 1, med[1]];
+      const spread = Math.max(...chrom.map(c => angle3([c[0], 1, c[1]], e)));
+      illum = { e, conf: clamp01(1 - (spread - 2) / 6), spread };
+    }
+  }
+  const sd = (s) => Math.sqrt(Math.max(0, s[1] / n - (s[0] / n) ** 2));
+  const colorful = Math.hypot(sd(rg), sd(yb)) + .3 * Math.hypot(rg[0] / n, yb[0] / n);
+  const faceStats = fs.map(f => {                         // je Gesicht nur fürs Begrenzen: hellste und dunkelste Stellen
+    const v = [];
+    for (let y = Math.max(0, Math.floor(f.y * h)); y < Math.min(h, Math.ceil((f.y + f.h) * h)); y++) for (let x = Math.max(0, Math.floor(f.x * w)); x < Math.min(w, Math.ceil((f.x + f.w) * w)); x++) { const p = y * w + x; v.push(.2126 * lin[p * 3] + .7152 * lin[p * 3 + 1] + .0722 * lin[p * 3 + 2]); }
+    v.sort((a, b) => a - b); return { p5: pctOf(v, .05), p25: pctOf(v, .25), p98: pctOf(v, .98) };
+  }).filter(f => f.p98 > 0);
+  return { lo: pct(.003), p25: pct(.25), med: pct(.5), hi: pct(.997), key, keyP10: pctOf(Ys, .1), keyP50: pctOf(Ys, .5), keyP995: pctOf(Ys, .995),
+    chroma: chroma / n, warm: Ys.length ? warm / Ys.length : 0, colorful, illum, faces: faceStats };
 }
 function autoRecipe(st, { backlit = false } = {}) {
   const a = { v: AUTO_VERSION };
   // Tonwertumfang: halb so weit spreizen wie möglich, Grenzen gekappt
   if (st.lo > .02) a.lvlB = Math.min(.08, st.lo * .5);
   if (st.hi < .97) a.lvlW = Math.max(.88, 1 - (1 - st.hi) * .5);
-  const stretch = (v) => clamp01((v - (a.lvlB || 0)) / ((a.lvlW ?? 1) - (a.lvlB || 0)));
-  // Belichtung über Gamma: Median Richtung Mitte, gedämpft (Low-Key und helle Szenen behalten ihre Stimmung)
-  const evFor = adjEv;
-  let ev = evFor(stretch(st.med), .46) * .6;
-  // Hat das Foto schon helle Lichter, ist es meist richtig belichtet (etwa vor dunklem Hintergrund): kaum aufhellen
-  if (ev > 0) ev *= .35 + .65 * clamp01((.97 - st.hi) / .25);
-  // Gesichter: sichtbar belichtet heißt, das Motiv stimmt, also wenig aufhellen; nur sehr dunkle Gesichter (unter 15 %)
-  // gelten als unterbelichtet. Beides gilt für jeden Hautton, ein Ziel-Hautton wird nie angesteuert.
-  if (st.face != null) ev = stretch(st.face) < .15 ? Math.max(ev, evFor(stretch(st.face), .22)) : st.hi > .85 ? Math.min(ev, .2) : ev;
-  // Gegenlicht: das Helle ist der Hintergrund; abdunkeln würde das Motiv wieder versenken und den Himmel grau machen
-  if (backlit) ev = Math.max(0, ev);
-  ev = Math.max(-.45, Math.min(.45, ev)); if (Math.abs(ev) > .04) a.exposure = +ev.toFixed(3);
-  // Weißabgleich: Richtung neutral, zur Hälfte, höchstens ±10 %; warme Stimmung kaum anfassen
-  if (st.gray && st.warm < .35) {                          // weite warme, satte Flächen (Sonnenuntergang): nicht anfassen
-    const [r, g, b] = st.gray, k = st.warm > .08 ? .25 : .5;
-    const cap = (v) => Math.max(.9, Math.min(1.1, v));
-    const wr = cap(1 + (g / r - 1) * k), wb = cap(1 + (g / b - 1) * k);
+  // Belichtung in Blenden: gut belichtete Fotos liegen mit ihrem Mittel zwischen etwa 0,09 und 0,30 (dunkle Kleidung,
+  // heller Himmel) – dort nichts tun, nur was darüber hinausgeht zu 70 % ausgleichen
+  const lk = Math.log2(Math.max(1e-4, st.key)), zlo = Math.log2(.09), zhi = Math.log2(.3);
+  let ev = lk < zlo ? (zlo - lk) * .7 : lk > zhi ? (zhi - lk) * .7 : 0;
+  if (ev < 0) ev *= .6;                                             // abdunkeln vorsichtig: der Druck wirkt ohnehin dunkler
+  if (st.keyP50 > .35 && st.keyP10 > .06) ev *= .15;                // Hoch-Key (Schnee, Strand): hell lassen
+  if (st.keyP50 < .025 && st.keyP995 > .3) ev *= .3;                // Low-Key mit Lichtern (Kerzen, Abend): dunkel lassen
+  if (ev > 0) ev = Math.min(ev, Math.max(0, Math.log2(1.2 / Math.max(.05, st.keyP995))));   // vorhandene Lichter begrenzen
+  for (const f of st.faces || []) {                                 // Gesichter nur als Grenzen, nie als Ziel
+    if (ev > 0) ev = Math.min(ev, Math.max(0, Math.log2(.9 / f.p98)));          // nicht ausfressen
+    // nicht absaufen: das dunklere Viertel eines Gesichts bleibt über L* 20 (Y 0,03), darunter verschwindet im Druck
+    // die Zeichnung – für jede Haut dieselbe Grenze; liegt es schon darunter, wird gar nicht abgedunkelt
+    if (ev < 0) ev = f.p25 > .03 ? Math.max(ev, Math.log2(.03 / f.p25)) : Math.max(ev, 0);
+  }
+  if (backlit) ev = Math.max(0, ev);      // Gegenlicht: das Helle ist der Hintergrund; abdunkeln würde das Motiv versenken
+  ev = Math.max(-1, Math.min(1, ev)); if (Math.abs(ev) > .05) a.ev = +ev.toFixed(3);
+  // Weißabgleich: Verstärkung im linearen Licht g = 1/e (Grün fest), Stärke nach Einigkeit, höchstens die Hälfte
+  if (st.illum && st.warm < .35) {
+    const [er, , eb] = st.illum.e, k = .5 * st.illum.conf * (st.warm > .08 ? .5 : 1);
+    const cap = (v) => Math.max(1 / 1.25, Math.min(1.25, v));
+    const gr = cap(Math.pow(1 / er, k)), gb = cap(Math.pow(1 / eb, k));
+    const wr = Math.pow(gr, 1 / 2.2), wb = Math.pow(gb, 1 / 2.2);        // linear → kodiert (exakt für Gamma 2,2)
     if (Math.abs(wr - 1) > .01) a.wbR = +wr.toFixed(4);
     if (Math.abs(wb - 1) > .01) a.wbB = +wb.toFixed(4);
   }
-  // Farbe und Tiefen
-  if (st.chroma < .12) a.saturation = +(Math.min(.3, (.12 - st.chroma) * 3 + .08)).toFixed(3);
-  if (st.p25 < .16) a.shadows = +(Math.min(.4, (.16 - st.p25) * 3)).toFixed(3);
+  // Farbe nach Buntheit; Tiefen, wenn sie nach der Belichtung noch dunkel sind; Kontrast bei flachem Bild
+  if (st.colorful < 30) a.saturation = +(Math.min(.25, (30 - st.colorful) / 60 + .05)).toFixed(3);
+  const p25 = linToEnc(SRGB_LIN[Math.round(st.p25 * 255)] * Math.pow(2, ev));
+  if (p25 < .16) a.shadows = +(Math.min(.4, (.16 - p25) * 3)).toFixed(3);
   if (st.hi - st.lo < .7) a.contrast = +(Math.min(.3, (.7 - (st.hi - st.lo)) * .8)).toFixed(3);
   return a;
 }
