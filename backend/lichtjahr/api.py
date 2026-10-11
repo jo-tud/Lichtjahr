@@ -28,7 +28,7 @@ from . import detail
 from . import faces as facedet
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
-from .lock import Locked, LockLost, new_session
+from .lock import Handover, Locked, LockError, LockLost, new_session
 from .media import BROWSER_EXT, browser_copy
 from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
                        print_tune, proof_colors, proof_image, rich_black, sharpen_for_print)
@@ -63,6 +63,11 @@ class OpenProject(StorageRequest):
 
 class LockRequest(BaseModel):
     holder: str | None = None
+
+
+class HandoverAnswer(BaseModel):
+    status: str = Field(pattern="^(later|declined)$")
+    minutes: int | None = Field(default=None, ge=1, le=60)
 
 
 class MoveRequest(BaseModel):
@@ -117,6 +122,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     @app.exception_handler(LockLost)
     async def _lost(_, exc: LockLost):
         return JSONResponse({"detail": str(exc)}, status_code=423)
+
+    @app.exception_handler(LockError)
+    async def _lockerr(_, exc: LockError):                     # Übergabe nicht möglich (keine Anfrage, zu früh …)
+        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.exception_handler(RevisionConflict)
     async def _conflict(_, exc: RevisionConflict):
@@ -233,24 +242,52 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     # -- Sperre ---------------------------------------------------------------------------
     @app.get("/api/projects/{project_id}/lock")
-    def lock_status(project_id: str):
+    def lock_status(project_id: str, session: str | None = Depends(session_header)):
         lock = get_project(project_id).lock
         info, _ = lock.read()
-        return {"lock": info.public(lock.age()) if info else None}
+        return {"lock": info.public(lock.age()) if info else None, "request": Handover(lock).public(session)}
 
     @app.post("/api/projects/{project_id}/lock")
     def acquire_lock(project_id: str, req: LockRequest, session: str | None = Depends(session_header)):
         p = get_project(project_id)
         sid = session or new_session()
         info = p.lock.acquire(sid, req.holder or getpass.getuser())
+        Handover(p.lock).clear(sid)          # eigene Anfrage ist erledigt
         notes = p.recover(sid)              # unterbrochene Verschiebungen jetzt, unter Sperre, aufräumen
         return {"session": sid, "lock": info.public(), "recovered": notes}
 
     @app.post("/api/projects/{project_id}/lock/heartbeat")
-    def heartbeat(project_id: str, session: str | None = Depends(session_header)):
+    def heartbeat(project_id: str, req: LockRequest | None = None, session: str | None = Depends(session_header)):
         if not session:
             raise HTTPException(400, _t("Sitzung fehlt."))
-        return {"lock": get_project(project_id).lock.heartbeat(session).public()}
+        lock = get_project(project_id).lock
+        info = lock.heartbeat(session, req.holder if req else None)
+        return {"lock": info.public(), "request": Handover(lock).public(session)}
+
+    # Übergabe: anfragen (wer nur ansieht), beantworten oder übergeben (wer bearbeitet), notfalls übernehmen
+    @app.post("/api/projects/{project_id}/lock/request")
+    def request_lock(project_id: str, req: LockRequest, session: str | None = Depends(session_header)):
+        lock = get_project(project_id).lock
+        sid = session or new_session()
+        Handover(lock).ask(sid, req.holder or getpass.getuser())
+        return {"session": sid, "request": Handover(lock).public(sid)}
+
+    @app.post("/api/projects/{project_id}/lock/answer")
+    def answer_request(project_id: str, req: HandoverAnswer, session: str | None = Depends(session_header)):
+        lock = get_project(project_id).lock
+        Handover(lock).answer(session or "", req.status, req.minutes)
+        return {"request": Handover(lock).public(session)}
+
+    @app.post("/api/projects/{project_id}/lock/handover")
+    def hand_over(project_id: str, session: str | None = Depends(session_header)):
+        return {"lock": Handover(get_project(project_id).lock).give(session or "").public()}
+
+    @app.post("/api/projects/{project_id}/lock/force")
+    def force_lock(project_id: str, req: LockRequest, session: str | None = Depends(session_header)):
+        p = get_project(project_id)
+        info = Handover(p.lock).force(session or "", req.holder or "")
+        notes = p.recover(session or "")
+        return {"session": session, "lock": info.public(), "recovered": notes}
 
     @app.delete("/api/projects/{project_id}/lock")
     def release_lock(project_id: str, session: str | None = Depends(session_header)):

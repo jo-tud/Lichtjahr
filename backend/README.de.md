@@ -197,7 +197,11 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/projects/open` | vorhandenen Projektordner öffnen |
 | GET | `/api/projects/{id}` | Übersicht (Fotos je Monat, Sperre, Speicherort) |
 | GET / POST / DELETE | `/api/projects/{id}/lock` | Sperre ansehen / erwerben / freigeben |
-| POST | `/api/projects/{id}/lock/heartbeat` | Sperre verlängern |
+| POST | `/api/projects/{id}/lock/heartbeat` | Sperre verlängern (wahlweise mit neuem Namen `holder`); die Antwort enthält eine offene Übergabe-Anfrage |
+| POST | `/api/projects/{id}/lock/request` | Bearbeitung anfragen (`{holder}`); liefert die Sitzung der Anfragenden |
+| POST | `/api/projects/{id}/lock/answer` | Wer bearbeitet, antwortet: `{status: "later", minutes}` oder `{status: "declined"}` |
+| POST | `/api/projects/{id}/lock/handover` | Wer bearbeitet, übergibt die Sperre an die Sitzung der Anfragenden |
+| POST | `/api/projects/{id}/lock/force` | Übernehmen ohne Zustimmung, nur nach einer eigenen Anfrage, die 45 s unbeantwortet blieb (nach „gleich“ die erbetenen Minuten plus 45 s); gemessen mit der Uhr des Speichers |
 | GET / PUT | `/api/projects/{id}/manifest` | Manifest lesen / speichern (`If-Match: <Revision>`) |
 | PATCH | `/api/projects/{id}/editor` | nur den Gestaltungsstand speichern (`If-Match`) |
 | POST | `/api/projects/{id}/save` | automatisches Speichern der App: Gestaltung plus Bildtexte, Favoriten, Aussortieren in einer Revision |

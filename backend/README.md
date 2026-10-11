@@ -196,7 +196,11 @@ The running service shows the complete description at `http://localhost:8470/api
 | POST | `/api/projects/open` | Open an existing project folder |
 | GET | `/api/projects/{id}` | Overview (photos per month, lock, storage location) |
 | GET / POST / DELETE | `/api/projects/{id}/lock` | View / acquire / release the lock |
-| POST | `/api/projects/{id}/lock/heartbeat` | Extend the lock |
+| POST | `/api/projects/{id}/lock/heartbeat` | Extend the lock (optionally with a new `holder` name); the answer includes a pending handover request |
+| POST | `/api/projects/{id}/lock/request` | Ask the person editing to hand over (`{holder}`); returns the requester's session |
+| POST | `/api/projects/{id}/lock/answer` | Holder answers a request: `{status: "later", minutes}` or `{status: "declined"}` |
+| POST | `/api/projects/{id}/lock/handover` | Holder hands the lock over to the requester's session |
+| POST | `/api/projects/{id}/lock/force` | Requester takes over without consent, only after an own request has gone unanswered for 45 s (after a *later*, the asked minutes plus 45 s); measured with the storage's clock |
 | GET / PUT | `/api/projects/{id}/manifest` | Read / save the manifest (`If-Match: <revision>`) |
 | PATCH | `/api/projects/{id}/editor` | Save only the design state (`If-Match`) |
 | POST | `/api/projects/{id}/save` | The app's autosave: design plus captions, favorites and set-aside photos in one revision |

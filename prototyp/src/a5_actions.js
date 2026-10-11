@@ -435,11 +435,14 @@ async function setupDemo() {
 }
 
 /* ---------- Rückfragen (statt confirm(), das im Artefakt nicht erscheint) ---------- */
-function ask({ title, text, buttons }) {
+// timeout: { ms, value, when }: nach ms mit value schließen, wenn when() dann noch zutrifft (z. B. niemand am Rechner)
+function ask({ title, text, buttons, timeout }) {
   return new Promise((resolve) => {
     const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
     el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><p class="hint">${esc(text)}</p><div class="row">${buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
-    const done = (v) => { document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
+    let timer = null;
+    const done = (v) => { clearTimeout(timer); document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
+    if (timeout) timer = setTimeout(function tick() { if (!timeout.when || timeout.when()) done(timeout.value); }, timeout.ms);
     const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(buttons[buttons.length - 1].value); } };
     el.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) done(buttons[+b.dataset.i].value); });
     document.addEventListener('keydown', key, true);

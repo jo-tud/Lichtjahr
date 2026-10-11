@@ -178,8 +178,7 @@ script.
 **Working on one calendar together:** share the project folder (in Nextcloud with edit permission, or via
 Syncthing or a network drive). The other person starts Lichtjahr and chooses *Open existing* with their own
 address of the shared folder (in Nextcloud: their own WebDAV address plus the name the shared folder has in their
-files). Only one person edits at a time; the other sees the calendar read-only and can take over as soon as it is
-free. Everyone should use the same Lichtjahr version.
+files). Only one person edits at a time. The other sees the calendar read-only and clicks *Request editing*: the person editing gets *Hand over*, *5 more minutes* or *Decline*. If nobody is at that computer, it hands over by itself once everything is saved; if the other window is unreachable, *Take over anyway* appears after a short wait, with a warning. Enter your name in the project card so the other person sees who is asking. Everyone should use the same Lichtjahr version.
 
 <details>
 <summary>With a terminal</summary>

@@ -64,6 +64,9 @@ EN = {
     "Monat muss zwischen 0 (Januar) und 11 (Dezember) liegen.": "Month must be between 0 (January) and 11 (December).",
     # Sperre
     "Gesperrt durch {holder} auf {device}": "Locked by {holder} on {device}",
+    "Es liegt keine Anfrage vor.": "There is no request.",
+    "Zuerst die Bearbeitung anfragen.": "Request editing first.",
+    "Bitte noch etwas auf eine Antwort warten.": "Please wait a little longer for an answer.",
     "Die Sperre gehört nicht mehr dieser Sitzung.": "The lock no longer belongs to this session.",
     "Die Sperre wurde zwischenzeitlich verändert.": "The lock was changed in the meantime.",
     "Zum Ändern zuerst die Bearbeitungssperre erwerben.": "Acquire the editing lock before making changes.",

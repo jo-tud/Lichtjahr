@@ -23,7 +23,9 @@ from .schema import META_DIR
 from .storage import AlreadyExists, Conflict, NotFound, Storage
 
 LOCK_PATH = f"{META_DIR}/lock.json"
+HANDOVER_PATH = f"{META_DIR}/handover.json"   # Anfrage, die Bearbeitung zu übernehmen, und die Antwort darauf
 DEFAULT_LEASE = 120.0
+FORCE_AFTER = 45.0                            # so lange ohne Antwort, bevor man (nach Warnung) übernehmen darf
 
 
 class LockError(Exception):
@@ -126,12 +128,12 @@ class ProjectLock:
             raise Locked(current or info, self.age())
         return self.read()[0]  # type: ignore[return-value]
 
-    def heartbeat(self, session: str) -> LockInfo:
+    def heartbeat(self, session: str, holder: str | None = None) -> LockInfo:
         info, etag = self.read()
         if info is None or info.session != session:
             raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
         try:
-            self.storage.replace(LOCK_PATH, self._payload(session, info.holder, info.created), if_match=etag)
+            self.storage.replace(LOCK_PATH, self._payload(session, holder or info.holder, info.created), if_match=etag)
         except Conflict as e:
             # Gleichzeitig hat jemand die Datei geschrieben. War es dieselbe Sitzung (zwei Lebenszeichen auf einmal,
             # etwa wenn ein Tab wieder sichtbar wird), ist die Sperre frisch und gehört weiter uns – kein Verlust.
@@ -159,3 +161,102 @@ class ProjectLock:
             # Abgelaufen, aber niemand hat übernommen (Ruhezustand, eingefrorener Tab): erneuern statt verlieren
             return self.heartbeat(session)
         return info
+
+
+# -- Übergabe ------------------------------------------------------------------------------------
+# Wer nur ansehen kann, fragt an; wer bearbeitet, übergibt, bittet um ein paar Minuten oder lehnt ab. Bleibt eine
+# Anfrage unbeantwortet (niemand am anderen Rechner, Fenster eingeschlafen), darf die Anfragende nach einer Weile
+# und einer Warnung übernehmen. Die Anfrage liegt neben der Sperre im Projekt, damit es über zwei Rechner geht;
+# Wartezeiten misst die Uhr des Speichers.
+class Handover:
+    def __init__(self, lock: ProjectLock) -> None:
+        self.lock = lock
+        self.storage = lock.storage
+
+    def read(self) -> tuple[dict | None, float | None]:
+        try:
+            data, _ = self.storage.read(HANDOVER_PATH)
+            req = json.loads(data)
+        except (NotFound, ValueError):
+            return None, None
+        try:
+            age = self.storage.age(HANDOVER_PATH)
+        except Exception:
+            age = None
+        return (req if isinstance(req, dict) and req.get("session") else None), age
+
+    def public(self, session: str | None) -> dict | None:
+        req, age = self.read()
+        if not req:
+            return None
+        out = {"name": req.get("name", ""), "status": req.get("status", "open"), "minutes": req.get("minutes"),
+               "mine": bool(session) and req["session"] == session, "age": None if age is None else round(age, 1)}
+        out["forceIn"] = None if age is None else max(0.0, round(self._wait(req) - age, 1))
+        return out
+
+    @staticmethod
+    def _wait(req: dict) -> float:
+        """Sekunden ohne Antwort, nach denen übernommen werden darf; bei „gleich“ zählt die erbetene Zeit dazu."""
+        if req.get("status") == "later":
+            return float(req.get("minutes") or 5) * 60 + FORCE_AFTER
+        return FORCE_AFTER
+
+    def _write(self, req: dict) -> None:
+        self.storage.write(HANDOVER_PATH, json.dumps(req, indent=2).encode())
+
+    def clear(self, session: str | None = None) -> None:
+        req, _ = self.read()
+        if req and (session is None or req.get("session") == session):
+            try:
+                self.storage.delete(HANDOVER_PATH)
+            except (NotFound, Conflict):
+                pass
+
+    def ask(self, session: str, name: str) -> None:
+        self._write({"id": new_session(), "session": session, "name": name[:80], "status": "open"})
+
+    def answer(self, holder_session: str, status: str, minutes: int | None = None) -> None:
+        info, _ = self.lock.read()
+        if info is None or info.session != holder_session:
+            raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
+        req, _ = self.read()
+        if not req:
+            return
+        req.update(status=status, minutes=minutes if status == "later" else None)
+        self._write(req)
+
+    def give(self, holder_session: str) -> LockInfo:
+        """Bearbeitung an die Anfragende übergeben: die Sperre gehört sofort ihrer Sitzung."""
+        info, etag = self.lock.read()
+        if info is None or info.session != holder_session:
+            raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
+        req, _ = self.read()
+        if not req:
+            raise LockError(_t("Es liegt keine Anfrage vor."))
+        try:
+            self.storage.replace(LOCK_PATH, self.lock._payload(req["session"], req.get("name") or "?"), if_match=etag)
+        except Conflict as e:
+            raise LockLost(_t("Die Sperre wurde zwischenzeitlich verändert.")) from e
+        req.update(status="granted")
+        self._write(req)
+        return self.lock.read()[0]  # type: ignore[return-value]
+
+    def force(self, session: str, name: str) -> LockInfo:
+        """Übernehmen ohne Zustimmung – nur nach einer eigenen, lange genug unbeantworteten Anfrage."""
+        req, age = self.read()
+        if not req or req.get("session") != session or req.get("status") not in ("open", "later"):
+            raise LockError(_t("Zuerst die Bearbeitung anfragen."))
+        if age is not None and age < self._wait(req):
+            raise LockError(_t("Bitte noch etwas auf eine Antwort warten."))
+        info, etag = self.lock.read()
+        payload = self.lock._payload(session, name or req.get("name") or "?")
+        try:
+            if info is None:
+                self.storage.create_exclusive(LOCK_PATH, payload)
+            else:
+                self.storage.replace(LOCK_PATH, payload, if_match=etag)
+        except (Conflict, AlreadyExists) as e:
+            raise LockError(_t("Die Sperre wurde zwischenzeitlich verändert.")) from e
+        req.update(status="forced")
+        self._write(req)
+        return self.lock.read()[0]  # type: ignore[return-value]

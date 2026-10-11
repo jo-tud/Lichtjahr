@@ -272,7 +272,8 @@ function calW(year, m, f, c) {
   const o = calOpts(c), n = daysIn(year, m), info = monthInfo(year, m, c), items = [], wd = WEEKDAYS2[calLang()];
   const ns = Math.max(4.1 * f, CAL_MIN_NUM), ws = Math.max(ns * .6, CAL_MIN_TEXT), ks = Math.max(1.9 * f, CAL_MIN_TEXT);
   const cw = Math.max(7.4 * f, 2 * digitAdvance('bold') * ns + .5 * ns), rh = Math.max(6.3 * f, ns * 1.55), kx = c.kw ? ks * 2.6 : 0;
-  const gap = cw * .7, half = kx + 7 * cw + gap;                       // Abstand zwischen den beiden Wochen
+  // „Wochen trennen“: Abstand oder Linie zwischen den beiden Wochen einer Zeile, bei „nicht“ 14 Spalten am Stück
+  const gap = o.weeks === 'gap' ? cw * .7 : o.weeks === 'line' ? cw * .6 : 0, half = kx + 7 * cw + gap;
   const title = calTitle(m, year, 7 * f, c.color, o), tx = Math.max(0, (half + kx + 7 * cw - title.w) / 2);
   items.push(...title.items.map(it => offsetItem(it, tx, 0)));          // Monatsname mittig über beiden Wochen
   const og = { ...o, wd: o.wd || 1 };
@@ -281,7 +282,6 @@ function calW(year, m, f, c) {
     if (c.kw) items.push(T(hx, yh, _tc('KW'), 'regular', ks, c.color));
     [1, 2, 3, 4, 5, 6, 0].forEach((dow, i) =>
       items.push(T(hx + kx + i * cw + cw / 2, yh, wdLabel(wd, dow, og), 'regular', ws, i === 6 && c.hi === 'red' ? 'red' : c.color, 'middle')));
-    if (o.weeks === 'line') items.push(rule(hx + kx, yh + ws * .45, 7 * cw, .2, c.color));
   }
   const off = (new Date(year, m, 1).getDay() + 6) % 7;
   let rows = 0;
@@ -297,6 +297,7 @@ function calW(year, m, f, c) {
   }
   const w = Math.max(half + kx + 7 * cw, title.w);
   let hgt = yh + ns * .5 + rows * rh;
+  if (o.weeks === 'line') items.push(rule(kx + 7 * cw + gap / 2 - .1, yh - ws * .9, .2, hgt - (yh - ws * .9), c.color));
   if (c.names && info.names.length) hgt = namesBlock(items, info.names.join('  ·  '), w, f, hgt, c.color);
   return { w, h: hgt, items };
 }
