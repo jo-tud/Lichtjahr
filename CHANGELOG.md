@@ -4,6 +4,10 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.2.2] – 2026-10-11
+
+Working together on two computers: the editing lock no longer depends on the computers' clocks.
+
 ### Fixes
 - Working together on two computers: whether someone else's lock was abandoned used to be decided by comparing
   the waiting computer's clock with the times the other computer had written. If one clock was a few minutes
