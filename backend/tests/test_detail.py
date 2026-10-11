@@ -54,10 +54,12 @@ def luma(im):
 
 
 def test_fx_text():
-    assert detail.parse_fx("f0.6n0.4") == {"fusion": .6, "denoise": .4}
-    assert detail.parse_fx("n2") == {"fusion": 0.0, "denoise": 1.0}             # begrenzt
+    zero = {"fusion": 0.0, "denoise": 0.0, "highlights": 0.0, "shadows": 0.0, "clarity": 0.0}
+    assert detail.parse_fx("f0.6n0.4") == {**zero, "fusion": .6, "denoise": .4}
+    assert detail.parse_fx("n2f-1") == {**zero, "denoise": 1.0}                  # begrenzt, Fusion nie negativ
+    assert detail.parse_fx("h-0.3s0.5c2") == {**zero, "highlights": -.3, "shadows": .5, "clarity": 1.0}
     assert detail.parse_fx("") is None and detail.parse_fx("f0n0") is None and detail.parse_fx("x") is None
-    assert detail.fx_key(detail.parse_fx("n.5f.25")) == "f0.25n0.50"
+    assert detail.fx_key(detail.parse_fx("n.5f.25s-.1")) == "f0.25n0.50s-0.10"
 
 
 def test_fusion_lifts_the_subject_and_keeps_white_sky():
@@ -166,3 +168,91 @@ def test_print_applies_fx_to_wide_photo(tmp_path):
     plain, lifted = pdf_with(""), pdf_with("f0.8")
     k = lambda c: np.asarray(c, np.float32)[50:90, 40:70, 3].mean()   # noqa: E731  (Schwarzanteil im Motiv)
     assert k(lifted) > k(plain) + 5         # im PDF ist das CMYK-JPEG invertiert: höher = weniger Schwarz = heller
+
+
+def fairness_scene(skin: float, flat: bool):
+    """Dieselbe Szene mit heller (1.0) oder dunkler Haut (0.3: Reflexion der Haut × 0,3), vor hellem Himmel;
+    flat: flaches, schwaches Licht wie im Gegenlicht."""
+    src = portrait() ** 2.2
+    h, w = src.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    subj = np.clip(1.3 - np.hypot((xx - w / 2) / (w * .33), (yy - h * .55) / (h * .45)), 0, 1)
+    subj = np.asarray(Image.fromarray((subj * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(8)), np.float32) / 255
+    fm = np.zeros((h, w), np.float32)
+    a0, a1, b0, b1 = detail._boxes((h, w), {"x": FACE["x"] + FACE["w"] * .1, "y": FACE["y"] + FACE["h"] * .05, "w": FACE["w"] * .8, "h": FACE["h"] * .9}, 0)
+    fm[a0:a1, b0:b1] = 1
+    fm = np.asarray(Image.fromarray((fm * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(6)), np.float32) / 255
+    lin = src * (1 - fm[..., None] * (1 - skin))
+    if flat:
+        m = (lin * subj[..., None]).sum((0, 1)) / subj.sum()
+        lin = (m + (lin - m) * .45) * .1
+    sky = np.dstack([np.full((h, w), .85), np.full((h, w), .88), np.full((h, w), .95)])
+    return (np.clip(subj[..., None] * lin + (1 - subj[..., None]) * sky, 0, 1) ** (1 / 2.2)).astype(np.float32)
+
+
+FACE = {"x": .386, "y": .236, "w": .247, "h": .232, "score": .95}       # Gesicht in portrait.jpg (YuNet)
+
+
+@pytest.mark.parametrize("flat", [False, True])
+def test_same_decision_and_lift_for_light_and_dark_skin(flat):
+    """Fairness: Gegenlicht-Entscheidung und Aufhellung im Gesicht hängen nicht von der Hautfarbe ab."""
+    h, w = portrait().shape[:2]
+    a0, a1, b0, b1 = detail._boxes((h, w), FACE, 0)
+    res = {}
+    for skin in (1.0, .3):
+        p = fairness_scene(skin, flat)
+        im = Image.fromarray((p * 255).astype(np.uint8))
+        q = detail.analyze(im, im, [FACE])
+        g = detail.tone_log_gain(p, {"fusion": .6, "shadows": .5}, [FACE])
+        res[skin] = (q["backlit"], q["fusion"], 2.2 * float(g[a0:a1, b0:b1].mean()))
+    assert res[1.0][:2] == res[.3][:2]                                    # gleiche Entscheidung
+    assert abs(res[1.0][2] - res[.3][2]) < .2                             # gleiche Aufhellung (Blenden)
+
+
+def test_face_never_lifted_more_than_its_surroundings():
+    p = fairness_scene(.3, True)
+    g = detail.tone_log_gain(p, {"fusion": .8, "shadows": .8}, [FACE])
+    h, w = g.shape
+    a0, a1, b0, b1 = detail._boxes((h, w), FACE, 0)
+    ring = np.zeros((h, w), bool)
+    r0, r1, c0, c1 = detail._boxes((h, w), FACE, 1.2)
+    ring[r0:r1, c0:c1] = True
+    i0, i1, j0, j1 = detail._boxes((h, w), FACE, .35)
+    ring[i0:i1, j0:j1] = False
+    lifted = g[ring][g[ring] > .05]
+    assert np.percentile(g[a0:a1, b0:b1], 90) <= np.median(lifted) + .02
+
+
+def test_lit_faces_are_not_backlit():
+    """Ein deutlich von der Seite beleuchtetes Gesicht vor hellem Himmel ist kein Gegenlicht – egal wie hell die Haut."""
+    im, _ = backlit()
+    a = np.asarray(im, np.float32) / 255
+    h, w = a.shape[:2]
+    a0, a1, b0, b1 = detail._boxes((h, w), FACE, 0)
+    lin = a ** 2.2
+    lin[a0:a1, b0:b1] *= np.linspace(.4, 3.0, b1 - b0)[None, :, None]   # Licht von rechts: starkes Gefälle im Gesicht
+    lit = Image.fromarray((np.clip(lin, 0, 1) ** (1 / 2.2) * 255).astype(np.uint8))
+    assert detail.analyze(im, im, [])["backlit"]
+    assert not detail.analyze(lit, lit, [FACE])["backlit"]
+
+
+def test_local_tone_controls():
+    """Lichter/Tiefen wirken nach Beleuchtung und lassen Weiß weiß; Klarheit verstärkt mittlere Details."""
+    im, mask = backlit()
+    y0 = luma(im)
+    shadows = luma(detail.apply(im, {"shadows": .8}))
+    assert shadows[mask > .9].mean() > y0[mask > .9].mean() + .03
+    white = Image.new("RGB", (400, 300), (250, 250, 250))
+    white.paste(Image.new("RGB", (200, 150), (120, 110, 100)), (100, 75))
+    hl = np.asarray(detail.apply(white, {"highlights": -1.0}), np.float32)
+    assert hl[10, 10].min() >= 245                                       # Weiß bleibt weiß
+    # Klarheit am Muster mit bekannter Größe: mittelgroße Details (64 px auf 1600) kräftiger, feine (8 px, dort
+    # sitzt das Rauschen) unverändert, große Kanten (der Helligkeitsverlauf) bleiben
+    import cv2
+    yy, xx = np.mgrid[0:1200, 0:1600].astype(np.float32)
+    def amp(period, amount):
+        L = -3 + .2 * np.sin(2 * np.pi * xx / period) + xx / 1600 * 2
+        out = detail.clarity(L, amount)
+        d = lambda x: np.abs((x - cv2.GaussianBlur(x, (0, 0), period))[100:-100, 100:-100]).mean()   # noqa: E731
+        return d(out) / d(L)
+    assert amp(64, .8) > 1.4 and amp(8, .8) < 1.05 and amp(64, -.8) < .8

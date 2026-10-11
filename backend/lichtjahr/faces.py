@@ -64,6 +64,24 @@ def _find(data: bytes):
     return bgr, out
 
 
+def detect_rgb(rgb) -> list[dict]:
+    """Gesichter in einem RGB-Feld (uint8, H×W×3), höchstens SIZE groß; für die Detailbearbeitung."""
+    import numpy as np
+    if not available():
+        return []
+    h, w = rgb.shape[:2]
+    bgr = np.ascontiguousarray(rgb[:, :, ::-1])
+    _, found = _detector((w, h)).detect(bgr)
+    out = []
+    for f in [] if found is None else found:
+        x, y, fw, fh, score = float(f[0]), float(f[1]), float(f[2]), float(f[3]), float(f[-1])
+        x0, y0, x1, y1 = max(0.0, x), max(0.0, y), min(float(w), x + fw), min(float(h), y + fh)
+        if x1 <= x0 or y1 <= y0 or min(x1 - x0, y1 - y0) < MIN_FACE * min(w, h) or score < SCORE:
+            continue
+        out.append({"x": x0 / w, "y": y0 / h, "w": (x1 - x0) / w, "h": (y1 - y0) / h, "score": score})
+    return out
+
+
 def detect(data: bytes) -> list[dict]:
     """Gesichter in einem Bild (JPEG/PNG …); leer, wenn keine gefunden werden oder OpenCV fehlt."""
     if not available():
