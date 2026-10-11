@@ -42,6 +42,10 @@ class ProjectError(Exception):
     pass
 
 
+class ProjectExists(ProjectError):
+    """Im Ordner liegt schon ein Projekt (zum Beispiel, wenn jemand einem geteilten Kalender beitritt)."""
+
+
 class RevisionConflict(ProjectError):
     def __init__(self, current: int) -> None:
         super().__init__(_t("Das Projekt wurde inzwischen geändert (Revision {revision}).", revision=current))
@@ -98,7 +102,7 @@ class Project:
     def create(cls, storage: Storage, cache_dir: str, *, title: str, calendar_year: int, source_year: int,
                format: dict | None = None, language: str = "de") -> "Project":
         if storage.exists(MANIFEST):
-            raise ProjectError(_t("In diesem Ordner gibt es schon ein Lichtjahr-Projekt."))
+            raise ProjectExists(_t("In diesem Ordner gibt es schon ein Lichtjahr-Projekt."))
         language = lang_of(language)
         for m in [*range(12), None]:
             storage.makedirs(month_dir(m, language))

@@ -172,6 +172,16 @@ Starts dauern wenige Sekunden. Falls macOS das Skript nicht öffnet: Systemeinst
 Sicherheit → „Dennoch öffnen“. Unter Windows fragt eventuell SmartScreen: „Weitere Informationen“ →
 „Trotzdem ausführen“.
 
+**Aktualisieren:** das neue ZIP herunterladen, das Fenster des laufenden Lichtjahr schließen und das neue Skript
+starten. Projekte, Druckprofile und Zugangsdaten bleiben erhalten; sie liegen im Projektordner und in deinem
+Benutzerordner, nicht neben dem Skript.
+
+**Gemeinsam an einem Kalender:** den Projektordner teilen (in Nextcloud mit dem Recht zum Bearbeiten, oder über
+Syncthing oder ein Netzlaufwerk). Die andere Person startet Lichtjahr und wählt *Vorhandenes öffnen* mit ihrer
+eigenen Adresse des geteilten Ordners (in Nextcloud: die eigene WebDAV-Adresse plus der Name, unter dem der
+geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person; die andere sieht den Kalender zum
+Ansehen und kann übernehmen, sobald er frei ist. Alle sollten dieselbe Lichtjahr-Version verwenden.
+
 <details>
 <summary>Mit dem Terminal</summary>
 
