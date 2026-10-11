@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
+from PIL import Image, ImageCms
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -31,7 +31,7 @@ from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
 from .media import BROWSER_EXT, browser_copy
 from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
-                       print_tune, proof_colors, proof_image, sharpen_for_print)
+                       print_tune, proof_colors, proof_image, rich_black, sharpen_for_print)
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
@@ -331,7 +331,16 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Druckprofile ---------------------------------------------------------------------
     @app.get("/api/printers")
     def list_printers():
-        return [p.public() for p in printers.all()]
+        """Druckprofile; je verfügbarem Profil das Tiefschwarz, das die Oberfläche für schwarze Flächen nimmt."""
+        out = []
+        for p in printers.all():
+            d = p.public()
+            try:
+                d["richBlack"] = rich_black(p) if p.available else None
+            except (OSError, ImageCms.PyCMSError):
+                d["richBlack"] = None
+            out.append(d)
+        return out
 
     @app.post("/api/printers")
     async def add_printer(file: UploadFile = File(...), name: str | None = Form(default=None), tac: int | None = Form(default=None),

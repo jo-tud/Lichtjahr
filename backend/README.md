@@ -213,7 +213,7 @@ The running service shows the complete description at `http://localhost:8470/api
 | GET | `/api/printers/{id}/tune` | Print adaptation for the profile: tone curve (65 points), strength, sharpening; derived from the profile's black point |
 | POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
-| GET / POST / DELETE | `/api/printers` | List print profiles / add your own ICC profile / remove one |
+| GET / POST / DELETE | `/api/printers` | List print profiles (each with `richBlack`: the darkest neutral CMYK black within the ink limit, its L* and that of plain K) / add your own ICC profile / remove one |
 | GET / POST | `/api/people/model` | Status of the recognition model / download it once (SFace, 10 MB, SHA-256 checked) into the data folder |
 | POST | `/api/projects/{id}/people` | Faces with 128 features each for the given photos; cached locally only, never written to the project folder; the app groups them into people |
 | POST | `/api/projects/{id}/faces` | Faces in the given photos (`{ids: [...]}`): boxes as fractions of the photo, cached per checksum; `available: false` without OpenCV |

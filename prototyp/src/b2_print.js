@@ -43,7 +43,7 @@ async function loadProofColors() {
   const pr = printerOf(); if (!pr) return;
   const key = pr.id + (ui.proofPaper !== false ? ':paper' : '');
   if (PROOF.key === key && PROOF.colors) return;
-  const colors = Object.fromEntries(Object.entries(COLORS).map(([k, c]) => [k, c.cmyk]));
+  const colors = Object.fromEntries(Object.keys(COLORS).map(k => [k, inkOf(k)]));
   try { PROOF.colors = await api(`printers/${encodeURIComponent(pr.id)}/proof-colors`, { method: 'POST', body: { colors, paper: ui.proofPaper !== false } }); PROOF.key = key; }
   catch (e) { PROOF.colors = null; PROOF.key = ''; }
 }
@@ -74,6 +74,7 @@ function printCard() {
       <dt>${_t('Druckbedingung')}</dt><dd>${esc(pr.condition)}${pr.info && pr.info !== pr.name ? ` <span class="muted">· ${esc(pr.info.length > 70 ? pr.info.slice(0, 70) + '…' : pr.info)}</span>` : ''}</dd>
       <dt>${_t('Umrechnung')}</dt><dd>${intentLabel(pr.intent)}</dd>
       <dt>${_t('Farbauftrag')}</dt><dd>${_t('höchstens {tac} %', { tac: pr.tac })}</dd>
+      ${pr.richBlack ? `<dt>${_t('Tiefschwarz')}</dt><dd>${cmykText(pr.richBlack.cmyk)} <span class="muted">· ${_t('L* {l} statt {k} bei reinem Schwarz', { l: fmt1(pr.richBlack.L), k: fmt1(pr.richBlack.kOnlyL) })}</span></dd>` : ''}
       <dt>${_t('Beschnitt')}</dt><dd>${pr.bleed} mm ${d.bleed + 1e-6 < pr.bleed ? `<span class="bad-text">${_t('(eingestellt: {bleed} mm)', { bleed: fmt1(d.bleed) })}</span>` : '✓'}</dd>
     </dl>
     ${pr.note ? `<p class="hint">${esc(pr.note)}</p>` : ''}
