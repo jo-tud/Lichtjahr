@@ -5,6 +5,9 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 ## [Unreleased]
 
 ### Fixes
+- Moving the strength slider of *Auto* (or other sliders the service computes, such as backlight, noise, local
+  highlights and shadows, texture) no longer makes the photo flash blank or black. The current picture stays until
+  the new one is ready and then fades over; the service only computes where the slider comes to rest.
 - Opened view in the print preview: the other half (top or bottom) is shown as printed, no longer faded and without
   its name.
 - Flipping on the wall ends smoothly: the shadows of the turning sheet and the page below no longer add up at the
