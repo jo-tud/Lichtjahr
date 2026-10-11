@@ -14,6 +14,11 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
   your own TrueType files work too and stay in the browser.
 
 ### Fixes
+- Moving the strength slider of *Auto* (or other sliders the service computes, such as backlight, noise, local
+  highlights and shadows, texture) no longer makes the photo flash blank or black. The current picture stays until
+  the new one is ready and then fades over; the service only computes where the slider comes to rest.
+- Print loupe: while the sharp picture was loading, the loupe briefly turned into a large white panel. It now keeps
+  its size and shows the enlarged preview with a small spinner until the print version is there.
 - Opening a project directly in the design view no longer throws an error when the print profiles load first.
 - Opened view in the print preview: the other half (top or bottom) is shown as printed, no longer faded and without
   its name.

@@ -169,7 +169,9 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await B.click('[data-act="fixnoise"]');
     await B.waitForFunction((id) => (S.doc.adjust[id] || {}).denoise > 0, noisyId);
     await waitFor(async () => { const M = await manifest(); return ((M.editor.doc.adjust || {})[backId] || {}).fusion > 0; });
-    const href = await B.evaluate(() => { ui.page = 'm4'; setView('design'); return [...document.querySelectorAll('#canvasWrap image')].map(i => i.getAttribute('href')).find(h => h.includes('fx=')); });
+    await B.evaluate(() => { ui.page = 'm4'; setView('design'); });
+    // Das bearbeitete Bild rechnet der Dienst; bis es da ist, bleibt das bisherige stehen (stableUrl)
+    const href = await (await B.waitForFunction(() => [...document.querySelectorAll('#canvasWrap image')].map(i => i.getAttribute('href')).find(h => h && h.includes('fx=')), null, { timeout: 30000 })).jsonValue();
     assert.ok(href && /fx=f0\.\d\d/.test(href), 'Vorschau ohne Gegenlicht-Ausgleich: ' + href);
     const lifted = await fetch(BASE + href.replace(/^\/?/, '')); assert.equal(lifted.status, 200);
     assert.ok(!/Gegenlicht/.test(await B.evaluate(() => checks().map(c => c[1]).join(' '))));

@@ -38,8 +38,8 @@ function loupeRender() {
       ${seg([['paper', _t('Papiergröße')], ['px', '100 %']], z, 'loupezoom')}
       <button class="loupe-x" data-act="loupe" aria-label="${esc(_t('Drucklupe schließen'))}">×</button></div>`;
   const img = el.querySelector('img');
-  img.addEventListener('load', () => { if (img.dataset.src === LOUPE.want) img.classList.add('on'); el.classList.remove('busy'); });
-  img.addEventListener('error', () => el.classList.remove('busy'));
+  img.addEventListener('load', () => { if (img.dataset.src === LOUPE.want) img.classList.add('on'); el.classList.remove('loading'); });
+  img.addEventListener('error', () => el.classList.remove('loading'));
 }
 function loupeHide() {
   clearTimeout(LOUPE.timer); LOUPE.at = null; LOUPE.want = '';
@@ -102,7 +102,7 @@ function loupeShow(hit) {
   const url = `api/${PP(`/assets/${a.id}/loupe`)}?${q}`;
   img.style.width = box.w + 'px'; img.style.height = box.h + 'px';
   if (url === LOUPE.want) return;
-  LOUPE.want = url; img.classList.remove('on'); el.classList.add('busy');
+  LOUPE.want = url; img.classList.remove('on'); el.classList.add('loading');
   clearTimeout(LOUPE.timer);
   LOUPE.timer = setTimeout(() => { if (LOUPE.want === url) { img.dataset.src = url; img.src = url; } }, 140);
 }

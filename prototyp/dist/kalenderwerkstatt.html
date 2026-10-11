@@ -479,7 +479,7 @@ a.btn.primary { color: var(--accent-ink); }
 .loupe-ph { background-repeat: no-repeat; image-rendering: auto; }
 .loupe img { max-width: none; opacity: 0; transition: opacity .12s; }
 .loupe img.on { opacity: 1; }
-.loupe.busy .loupe-view::after { content: ""; position: absolute; right: 8px; top: 8px; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.9); border-top-color: transparent; border-radius: 50%; animation: loupe-spin .8s linear infinite; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.loupe.loading .loupe-view::after { content: ""; position: absolute; right: 8px; top: 8px; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.9); border-top-color: transparent; border-radius: 50%; animation: loupe-spin .8s linear infinite; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
 @keyframes loupe-spin { to { transform: rotate(360deg); } }
 .loupe-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; border-top: 1px solid var(--line); }
 .loupe-info { flex: 1; min-width: 0; color: var(--muted); font-size: 11px; line-height: 1.3; }
@@ -487,7 +487,7 @@ a.btn.primary { color: var(--accent-ink); }
 .btn[data-act="loupe"][aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .loupe-bar .seg button { padding: 3px 8px; font-size: 12px; }
 .loupe-x { border: 0; background: none; font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .loupe img { transition: none; } .loupe.busy .loupe-view::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .loupe img { transition: none; } .loupe.loading .loupe-view::after { animation: none; } }
 
 /* Nur ansehen: Bedienelemente zum Ändern wirken gesperrt; geänderte Seiten der anderen Person leuchten kurz auf */
 body.view-only [data-bind], body.view-only [data-act-input] { cursor: not-allowed; }
@@ -3193,6 +3193,36 @@ function indexItems(p) {
 const cRGBraw = (id) => (COLORS[id] || COLORS.black).rgb;
 const cRGB = (id) => (proofOn() && PROOF.colors && PROOF.colors[id]) || cRGBraw(id);
 const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h}"${pl.rot ? ` transform="rotate(${pl.rot} ${pl.fx} ${pl.fy})"` : ''}`;
+/* Bilder, die der Dienst erst rechnet (Gegenlicht, Rauschen, örtliche Tonwerte, Softproof), brauchen einen Moment.
+   Bis das neue Bild da ist, bleibt das zuletzt gezeigte stehen – statt einer leeren, dunklen Fläche. Angefragt wird
+   erst, wenn sich die Adresse 200 ms nicht mehr ändert: Beim Ziehen eines Reglers rechnet der Dienst nicht jeden
+   Zwischenschritt, sondern das, wo der Regler stehen bleibt. Ist es geladen, tauscht die Seite nur die Adresse aus. */
+const IMG = { ready: new Set(), last: {}, timers: {}, loading: new Set() };
+function stableUrl(key, url, fallback) {
+  if (!url || IMG.ready.has(url)) { if (url) IMG.last[key] = url; return url; }
+  clearTimeout(IMG.timers[key]);
+  IMG.timers[key] = setTimeout(() => {
+    if (IMG.loading.has(url)) return;
+    IMG.loading.add(url);
+    const im = new Image();
+    im.onload = im.onerror = () => {
+      IMG.loading.delete(url); IMG.ready.add(url); IMG.last[key] = url;
+      for (const el of document.querySelectorAll('image[data-want]')) if (el.dataset.want === url) swapImage(el, url);
+    };
+    im.src = url;
+  }, 200);
+  return IMG.last[key] || fallback;
+}
+// Neues Bild sanft über das alte blenden; ist noch nichts zu sehen (oder wenig Bewegung gewünscht), direkt tauschen
+function swapImage(el, url) {
+  el.removeAttribute('data-want');
+  if (!el.getAttribute('href') || !el.isConnected || typeof reduceMotion === 'function' && reduceMotion()) { el.setAttribute('href', url); return; }
+  const top = el.cloneNode(false); top.setAttribute('href', url); top.style.opacity = '0';
+  el.after(top);
+  top.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out', fill: 'forwards' }).finished
+    .then(() => { top.style.opacity = ''; el.remove(); }, () => {});
+}
+const imgTag = (want, shown, attrs) => `<image href="${shown || ''}"${shown !== want ? ` data-want="${want}"` : ''} ${attrs}/>`;
 let svgN = 0;
 function svgPage(p, o = {}) {
   // o.mode: 'editor' | 'thumb' | 'proof'
@@ -3204,7 +3234,8 @@ function svgPage(p, o = {}) {
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
   // Gegenlicht und Rauschen rechnet der Dienst ins Vorschaubild ein (fx); das Rezept kommt als SVG-Filter dazu
-  const plainUrl = (pid, small) => withFx((small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '', fxOf(pid));
+  const baseUrl = (pid, small) => (small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '';
+  const plainUrl = (pid, small) => withFx(baseUrl(pid, small), fxOf(pid));
   // Bildanpassung als SVG-Filter; in der Druckansicht steckt sie schon im Bild vom Dienst, beim Vergleichen ist sie aus
   const fdone = new Set();
   const adjFilter = (pid, plain = false) => {
@@ -3223,10 +3254,11 @@ function svgPage(p, o = {}) {
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" ${fontAttrs(it.font)} fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place, sm = small || it.mini, pu = proofOn() && proofUrl(it.photo, sm);
-        const plain = `<image href="${plainUrl(it.photo, sm)}" ${imgAttrs(pl)} preserveAspectRatio="none"${adjFilter(it.photo, true)}/>`;
+        const want = plainUrl(it.photo, sm), base = baseUrl(it.photo, sm);
+        const plain = imgTag(want, want === base ? want : stableUrl(`${it.photo}:${sm ? 's' : 'l'}`, want, base), `${imgAttrs(pl)} preserveAspectRatio="none"${adjFilter(it.photo, true)}`);
         // Druckansicht: das Bild vom Dienst liegt über der normalen Vorschau. Solange es gerechnet wird (mit
         // Detailbearbeitung einige Sekunden) oder falls es fehlt, bleibt das Foto sichtbar statt einer leeren Fläche
-        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}>${plain}${pu ? `<image href="${pu}" ${imgAttrs(pl)} preserveAspectRatio="none"/>` : ''}</g>`;
+        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}>${plain}${pu ? imgTag(pu, stableUrl(`${it.photo}:p${sm ? 's' : 'l'}`, pu, ''), `${imgAttrs(pl)} preserveAspectRatio="none"`) : ''}</g>`;
       }
       case 'empty': {
         const r = it.clip;
@@ -7230,8 +7262,8 @@ function loupeRender() {
       ${seg([['paper', _t('Papiergröße')], ['px', '100 %']], z, 'loupezoom')}
       <button class="loupe-x" data-act="loupe" aria-label="${esc(_t('Drucklupe schließen'))}">×</button></div>`;
   const img = el.querySelector('img');
-  img.addEventListener('load', () => { if (img.dataset.src === LOUPE.want) img.classList.add('on'); el.classList.remove('busy'); });
-  img.addEventListener('error', () => el.classList.remove('busy'));
+  img.addEventListener('load', () => { if (img.dataset.src === LOUPE.want) img.classList.add('on'); el.classList.remove('loading'); });
+  img.addEventListener('error', () => el.classList.remove('loading'));
 }
 function loupeHide() {
   clearTimeout(LOUPE.timer); LOUPE.at = null; LOUPE.want = '';
@@ -7294,7 +7326,7 @@ function loupeShow(hit) {
   const url = `api/${PP(`/assets/${a.id}/loupe`)}?${q}`;
   img.style.width = box.w + 'px'; img.style.height = box.h + 'px';
   if (url === LOUPE.want) return;
-  LOUPE.want = url; img.classList.remove('on'); el.classList.add('busy');
+  LOUPE.want = url; img.classList.remove('on'); el.classList.add('loading');
   clearTimeout(LOUPE.timer);
   LOUPE.timer = setTimeout(() => { if (LOUPE.want === url) { img.dataset.src = url; img.src = url; } }, 140);
 }
