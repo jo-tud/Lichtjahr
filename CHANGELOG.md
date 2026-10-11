@@ -12,6 +12,9 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
   photos from the calendar for a look back at the year.
 
 ### Fixes
+- With only one tab open, the app sometimes claimed another window was editing the project: when a tab came back
+  to the foreground, two lock heartbeats could collide, and after sleep or a frozen background tab an expired lock
+  of the same tab counted as lost. Both now keep the lock; only a real takeover by someone else ends editing.
 - Print preview (also on the wall): the normal preview stays visible until the service has computed the print
   version of a photo. Before, a photo with detail edits vanished for a few seconds, and a black background made
   the page look empty.
