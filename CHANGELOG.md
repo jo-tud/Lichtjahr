@@ -14,7 +14,14 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
   a face is never lifted more than its surroundings. A test checks light and dark skin in the same scene.
 - Backlight: with the local service, exposure fusion lifts a dark subject in front of a bright sky, while the sky
   stays white. Preview, soft proof, Draft PDF and Print PDF show the same result.
-- Noise reduction for dark phone photos: color noise firmly, luminance noise gently.
+- Noise reduction for dark phone photos: color noise firmly, luminance noise gently. It measures noise per
+  brightness level and works harder where the photo is brightened afterwards (backlight, shadows), so lifted
+  shadows don't turn grainy.
+- New *Texture* slider: fine detail brought out or smoothed at full resolution, without amplifying noise and
+  without halos; faces get only half when strengthening.
+- Print sharpening is noise-aware and limits overshoot, so edges get crisper without fringes.
+- Print loupe: hover over (or tap) a photo to see that spot as it will be printed, rendered by the service from
+  the full-size original at Print PDF resolution, at paper size or 100 %.
 - The service measures noise and backlight; the check list names photos that need it, with a one-click fix, and
   *Auto* includes the suggestion (and no longer darkens backlit photos). Two sliders under *Enhance photo* fine-tune it.
 

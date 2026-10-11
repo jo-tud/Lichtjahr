@@ -10,11 +10,12 @@
    Dazu kommt die Detailbearbeitung (DETAIL_KEYS): Gegenlicht ausgleichen und Rauschen mindern wirken örtlich und
    laufen deshalb im Dienst (detail.py), vor dem Rezept. Die Oberfläche hängt dafür „fx=f0.40n0.30“ an die Adresse
    von Vorschau, Druckansicht und Original; das Druck-PDF gibt es dem Dienst im Bildobjekt mit. */
-const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity'];
-// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu) und Klarheit überhaupt erst:
-// dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
+const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity', 'texture'];
+// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu), Klarheit und Struktur überhaupt
+// erst: dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
 // globale Näherung sofort, beim Loslassen kommt das örtliche Ergebnis.
-const LOCAL_KEYS = ['highlights', 'shadows', 'clarity'];
+const LOCAL_KEYS = ['highlights', 'shadows', 'clarity', 'texture'];
+const SERVICE_KEYS = ['clarity', 'texture'];          // ohne Dienst wirkungslos, keine globale Näherung
 const localTone = () => detailOn();
 // Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
 const LOOKS = {
@@ -70,7 +71,7 @@ function toneCurve(r) {
 }
 function compileAdjust(r) {
   if (!r) return null;
-  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && k !== 'clarity' && !(loc && LOCAL_KEYS.includes(k));
+  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && !SERVICE_KEYS.includes(k) && !(loc && LOCAL_KEYS.includes(k));
   if (!Object.keys(r).some(inCurve)) return null;      // nur Örtliches (Dienst): kein Filter
   if (loc) r = { ...r, highlights: 0, shadows: 0 };
   const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
@@ -294,10 +295,10 @@ async function setAuto(id, on) {
    Prüfliste nennt Fotos, bei denen es sich lohnt; die Automatik übernimmt die Vorschläge. Ohne Dienst oder ohne
    OpenCV im Dienst gibt es beides nicht, alles andere funktioniert wie zuvor. */
 const QUALITY = { available: null, q: {}, busy: false };
-// „f0.40n0.30h-0.20s0.35c0.25“: Fusion, Rauschen, Lichter, Tiefen, Klarheit (nur was nicht 0 ist); tone: Lichter
+// „f0.40n0.30h-0.20s0.35c0.25t0.30“: Fusion, Rauschen, Lichter, Tiefen, Klarheit, Struktur (nur was nicht 0 ist); tone: Lichter
 // und Tiefen gehören dazu (örtlich), sonst stecken sie in der Kurve
 function fxText(r, tone = true) {
-  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity]];
+  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity], ['t', r.texture]];
   return parts.filter(([, v]) => v && Math.abs(v) >= .01).map(([k, v]) => k + v.toFixed(2)).join('');
 }
 const detailOn = () => !!SVC.pid && QUALITY.available !== false;

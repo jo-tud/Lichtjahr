@@ -476,6 +476,22 @@ a.btn.primary { color: var(--accent-ink); }
 .person > div { display: grid; gap: 4px; min-width: 0; }
 .person input { width: 100%; }
 .person-filter { display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--accent-soft, #fde7ef); border-radius: var(--r); }
+/* Drucklupe: schwebt neben dem Zeiger, zeigt eine Stelle so, wie sie gedruckt wird */
+.loupe { position: fixed; z-index: 60; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow), 0 12px 32px rgba(20,30,40,.22); overflow: hidden; pointer-events: auto; }
+.loupe-view { position: relative; overflow: hidden; background: var(--surface-2); }
+.loupe-ph, .loupe img { position: absolute; inset: 0; }
+.loupe-ph { background-repeat: no-repeat; image-rendering: auto; }
+.loupe img { max-width: none; opacity: 0; transition: opacity .12s; }
+.loupe img.on { opacity: 1; }
+.loupe.busy .loupe-view::after { content: ""; position: absolute; right: 8px; top: 8px; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.9); border-top-color: transparent; border-radius: 50%; animation: loupe-spin .8s linear infinite; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+@keyframes loupe-spin { to { transform: rotate(360deg); } }
+.loupe-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; border-top: 1px solid var(--line); }
+.loupe-info { flex: 1; min-width: 0; color: var(--muted); font-size: 11px; line-height: 1.3; }
+.loupe-bar .seg { flex-wrap: nowrap; flex: none; }
+.btn[data-act="loupe"][aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.loupe-bar .seg button { padding: 3px 8px; font-size: 12px; }
+.loupe-x { border: 0; background: none; font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .loupe img { transition: none; } .loupe.busy .loupe-view::after { animation: none; } }
 </style>
 <header class="bar">
   <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Lichtjahr</span></div>
@@ -1610,6 +1626,14 @@ Object.assign(EN, {
   'Gegenlicht ausgleichen': 'Fix backlight',
   'Stärke': 'Strength',
   'Klarheit': 'Clarity',
+  'Struktur': 'Texture',
+  'Drucklupe': 'Print loupe',
+  'Zeigt eine Stelle so, wie sie gedruckt wird: Druckauflösung, Schärfe, Rauschen': 'Shows a spot as it will be printed: print resolution, sharpness, noise',
+  'Drucklupe: Foto antippen oder mit dem Finger darüberfahren.': 'Print loupe: tap a photo or slide your finger over it.',
+  'Drucklupe: mit der Maus über ein Foto fahren. Esc beendet.': 'Print loupe: move the mouse over a photo. Esc closes it.',
+  'Papiergröße': 'Paper size',
+  'Drucklupe schließen': 'Close print loupe',
+  '{dpi} dpi · zeigt {w} × {h} mm': '{dpi} dpi · shows {w} × {h} mm',
   'Rauschen mindern': 'Reduce noise',
   'Lichter, Tiefen, Gegenlicht …': 'Highlights, shadows, backlight …',
   'Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter': 'Exposure, white balance, contrast, color, backlight and noise automatically, with priority for faces',
@@ -3396,6 +3420,7 @@ function renderEditor() {
   }
   const m = svg.getScreenCTM(); if (m && m.a) ui.pxmm = m.a;     // Bildschirmpixel pro mm, z. B. für Trefferflächen
   bindEditor(svg);
+  if (ui.loupe) loupeRefresh();
 }
 const dpiPill = (ph, r, sl) => {
   const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < DPI_BAD ? 'bad' : d < DPI_WARN ? 'warn' : 'ok';
@@ -3403,7 +3428,7 @@ const dpiPill = (ph, r, sl) => {
 };
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
-const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')]] : [])];
+const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')], ['texture', _t('Struktur')]] : [])];
 // Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
 const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
 function detailSliders(ph) {
@@ -3432,6 +3457,7 @@ function tuneBar(ph) {
       <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button>
       <button class="linkbtn" data-act="matchmonths">${_t('Monate angleichen')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
+      ${loupeAvailable(ph) ? loupeButton() : ''}
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
     <div class="looks-row"><div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
@@ -3465,7 +3491,8 @@ function renderFrameBar() {
   if (ph) {
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b>${dpiPill(ph, r, sl)}</div>
       <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>
-      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}`;
+      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}
+      ${!crop && loupeAvailable(ph) ? loupeButton() : ''}`;
     if (crop) h += `<div class="range"><span class="small muted">${_t('Zoom')}</span><input type="range" id="zm" aria-label="${_t('Zoom')}" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <div class="range"><span class="small muted">${_t('Drehen')}</span><input type="range" id="rt" aria-label="${_t('Foto drehen')}" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
       <button class="btn small" data-act="rot90" title="${_t('Um 90° drehen')}">↻ 90°</button>
@@ -3836,7 +3863,7 @@ document.addEventListener('input', (e) => {
     if (loc) ui.toneDrag = el.dataset.photo;        // beim Ziehen globale Näherung, örtlich erst beim Loslassen
     setAdjust(el.dataset.photo, { [k]: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
-    if (k !== 'clarity') renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+    if (!SERVICE_KEYS.includes(k)) renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
   if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
@@ -6013,11 +6040,12 @@ function faceCover(faces, r) {
    Dazu kommt die Detailbearbeitung (DETAIL_KEYS): Gegenlicht ausgleichen und Rauschen mindern wirken örtlich und
    laufen deshalb im Dienst (detail.py), vor dem Rezept. Die Oberfläche hängt dafür „fx=f0.40n0.30“ an die Adresse
    von Vorschau, Druckansicht und Original; das Druck-PDF gibt es dem Dienst im Bildobjekt mit. */
-const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity'];
-// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu) und Klarheit überhaupt erst:
-// dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
+const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity', 'texture'];
+// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu), Klarheit und Struktur überhaupt
+// erst: dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
 // globale Näherung sofort, beim Loslassen kommt das örtliche Ergebnis.
-const LOCAL_KEYS = ['highlights', 'shadows', 'clarity'];
+const LOCAL_KEYS = ['highlights', 'shadows', 'clarity', 'texture'];
+const SERVICE_KEYS = ['clarity', 'texture'];          // ohne Dienst wirkungslos, keine globale Näherung
 const localTone = () => detailOn();
 // Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
 const LOOKS = {
@@ -6073,7 +6101,7 @@ function toneCurve(r) {
 }
 function compileAdjust(r) {
   if (!r) return null;
-  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && k !== 'clarity' && !(loc && LOCAL_KEYS.includes(k));
+  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && !SERVICE_KEYS.includes(k) && !(loc && LOCAL_KEYS.includes(k));
   if (!Object.keys(r).some(inCurve)) return null;      // nur Örtliches (Dienst): kein Filter
   if (loc) r = { ...r, highlights: 0, shadows: 0 };
   const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
@@ -6297,10 +6325,10 @@ async function setAuto(id, on) {
    Prüfliste nennt Fotos, bei denen es sich lohnt; die Automatik übernimmt die Vorschläge. Ohne Dienst oder ohne
    OpenCV im Dienst gibt es beides nicht, alles andere funktioniert wie zuvor. */
 const QUALITY = { available: null, q: {}, busy: false };
-// „f0.40n0.30h-0.20s0.35c0.25“: Fusion, Rauschen, Lichter, Tiefen, Klarheit (nur was nicht 0 ist); tone: Lichter
+// „f0.40n0.30h-0.20s0.35c0.25t0.30“: Fusion, Rauschen, Lichter, Tiefen, Klarheit, Struktur (nur was nicht 0 ist); tone: Lichter
 // und Tiefen gehören dazu (örtlich), sonst stecken sie in der Kurve
 function fxText(r, tone = true) {
-  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity]];
+  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity], ['t', r.texture]];
   return parts.filter(([, v]) => v && Math.abs(v) >= .01).map(([k, v]) => k + v.toFixed(2)).join('');
 }
 const detailOn = () => !!SVC.pid && QUALITY.available !== false;
@@ -6696,6 +6724,147 @@ function peopleChecks() {
   if (!PEOPLE.groups) return [];
   return PEOPLE.groups.filter(x => x.name && personInCalendar(x) === 0).map(x => ['warn', _t('{name} kommt im Kalender noch nicht vor (auf {n} Fotos)', { name: x.name, n: personPhotos(x).length }), null]);
 }
+/* ---------- Drucklupe ----------
+   Zeigt eine Stelle eines Fotos so, wie sie gedruckt wird: der Dienst rechnet sie aus dem Original in voller Größe,
+   mit Detailbearbeitung (Rauschen, Struktur, Gegenlicht …), Rezept, Druckausgleich und Ausgabeschärfung, in der
+   Auflösung des Druck-PDFs (höchstens 300 dpi) und in der Druckansicht als Softproof. Zwei Maßstäbe:
+   „Papiergröße“ (1 cm auf dem Papier ≈ 1 cm am Bildschirm) und „100 %“ (ein Druckpixel je CSS-Pixel).
+   Mit der Maus folgt sie dem Zeiger, auf dem Handy dem Finger. Solange das scharfe Bild lädt, zeigt sie die
+   vergrößerte Vorschau. Nur mit dem Dienst. */
+const LOUPE = { el: null, timer: 0, want: '', at: null, zoom: 'paper' };
+const CSS_PX_MM = 96 / 25.4;                       // CSS-Pixel je Millimeter (1 in = 96 px)
+const PRINT_PPMM = 300 / 25.4;                     // Druck-PDF: höchstens 300 dpi
+const loupeAsset = (ph) => ph && !ph.demo && (SVC.assets[ph.id] || (ph.copyOf && SVC.assets[ph.copyOf])) || null;
+const loupeAvailable = (ph) => !!(SVC.pid && loupeAsset(ph));
+
+function loupeToggle(on = !ui.loupe) {
+  ui.loupe = !!on;
+  if (!ui.loupe) loupeHide();
+  else toast(coarse() ? _t('Drucklupe: Foto antippen oder mit dem Finger darüberfahren.') : _t('Drucklupe: mit der Maus über ein Foto fahren. Esc beendet.'), 4000);
+  renderFrameBar();
+}
+const loupeButton = () => `<button class="btn small" data-act="loupe" aria-pressed="${!!ui.loupe}" title="${esc(_t('Zeigt eine Stelle so, wie sie gedruckt wird: Druckauflösung, Schärfe, Rauschen'))}">🔍 ${_t('Drucklupe')}</button>`;
+
+function loupeSize() {
+  const vw = window.innerWidth;
+  return vw < 600 ? { w: Math.min(vw - 32, 320), h: 190 } : { w: 340, h: 230 };
+}
+function loupeEl() {
+  if (LOUPE.el) return LOUPE.el;
+  const el = document.createElement('div');
+  el.className = 'loupe'; el.hidden = true; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', _t('Drucklupe'));
+  document.body.appendChild(el);
+  LOUPE.el = el;
+  return el;
+}
+function loupeRender() {
+  const el = loupeEl(), z = LOUPE.zoom;
+  el.innerHTML = `<div class="loupe-view"><div class="loupe-ph"></div><img alt=""></div>
+    <div class="loupe-bar"><span class="loupe-info num"></span>
+      ${seg([['paper', _t('Papiergröße')], ['px', '100 %']], z, 'loupezoom')}
+      <button class="loupe-x" data-act="loupe" aria-label="${esc(_t('Drucklupe schließen'))}">×</button></div>`;
+  const img = el.querySelector('img');
+  img.addEventListener('load', () => { if (img.dataset.src === LOUPE.want) img.classList.add('on'); el.classList.remove('busy'); });
+  img.addEventListener('error', () => el.classList.remove('busy'));
+}
+function loupeHide() {
+  clearTimeout(LOUPE.timer); LOUPE.at = null; LOUPE.want = '';
+  if (LOUPE.el) LOUPE.el.hidden = true;
+}
+
+// Welche Stelle welches Fotos liegt unter dem Punkt? Vorn liegende Rahmen zuerst, Drehung herausgerechnet
+function loupeHit(x, y) {
+  const svg = $('#editor'); if (!svg) return null;
+  const g = document.elementsFromPoint(x, y).map(n => n.closest && n.closest('#editor g[data-slot]')).find(Boolean);
+  if (!g) return null;
+  const p = curPage(), key = keyOf(g.dataset.slot), r = rectOf(p, key), sl = slotOf(p, key), ph = sl && S.photos[sl.photo];
+  if (!r || !loupeAvailable(ph)) return null;
+  const m = svg.getScreenCTM(); if (!m) return null;
+  const q = new DOMPoint(x, y).matrixTransform(m.inverse());
+  if (q.x < r.x || q.y < r.y || q.x > r.x + r.w || q.y > r.y + r.h) return null;
+  const pl = placeImage(r, ph, sl), th = -(pl.rot || 0) * Math.PI / 180, dx = q.x - pl.fx, dy = q.y - pl.fy;
+  const u = (pl.fx + dx * Math.cos(th) - dy * Math.sin(th) - pl.x) / pl.w, v = (pl.fy + dx * Math.sin(th) + dy * Math.cos(th) - pl.y) / pl.h;
+  if (u < 0 || v < 0 || u > 1 || v > 1) return null;
+  const img = g.querySelector('image');
+  return { ph, pl, u, v, x, y, href: img && img.getAttribute('href'), filter: img && img.getAttribute('filter') };
+}
+
+function loupeShow(hit) {
+  LOUPE.at = hit;
+  const el = loupeEl(); if (!el.firstChild) loupeRender();
+  const { ph, pl, u, v } = hit, box = loupeSize();
+  const photoPpmm = ph.w / pl.w, ppmm = Math.min(PRINT_PPMM, photoPpmm), scale = ppmm / photoPpmm;   // Druckpixel je Fotopixel
+  const k = LOUPE.zoom === 'px' ? 1 : ppmm / CSS_PX_MM;                                               // Druckpixel je CSS-Pixel
+  const w = Math.min(1600, Math.round(box.w * k)), h = Math.min(1600, Math.round(box.h * k));
+  const bw = w / scale / ph.w;                                                                         // Ausschnitt als Teil der Fotobreite
+  el.hidden = false;
+  el.style.width = box.w + 'px';
+  const view = el.querySelector('.loupe-view'), phEl = el.querySelector('.loupe-ph'), img = el.querySelector('img');
+  view.style.height = box.h + 'px';
+  // Platzhalter: die Vorschau des Editors, vergrößert (mit demselben Rezept-Filter)
+  const bgW = box.w / bw, bgH = bgW * ph.h / ph.w;
+  if (hit.href) {
+    phEl.style.backgroundImage = `url("${hit.href.replace(/"/g, '%22')}")`;
+    phEl.style.backgroundSize = `${bgW}px ${bgH}px`;
+    phEl.style.backgroundPosition = `${box.w / 2 - u * bgW}px ${box.h / 2 - v * bgH}px`;
+    phEl.style.filter = hit.filter || '';
+  }
+  const dpi = Math.round(ppmm * 25.4), mmW = w / ppmm, mmH = h / ppmm;
+  el.querySelector('.loupe-info').textContent = _t('{dpi} dpi · zeigt {w} × {h} mm', { dpi, w: fmt1(mmW), h: fmt1(mmH) });
+  // Lage: neben dem Zeiger, im Fenster
+  const gap = 24, vw = window.innerWidth, vh = window.innerHeight, H = el.offsetHeight || box.h + 40;
+  let left = hit.x + gap, top = hit.y - H - gap;
+  if (left + box.w > vw - 8) left = hit.x - box.w - gap;
+  if (coarse()) left = (vw - box.w) / 2;
+  if (top < 8) top = Math.min(vh - H - 8, hit.y + gap);
+  el.style.left = Math.max(8, left) + 'px'; el.style.top = Math.max(8, top) + 'px';
+  // scharfes Bild vom Dienst, sobald der Zeiger kurz ruht
+  const a = loupeAsset(ph), c = compileAdjust(adjOf(ph.id)), pr = typeof printerOf === 'function' && PRN.loaded ? printerOf() : null;
+  const fx = fxOf(ph.id, false);
+  const q = [`cx=${u.toFixed(4)}`, `cy=${v.toFixed(4)}`, `w=${w}`, `h=${h}`, `scale=${scale.toFixed(5)}`, `pw=${ph.w}`,
+    fx && 'fx=' + fx, c && 'adj=' + encodeURIComponent(c.m.map(x => +x.toFixed(4)).join(',') + ';' + c.lut.map(x => +x.toFixed(4)).join(',')),
+    pr && 'printer=' + encodeURIComponent(pr.id), pr && tuneOn() && 'tune=1', pr && proofOn() && 'proof=1', pr && proofOn() && ui.proofPaper === false && 'paper=0',
+    `v=${a.contentHash.slice(0, 12)}`, SVC.token && 'token=' + encodeURIComponent(SVC.token)].filter(Boolean).join('&');
+  const url = `api/${PP(`/assets/${a.id}/loupe`)}?${q}`;
+  img.style.width = box.w + 'px'; img.style.height = box.h + 'px';
+  if (url === LOUPE.want) return;
+  LOUPE.want = url; img.classList.remove('on'); el.classList.add('busy');
+  clearTimeout(LOUPE.timer);
+  LOUPE.timer = setTimeout(() => { if (LOUPE.want === url) { img.dataset.src = url; img.src = url; } }, 140);
+}
+// Nach Änderungen am Foto (Regler, Druckansicht) dieselbe Stelle neu zeigen
+function loupeRefresh() {
+  if (!ui.loupe || !LOUPE.at) return;
+  const hit = loupeHit(LOUPE.at.x, LOUPE.at.y);
+  if (hit) loupeShow(hit); else loupeHide();
+}
+
+ACTIONS.loupe = () => loupeToggle();
+ACTIONS.loupezoom = (el) => { LOUPE.zoom = el.dataset.v; loupeRender(); if (LOUPE.at) loupeShow(LOUPE.at); };
+
+// Maus: der Zeiger führt; Finger: antippen oder darüberfahren (verschiebt dann keinen Rahmen)
+document.addEventListener('pointermove', (e) => {
+  if (!ui.loupe || ui.view !== 'design') return;
+  if (e.pointerType !== 'mouse' && !LOUPE.touch) return;
+  if (LOUPE.el && LOUPE.el.contains(e.target)) return;
+  const hit = loupeHit(e.clientX, e.clientY);
+  if (hit) { loupeShow(hit); if (LOUPE.touch) e.preventDefault(); } else if (e.pointerType === 'mouse') loupeHide();
+}, { passive: false });
+document.addEventListener('pointerdown', (e) => {
+  if (!ui.loupe || ui.view !== 'design' || e.pointerType === 'mouse') return;
+  const hit = loupeHit(e.clientX, e.clientY); if (!hit) return;
+  LOUPE.touch = true; LOUPE.eat = true; e.preventDefault(); e.stopPropagation();
+  loupeShow(hit);
+}, true);
+document.addEventListener('pointerup', () => { LOUPE.touch = false; }, true);
+document.addEventListener('click', (e) => {          // der Tipp für die Lupe wählt keinen Rahmen aus
+  if (LOUPE.eat && e.target.closest && e.target.closest('#editor')) { e.stopPropagation(); e.preventDefault(); }
+  LOUPE.eat = false;
+}, true);
+document.addEventListener('pointercancel', () => { LOUPE.touch = false; }, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ui.loupe) { e.stopImmediatePropagation(); loupeToggle(false); }
+}, true);
 /* ---------- An der Wand: den fertigen Kalender aufgehängt durchblättern ---------- */
 // Eine Ansicht ist, was beim Aufhängen zu sehen ist: unten die Hauptseite, bei „aufgeklappt“ oben die Rückseite des vorigen Blatts.
 function wallViews() {

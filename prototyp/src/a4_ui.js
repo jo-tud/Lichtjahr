@@ -235,6 +235,7 @@ function renderEditor() {
   }
   const m = svg.getScreenCTM(); if (m && m.a) ui.pxmm = m.a;     // Bildschirmpixel pro mm, z. B. für Trefferflächen
   bindEditor(svg);
+  if (ui.loupe) loupeRefresh();
 }
 const dpiPill = (ph, r, sl) => {
   const d = Math.round(dpiOf(ph, placeImage(r, ph, sl))), cls = d < DPI_BAD ? 'bad' : d < DPI_WARN ? 'warn' : 'ok';
@@ -242,7 +243,7 @@ const dpiPill = (ph, r, sl) => {
 };
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
-const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')]] : [])];
+const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')], ['texture', _t('Struktur')]] : [])];
 // Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
 const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
 function detailSliders(ph) {
@@ -271,6 +272,7 @@ function tuneBar(ph) {
       <button class="linkbtn" data-act="adjall" data-v="${ph.id}">${_t('Alle Fotos automatisch')}</button>
       <button class="linkbtn" data-act="matchmonths">${_t('Monate angleichen')}</button><span class="sp"></span>
       <button class="btn small" data-hold="compare" title="${esc(_t('Gedrückt halten zeigt das Original'))}">${_t('Original')}</button>
+      ${loupeAvailable(ph) ? loupeButton() : ''}
       <button class="btn small" data-act="adjreset" data-v="${ph.id}" ${adjOf(ph.id) ? '' : 'disabled'}>${_t('Zurücksetzen')}</button>
       <button class="btn small primary" data-act="tune">${_t('Fertig')}</button></div>
     <div class="looks-row"><div class="looks" role="group" aria-label="${esc(_t('Looks'))}">${LOOK_NAMES().map(([k, l]) => `<button class="look" data-act="adjlook" data-v="${k}" data-photo="${ph.id}" aria-pressed="${(r.look || '') === k}">${lookThumb(ph, k)}<span>${l}</span></button>`).join('')}</div>
@@ -304,7 +306,8 @@ function renderFrameBar() {
   if (ph) {
     h += `<img src="${RT.thumb[ph.id]}" alt=""><div class="meta"><b>${esc(ph.caption || ph.name)}</b>${dpiPill(ph, r, sl)}</div>
       <button class="btn small ${crop ? 'primary' : ''}" data-act="crop" aria-pressed="${!!crop}">${crop ? _t('Ausschnitt fertig') : _t('Ausschnitt bearbeiten')}</button>
-      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}`;
+      ${crop ? '' : `<button class="btn small" data-act="tune">${adjOf(ph.id) ? _t('Bild verbessert ✓') : _t('Bild verbessern')}</button>`}
+      ${!crop && loupeAvailable(ph) ? loupeButton() : ''}`;
     if (crop) h += `<div class="range"><span class="small muted">${_t('Zoom')}</span><input type="range" id="zm" aria-label="${_t('Zoom')}" min="1" max="5" step="0.01" value="${sl.zoom || 1}" data-act-input="zoom"><output>${Math.round((sl.zoom || 1) * 100)} %</output></div>
       <div class="range"><span class="small muted">${_t('Drehen')}</span><input type="range" id="rt" aria-label="${_t('Foto drehen')}" min="-180" max="180" step="0.5" value="${sl.rot || 0}" data-act-input="rot"><output>${fmt1(sl.rot || 0)}°</output></div>
       <button class="btn small" data-act="rot90" title="${_t('Um 90° drehen')}">↻ 90°</button>
