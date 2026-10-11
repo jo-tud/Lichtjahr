@@ -441,6 +441,7 @@ async function openMatchDialog() {
   const apply = () => { S.doc.adjust = JSON.parse(before); if (amount > 0) applyMatch(tones, amount); redraw(); };
   const done = (ok) => {
     document.removeEventListener('keydown', key, true); el.remove();
+    if (apply._t) { clearTimeout(apply._t); apply._t = 0; if (ok) apply(); }   // Regler gerade bewegt: den letzten Stand nehmen
     if (ok) { commit(); renderAll(); toast(_t('Monate angeglichen. Jedes Foto lässt sich weiter einzeln nachregeln.'), 5000, { label: _t('Rückgängig'), fn: undo }); }
     else { S.doc.adjust = JSON.parse(before); renderAll(); }
   };

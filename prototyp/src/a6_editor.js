@@ -82,7 +82,7 @@ const MIN_FRAME = 8;
 
 // Bedienung:
 // - Rahmen antippen wählt ihn aus (Eckpunkte erscheinen). Ausgewählten Rahmen ziehen verschiebt ihn.
-// - Zweites Antippen oder Doppelklick: Ausschnitt-Modus. Dort Foto ziehen, Mausrad und zwei Finger zoomen.
+// - Doppelklick bzw. doppeltes Antippen: Ausschnitt-Modus. Dort Foto ziehen, Mausrad und zwei Finger zoomen.
 // - Mit der Maus einen nicht ausgewählten Rahmen mit Foto auf einen anderen ziehen: Fotos tauschen.
 function bindEditor(svg) {
   if (!svg) return;
@@ -308,7 +308,7 @@ document.addEventListener('contextmenu', (e) => { if (e.target.closest('.thumb')
 function startDrag(x, y) {
   const p = drag.pend; if (!p) return;
   if (viewOnly()) { drag.pend = null; viewOnlyHint(); return; }
-  drag.active = true; drag.suppressClick = true;
+  drag.active = true;
   drag.ids = ui.view === 'photos' && ui.photoSel.has(p.id) ? [...ui.photoSel] : [p.id];
   const g = document.createElement('div'); g.className = 'ghost';
   g.innerHTML = `<img src="${RT.thumb[p.id]}" alt="">${drag.ids.length > 1 ? `<span>${drag.ids.length}</span>` : ''}`;
@@ -353,13 +353,12 @@ document.addEventListener('pointerup', (e) => {
     else if (tgt && tgt.dataset.bucket != null) moveToMonth(drag.ids, +tgt.dataset.bucket);
     else highlightSlot(null);
     drag.pend = null; drag.over = null;
-    setTimeout(() => drag.suppressClick = false, 50);
     return;
   }
   const p = drag.pend; drag.pend = null;
   if (p && e.target.closest('.thumb[data-photo]') === p.el) photoTap(p.id, e);
 });
-document.addEventListener('pointercancel', () => { clearTimeout(drag.lp); if (drag.active) { drag.ghost.remove(); drag.active = false; highlightSlot(null); } drag.pend = null; });
+document.addEventListener('pointercancel', () => { clearTimeout(drag.lp); if (drag.active) { drag.ghost.remove(); drag.ghost = null; drag.active = false; highlightSlot(null); } drag.pend = null; drag.over = null; });
 function photoTap(id, e) {
   if (ui.view === 'photos') {
     if (ui.photoSel.has(id)) { ui.photoSel.delete(id); if (ui.photoFocus === id) ui.photoFocus = [...ui.photoSel].pop() || null; }
@@ -375,6 +374,7 @@ function photoTap(id, e) {
 
 /* ---------- Tastatur ---------- */
 document.addEventListener('keydown', (e) => {
+  if (document.querySelector('[aria-modal="true"]')) return;   // Dialog oder Wand offen: die Tasten gehören dorthin
   const ae = document.activeElement, inField = /INPUT|TEXTAREA|SELECT/.test(ae && ae.tagName) && !(ae.type === 'range' && e.key === 'Escape');
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inField) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y' && !inField) { e.preventDefault(); redo(); return; }

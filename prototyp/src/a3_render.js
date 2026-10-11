@@ -358,7 +358,7 @@ function pageItems(p, opt = {}) {
     // Hintergrundbilder hinter dem Register: Schleier über die ganze Seite, damit der Text lesbar bleibt
     const v = indexVeil(p);
     if (v) items.push({ t: 'rect', x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b, fill: v.color, opacity: v.opacity, role: 'panel', veil: true });
-    return items.concat(indexItems(p, opt));
+    return items.concat(indexItems(p));
   }
   if (!opt.noBlocks) {
     const c = calBlock(p); if (c) items.push(c);
@@ -529,18 +529,21 @@ const imgAttrs = (pl) => `x="${pl.x}" y="${pl.y}" width="${pl.w}" height="${pl.h
    Bis das neue Bild da ist, bleibt das zuletzt gezeigte stehen – statt einer leeren, dunklen Fläche. Angefragt wird
    erst, wenn sich die Adresse 200 ms nicht mehr ändert: Beim Ziehen eines Reglers rechnet der Dienst nicht jeden
    Zwischenschritt, sondern das, wo der Regler stehen bleibt. Ist es geladen, tauscht die Seite nur die Adresse aus. */
-const IMG = { ready: new Set(), last: {}, timers: {}, loading: new Set() };
+const IMG = { ready: new Set(), last: {}, want: {}, timers: {}, loading: new Set(), failed: {} };
 function stableUrl(key, url, fallback) {
   if (!url || IMG.ready.has(url)) { if (url) IMG.last[key] = url; return url; }
+  IMG.want[key] = url;
   clearTimeout(IMG.timers[key]);
   IMG.timers[key] = setTimeout(() => {
-    if (IMG.loading.has(url)) return;
+    if (IMG.loading.has(url) || Date.now() - (IMG.failed[url] || 0) < 30000) return;   // Fehlschlag: erst später neu versuchen
     IMG.loading.add(url);
     const im = new Image();
-    im.onload = im.onerror = () => {
-      IMG.loading.delete(url); IMG.ready.add(url); IMG.last[key] = url;
+    im.onload = () => {
+      IMG.loading.delete(url); IMG.ready.add(url);
+      if (IMG.want[key] === url) IMG.last[key] = url;          // ein älteres, spät fertiges Bild verdrängt das neuere nicht
       for (const el of document.querySelectorAll('image[data-want]')) if (el.dataset.want === url) swapImage(el, url);
     };
+    im.onerror = () => { IMG.loading.delete(url); IMG.failed[url] = Date.now(); };   // bisheriges Bild bleibt stehen
     im.src = url;
   }, 200);
   return IMG.last[key] || fallback;
@@ -631,9 +634,9 @@ function svgPage(p, o = {}) {
     // Auflösungswarnungen
     for (const it of items) if (it.t === 'img') {
       const d = dpiOf(S.photos[it.photo], it.place);
-      if (d < 200) {
+      if (d < DPI_WARN) {                      // dieselben Grenzen wie Auflösungsanzeige und Prüfliste
         const vis = intersect(it.clip, { x: 0, y: 0, w: W, h: H }) || it.clip, r = 3.2;
-        over += `<g pointer-events="none"><circle cx="${vis.x + vis.w - 6}" cy="${vis.y + 6}" r="${r}" fill="${d < 150 ? '#c0392b' : '#d68910'}"/><text x="${vis.x + vis.w - 6}" y="${vis.y + 7.4}" font-size="4" font-weight="600" fill="#fff" text-anchor="middle">!</text></g>`;
+        over += `<g pointer-events="none"><circle cx="${vis.x + vis.w - 6}" cy="${vis.y + 6}" r="${r}" fill="${d < DPI_BAD ? '#c0392b' : '#d68910'}"/><text x="${vis.x + vis.w - 6}" y="${vis.y + 7.4}" font-size="4" font-weight="600" fill="#fff" text-anchor="middle">!</text></g>`;
       }
     }
     // Angeschnittene Gesichter: gestrichelter Rahmen um das Gesicht

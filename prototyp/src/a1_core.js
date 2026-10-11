@@ -1,4 +1,3 @@
-'use strict';
 /* ---------- Grundlagen ---------- */
 const MM = 72 / 25.4;
 // Monats- und Wochentagsnamen in der Sprache der Oberfläche (für den gedruckten Kalender: MONTH_NAMES[calLang()])
@@ -129,6 +128,14 @@ function defaultDoc() {
     dpi: 300, quality: 90,
     fonts: { head: null, text: null },   // null = Jost; sonst { id, family, files: { regular, bold } } (b8_fonts.js)
   };
+}
+// Gespeicherten Stand mit den Voreinstellungen auffüllen, auch eine Ebene tiefer (ältere oder von Hand
+// bearbeitete Projekte, denen z. B. doc.cal.def oder doc.fonts fehlt)
+function withDefaults(doc, base = defaultDoc()) {
+  const out = { ...base, ...(doc || {}) };
+  for (const k of ['cal', 'bind', 'fonts']) out[k] = { ...base[k], ...((doc || {})[k] || {}) };
+  out.cal.def = { ...base.cal.def, ...(((doc || {}).cal || {}).def || {}) };
+  return out;
 }
 // Das zuletzt gewählte Bundesland gilt auch für neue Projekte
 function lastRegion() { try { return localStorage.getItem('kw-region') || 'DE'; } catch (e) { return 'DE'; } }
@@ -298,11 +305,14 @@ function commit() {
 }
 // Unter dieser Auflösung warnt die App (Wandkalender werden aus etwas Abstand betrachtet)
 const DPI_WARN = 150, DPI_BAD = 100;
+// „2026-03-14“ als Kalendertag hier, nicht als Mitternacht in UTC (sonst westlich davon ein Tag zu früh)
+const localDate = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); return m ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(s); };
 function restore(json) {
   const o = JSON.parse(json);
   S.doc = o.doc; S.pages = o.pages; S.demo = o.demo;
   for (const id in o.photos) if (RT.thumb[id] || o.photos[id].demo != null) S.photos[id] = o.photos[id];
   for (const id in S.photos) if (!o.photos[id]) delete S.photos[id];
+  for (const id of [...ui.photoSel]) if (!S.photos[id]) ui.photoSel.delete(id);   // Auswahl ohne die zurückgenommenen Fotos
   ensurePages(); ui.sel = null; ui.crop = null; ui.selBlock = null;
 }
 // Rückgängig sichtbar machen: zur betroffenen Seite springen und sagen, was passiert ist

@@ -5,13 +5,6 @@ function setPath(path, val) {
   for (let i = 1; i < parts.length - 1; i++) { o[parts[i]] ||= {}; o = o[parts[i]]; }
   o[parts[parts.length - 1]] = val;
 }
-function getPath(path) {
-  const parts = path.split('.');
-  if (parts[0] === 'page' && parts[1] === 'cal') return calSettings(curPage())[parts[2]];
-  let o = parts[0] === 'doc' ? S.doc : curPage();
-  for (let i = 1; i < parts.length; i++) o = o == null ? o : o[parts[i]];
-  return o;
-}
 // Was nach einer Änderung neu gezeichnet werden muss
 function refresh(scope = 'page') {
   if (ui.view === 'design') {
@@ -442,7 +435,7 @@ function ask({ title, text, buttons, timeout }) {
     el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><p class="hint">${esc(text)}</p><div class="row">${buttons.map((b, i) => `<button class="btn ${b.primary ? 'primary' : ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}</div></div>`;
     let timer = null;
     const done = (v) => { clearTimeout(timer); document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
-    if (timeout) timer = setTimeout(function tick() { if (!timeout.when || timeout.when()) done(timeout.value); }, timeout.ms);
+    if (timeout) timer = setTimeout(() => { if (!timeout.when || timeout.when()) done(timeout.value); }, timeout.ms);   // einmal prüfen, nicht wiederholt
     const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(buttons[buttons.length - 1].value); } };
     el.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) done(buttons[+b.dataset.i].value); });
     document.addEventListener('keydown', key, true);

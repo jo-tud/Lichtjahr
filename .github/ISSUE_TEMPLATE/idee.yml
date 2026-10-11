@@ -1,19 +1,22 @@
-name: Idee oder Wunsch
-description: Ein Vorschlag, wie Lichtjahr besser werden kann.
+name: Idea or wish / Idee oder Wunsch
+description: A suggestion how Lichtjahr could get better. / Ein Vorschlag, wie Lichtjahr besser werden kann.
 labels: [idee]
 body:
+  - type: markdown
+    attributes:
+      value: English or German, whichever you prefer. / Gern auf Englisch oder Deutsch.
   - type: textarea
     id: ziel
     attributes:
-      label: Was möchtest du beim Kalendermachen erreichen?
-      description: Beschreibe die Situation, nicht nur die Lösung.
+      label: What do you want to achieve when making your calendar? / Was möchtest du beim Kalendermachen erreichen?
+      description: Describe the situation, not only the solution. / Beschreibe die Situation, nicht nur die Lösung.
     validations:
       required: true
   - type: textarea
     id: vorschlag
     attributes:
-      label: Wie könnte es aussehen?
+      label: What could it look like? / Wie könnte es aussehen?
   - type: textarea
     id: alternativen
     attributes:
-      label: Wie machst du es bisher?
+      label: How do you do it today? / Wie machst du es bisher?

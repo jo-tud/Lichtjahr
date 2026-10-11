@@ -13,8 +13,8 @@ function toast(msg, ms = 3200, action = null) {
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const coarse = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
 function busy(title, sub) {
-  const el = document.createElement('div'); el.className = 'busy';
-  el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><div class="progress"><i></i></div><p class="hint" data-sub>${esc(sub || '')}</p></div>`;
+  const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = `<div class="card"><h2>${esc(title)}</h2><div class="progress" role="progressbar" aria-label="${esc(title)}"><i></i></div><p class="hint" data-sub>${esc(sub || '')}</p></div>`;
   document.body.appendChild(el);
   return {
     update(f, s) { el.querySelector('i').style.width = Math.round(f * 100) + '%'; if (s != null) el.querySelector('[data-sub]').textContent = s; },
@@ -178,7 +178,7 @@ function renderPhotos() {
     <div class="dropzone" id="dropzone"><span>${SVC.pid ? _t('Fotos oder ganze Ordner hierher ziehen, sie werden in die Monatsordner des Projekts kopiert.') : _t('Fotos oder ganze Ordner hierher ziehen.')} ${_t('Der Monat wird aus dem <b>Ordnernamen</b> (z. B. „03 März“ oder „2026-03“), dem <b>Aufnahmedatum</b> oder dem <b>Dateinamen</b> (z. B. IMG_20260314) gelesen.')}${SVC.pid ? ' ' + _t('Du kannst Dateien auch direkt in die Monatsordner legen und dann abgleichen.') : ''}</span></div>
     ${focus ? `<section class="card"><div class="detail"><img src="${RT.prev[focus.id] || RT.thumb[focus.id]}" alt="">
       <div style="display:grid;gap:10px;min-width:0">
-        <dl><dt>${_t('Datei')}</dt><dd>${esc(focus.name)}</dd><dt>${_t('Aufnahme')}</dt><dd>${focus.date ? new Date(focus.date).toLocaleDateString(locale()) : _t('unbekannt')}</dd>
+        <dl><dt>${_t('Datei')}</dt><dd>${esc(focus.name)}</dd><dt>${_t('Aufnahme')}</dt><dd>${focus.date ? localDate(focus.date).toLocaleDateString(locale()) : _t('unbekannt')}</dd>
         <dt>${_t('Monat aus')}</dt><dd>${esc(_t(focus.src || 'keine Angabe'))}</dd><dt>${_t('Auflösung')}</dt><dd class="num">${focus.w} × ${focus.h} px (${fmt1(focus.w * focus.h / 1e6)} MP)</dd>
         <dt>${_t('Größter Druck')}</dt><dd>${_t('{w} × {h} cm bei 300 dpi', { w: fmt1(focus.w / 300 * 2.54), h: fmt1(focus.h / 300 * 2.54) })}</dd></dl>
         <div class="field"><label for="capf">${_t('Bildtext fürs Register')}</label><input type="text" id="capf" data-photo-cap="${focus.id}" value="${esc(focus.caption)}" placeholder="${_t('z. B. Rodeln am Kirchberg')}"></div>

@@ -1,33 +1,43 @@
-name: Fehler melden
-description: Etwas funktioniert nicht wie erwartet.
+name: Bug report / Fehler melden
+description: Something doesn't work as expected. / Etwas funktioniert nicht wie erwartet.
 labels: [fehler]
 body:
+  - type: markdown
+    attributes:
+      value: English or German, whichever you prefer. / Gern auf Englisch oder Deutsch.
   - type: textarea
     id: was
     attributes:
-      label: Was ist passiert?
-      description: Was hast du erwartet, und was ist stattdessen passiert?
+      label: What happened? / Was ist passiert?
+      description: What did you expect, and what happened instead? / Was hast du erwartet, und was ist stattdessen passiert?
     validations:
       required: true
   - type: textarea
     id: schritte
     attributes:
-      label: Schritte zum Nachstellen
+      label: Steps to reproduce / Schritte zum Nachstellen
       placeholder: |
-        1. Ansicht „Gestalten“, Monat März
-        2. Foto auf den zweiten Rahmen ziehen
+        1. Design view, March / Ansicht „Gestalten“, März
+        2. Drag a photo onto the second frame / Foto auf den zweiten Rahmen ziehen
         3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lichtjahr version and setup / Version und Variante
+      placeholder: e.g. 1.4.0 with the local service on macOS, or the online version / z. B. 1.4.0 mit lokalem Dienst unter macOS, oder Online-Version
     validations:
       required: true
   - type: input
     id: umgebung
     attributes:
-      label: Browser und Gerät
-      placeholder: z. B. Firefox 131 unter Windows 11, Safari auf iPhone 15
+      label: Browser and device / Browser und Gerät
+      placeholder: e.g. Firefox 131 on Windows 11, Safari on iPhone 15 / z. B. Firefox 131 unter Windows 11
     validations:
       required: true
   - type: textarea
     id: bilder
     attributes:
       label: Screenshot
-      description: Bitte keine privaten Fotos – die Beispielbilder der App reichen meist.
+      description: Please no private photos – the app's sample pictures are usually enough. / Bitte keine privaten Fotos – die Beispielbilder der App reichen meist.

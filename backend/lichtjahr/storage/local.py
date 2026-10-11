@@ -2,15 +2,14 @@
 
 Atomarität:
 * Exklusives Anlegen über ``O_CREAT | O_EXCL``.
-* Ersetzen über temporäre Datei + ``os.replace``; der ETag-Vergleich davor ist durch eine
-  ``flock``-Sperre auf ``.lichtjahr/.cas`` gegen andere Prozesse auf demselben Rechner geschützt.
+* Ersetzen über temporäre Datei + ``os.replace``; der ETag-Vergleich davor ist durch eine Dateisperre auf
+  ``.lichtjahr/.cas`` gegen andere Prozesse auf demselben Rechner geschützt (``flock``, unter Windows ``msvcrt.locking``).
 * Verschieben ohne Überschreiben über ``os.link`` + ``os.unlink`` (schlägt fehl, wenn das Ziel existiert).
 """
 
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import os
 import time
@@ -20,6 +19,12 @@ from typing import Iterator
 
 from .base import AlreadyExists, Conflict, Entry, NotFound, StorageError
 from ..i18n import _t
+
+try:                                   # Unix: flock; Windows hat kein fcntl, dort sperrt msvcrt ein Byte der Datei
+    import fcntl
+except ImportError:                    # pragma: no cover - nur unter Windows
+    fcntl = None
+    import msvcrt
 
 
 def etag_of(data: bytes) -> str:
@@ -42,16 +47,35 @@ class LocalStorage:
             raise StorageError(_t("Pfad außerhalb des Projektordners: {path}", path=path))
         return p
 
+    @staticmethod
+    def _read_bytes(p: str) -> bytes:
+        with open(p, "rb") as fh:
+            return fh.read()
+
     @contextlib.contextmanager
     def _cas_lock(self):
         lock_dir = os.path.join(self.root, ".lichtjahr")
         os.makedirs(lock_dir, exist_ok=True)
-        with open(os.path.join(lock_dir, ".cas"), "a+") as fh:
-            fcntl.flock(fh, fcntl.LOCK_EX)
+        with open(os.path.join(lock_dir, ".cas"), "a+b") as fh:
+            if fcntl is not None:
+                fcntl.flock(fh, fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(fh, fcntl.LOCK_UN)
+                return
+            fh.seek(0)
+            while True:                 # LK_LOCK gäbe nach 10 s auf; so wird gewartet, bis die Sperre frei ist
+                try:
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.01)
             try:
                 yield
             finally:
-                fcntl.flock(fh, fcntl.LOCK_UN)
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
 
     def _atomic_write(self, abs_path: str, data: bytes) -> None:
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
@@ -164,11 +188,11 @@ class LocalStorage:
         with self._cas_lock():
             if if_match is not None:
                 try:
-                    current = etag_of(open(p, "rb").read())
+                    current = etag_of(self._read_bytes(p))
                 except FileNotFoundError as e:
-                    raise Conflict(f"{path} existiert nicht mehr") from e
+                    raise Conflict(_t("{path} existiert nicht mehr", path=path)) from e
                 if current != if_match:
-                    raise Conflict(f"{path} wurde zwischenzeitlich geändert")
+                    raise Conflict(_t("{path} wurde zwischenzeitlich geändert", path=path))
             self._atomic_write(p, data)
         return etag_of(data)
 
@@ -177,8 +201,8 @@ class LocalStorage:
         with self._cas_lock():
             if if_match is not None:
                 try:
-                    if etag_of(open(p, "rb").read()) != if_match:
-                        raise Conflict(f"{path} wurde zwischenzeitlich geändert")
+                    if etag_of(self._read_bytes(p)) != if_match:
+                        raise Conflict(_t("{path} wurde zwischenzeitlich geändert", path=path))
                 except FileNotFoundError as e:
                     raise NotFound(path) from e
             try:

@@ -2,8 +2,13 @@
 cd "$(dirname "$0")"
 {
   echo '<title>Lichtjahr</title>'
-  echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-  echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">'
+  # Schrift der Oberfläche (IBM Plex, OFL) eingebettet: die App lädt nichts von fremden Servern
+  printf '<style>'
+  printf '@font-face{font-family:"IBM Plex Sans";font-weight:400 600;font-display:swap;src:url(data:font/woff2;base64,%s) format("woff2")}' "$(base64 < fonts/plex/IBMPlexSans-Var.woff2 | tr -d '\n')"
+  for w in 400 500; do
+    printf '@font-face{font-family:"IBM Plex Mono";font-weight:%s;font-display:swap;src:url(data:font/woff2;base64,%s) format("woff2")}' "$w" "$(base64 < fonts/plex/IBMPlexMono-$w.woff2 | tr -d '\n')"
+  done
+  echo '</style>'
   echo '<style>'; cat src/style.css; echo '</style>'
   cat src/body.html
   echo '<script>'; cat fonts/fonts.js src/schoolholidays.js src/i18n.js src/i18n/*.js src/jpeg.js src/pdf.js src/a1_core.js src/a2_photos.js src/a3_render.js src/a4_ui.js src/a5_actions.js src/a6_editor.js src/a7_export.js src/a9_place.js src/b1_service.js src/b2_print.js src/b3_faces.js src/b4_adjust.js src/b5_series.js src/b6_people.js src/b7_loupe.js src/b8_fonts.js src/a8_wall.js; echo '</script>'

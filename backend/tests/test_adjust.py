@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 
 import pikepdf
 import pytest
@@ -21,6 +22,16 @@ RECIPES = [{"exposure": .4, "contrast": .3, "warmth": .5, "saturation": .4},
 PIXELS = [[0, 0, 0], [255, 255, 255], [128, 128, 128], [200, 120, 60], [30, 80, 200], [250, 10, 10], [12, 240, 90]]
 
 
+def node_out(script: str) -> str:
+    """Skript über eine Datei an Node geben: als Argument wäre es für Windows zu lang (WinError 206)."""
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as fh:
+        fh.write(script)
+    try:
+        return subprocess.run(["node", fh.name], capture_output=True, text=True, encoding="utf-8", check=True).stdout
+    finally:
+        os.unlink(fh.name)
+
+
 @pytest.fixture
 def printers(tmp_path):
     return PrinterRegistry(str(tmp_path))
@@ -33,7 +44,7 @@ def test_same_result_in_app_and_service():
 const S = {{ doc: {{ adjust: {{}} }} }};
 const out = {json.dumps(RECIPES)}.map(r => {{ const c = compileAdjust(r); return {{ c, px: {json.dumps(PIXELS)}.map(p => adjustRGB(p, c)) }}; }});
 process.stdout.write(JSON.stringify(out));"""
-    res = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+    res = json.loads(node_out(script))
     im = Image.new("RGB", (len(PIXELS), 1))
     im.putdata([tuple(p) for p in PIXELS])
     for r in res:
@@ -94,8 +105,7 @@ def test_wide_photo_gets_recipe_and_tune_in_service(printers):
 
     if shutil.which("node"):
         js = open(os.path.join(ROOT, "prototyp", "src", "b4_adjust.js"), encoding="utf-8").read()
-        c = json.loads(subprocess.run(["node", "-e", js + f"const S={{doc:{{}}}};process.stdout.write(JSON.stringify(compileAdjust({json.dumps(bright)})))"],
-                              capture_output=True, text=True, check=True).stdout)
+        c = json.loads(node_out(js + f"const S={{doc:{{}}}};process.stdout.write(JSON.stringify(compileAdjust({json.dumps(bright)})))"))
     else:
         pytest.skip("Node.js fehlt")
     adj = f" /AdjM [{' '.join(map(str, c['m']))}] /AdjL [{' '.join(map(str, c['lut']))}]"
@@ -146,7 +156,7 @@ const backlit = img(100, 100, (x, y) => (x > .3 && x < .7 && y > .3) ? [40, 34, 
 process.stdout.write(JSON.stringify({ dark: autoRecipe(photoStats(dark)), sunset: autoRecipe(photoStats(sunset)), portrait: autoRecipe(photoStats(portrait, face)),
   brightScene: autoRecipe(photoStats(backlit)), backlit: autoRecipe(photoStats(backlit), { backlit: true }),
   detailOnly: compileAdjust({ fusion: .5, denoise: .3 }) }));"""
-    r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+    r = json.loads(node_out(script))
     # dunkel und blaustichig: heller; der reine Farbverlauf narrt Gray-Edge, die Schätzer sind uneins → höchstens wenig
     assert r["dark"]["ev"] > .15 and r["dark"].get("wbB", 1) <= 1
     assert "wbR" not in r["sunset"] and "wbB" not in r["sunset"]          # Sonnenuntergang bleibt warm
@@ -174,7 +184,7 @@ const cast = img(100, 80, (x, y, px, py) => { const v = 40 + 160 * ((px * 7 + py
 process.stdout.write(JSON.stringify({ light: autoRecipe(photoStats(light, face)), dark: autoRecipe(photoStats(dark, face)),
   lightNoFace: autoRecipe(photoStats(light)), darkNoFace: autoRecipe(photoStats(dark)), snow: autoRecipe(photoStats(snow)), cast: autoRecipe(photoStats(cast)),
   castStats: photoStats(cast).illum }));"""
-    r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+    r = json.loads(node_out(script))
     for k in ("ev", "wbR", "wbB"):
         assert abs(r["light"].get(k, 0 if k == "ev" else 1) - r["dark"].get(k, 0 if k == "ev" else 1)) < .02, (k, r["light"], r["dark"])
     assert abs(r["snow"].get("ev", 0)) < .25                              # Schnee bleibt hell

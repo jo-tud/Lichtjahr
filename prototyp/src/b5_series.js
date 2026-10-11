@@ -73,9 +73,14 @@ function rankSeries(ids, info) {
 function seriesKey() { return Object.values(S.photos).map(p => p.id + (p.month ?? '') + (p.date || '')).sort().join(','); }
 function refreshSeries(after) {
   const key = seriesKey();
-  if (SERIES.busy || SERIES.key === key) return;
+  if (SERIES.busy) { if (after) (SERIES.waiting ||= []).push(after); return; }   // läuft schon: danach Bescheid geben
+  if (SERIES.key === key) return;
   SERIES.busy = true;
-  findSeries().then(g => { SERIES.groups = g; SERIES.key = key; }).catch(e => console.warn('Serien', e)).finally(() => { SERIES.busy = false; if (after) after(); });
+  findSeries().then(g => { SERIES.groups = g; SERIES.key = key; }).catch(e => console.warn('Serien', e)).finally(() => {
+    SERIES.busy = false;
+    const waiting = [after, ...(SERIES.waiting || [])].filter(Boolean); SERIES.waiting = [];
+    waiting.forEach(fn => fn());
+  });
 }
 const seriesReady = () => SERIES.key === seriesKey() && SERIES.groups;
 
@@ -99,10 +104,11 @@ async function openSeriesDialog() {
     const u = usage();
     let n = 0;
     groups.forEach((g, i) => {
-      const gone = g.ids.filter(id => !keep[i].has(id)), stay = g.ids.filter(id => keep[i].has(id)), heir = stay.find(id => !u[id]);
+      const gone = g.ids.filter(id => !keep[i].has(id)), heirs = g.ids.filter(id => keep[i].has(id) && !u[id]);
       for (const id of gone) {
-        // steht ein aussortiertes Foto im Kalender, rückt ein behaltenes (noch nicht verwendetes) an seine Stelle
-        for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo === id) { if (heir) s.photo = heir; else Object.assign(s, newSlot()); }
+        // steht ein aussortiertes Foto im Kalender, rückt ein behaltenes (noch nicht verwendetes) an seine Stelle –
+        // jedes nur einmal, sonst stünde dasselbe Foto zweimal im Kalender
+        for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo === id) { const h = heirs.shift(); if (h) s.photo = h; else Object.assign(s, newSlot()); }
         delete S.photos[id]; n++;
       }
     });

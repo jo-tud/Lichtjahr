@@ -4,6 +4,11 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.4.0] – 2026-10-11
+
+Your own fonts, smoother previews, and a thorough review: Lichtjahr now runs on Windows as intended, contacts no
+third-party server on its own, and the documentation says exactly what goes online.
+
 ### Design
 - Fonts: headings (cover title, month names, index headings) and the calendar grid with all other texts can each
   get their own font. Pick any free Google Font (with the local service), upload your own TTF/OTF/WOFF file, or
@@ -13,7 +18,24 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
   folder, so everyone working on the calendar has it. Both PDFs embed the chosen fonts. Without the service,
   your own TrueType files work too and stay in the browser.
 
+### Privacy and security
+- The app no longer loads its interface font from Google: IBM Plex is now embedded, so the app itself contacts no
+  third-party server. The README has a new section on what goes online and when.
+- The local service refuses changes sent by other websites open in the same browser, checks values from the
+  project file that end up in file paths, and no longer keeps a user name and password written into a WebDAV address.
+
 ### Fixes
+- Windows: the local service could not start, because a Unix-only module was imported. CI now runs all service
+  tests on Windows as well.
+- Many unclear "500" errors are now clear messages: a WebDAV address with a typo, a damaged photo, a photo that was
+  deleted outside the app while being moved (which also left a permanent "unclear state" note), invalid months.
+- Print PDF from a Nextcloud project: the download link works.
+- `lichtjahr --data-dir … --no-browser` without `serve` works again; the command-line help is translated.
+- App: a failed switch to another project no longer leaves the old calendar attached to the new one; keyboard
+  shortcuts no longer act behind open dialogs or the wall view; sorting out a burst series can no longer place the
+  same photo twice; *Match all months* keeps the last slider value when confirmed quickly; capture dates show the
+  right day west of UTC; the resolution warning in the editor uses the same limits as the check list; older or
+  hand-edited projects get missing settings filled in.
 - Moving the strength slider of *Auto* (or other sliders the service computes, such as backlight, noise, local
   highlights and shadows, texture) no longer makes the photo flash blank or black. The current picture stays until
   the new one is ready and then fades over; the service only computes where the slider comes to rest.

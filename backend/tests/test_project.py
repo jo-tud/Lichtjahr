@@ -173,5 +173,6 @@ def test_summary_shows_home_as_tilde(project, monkeypatch, tmp_path):
     if project.storage.kind != "local":
         pytest.skip("nur für lokale Ordner")
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))                   # Windows
     s = project.summary()["storage"]
-    assert s["location"] == project.storage.root and s["display"] == "~/Kalender"
+    assert s["location"] == project.storage.root and s["display"] == "~" + os.sep + "Kalender"

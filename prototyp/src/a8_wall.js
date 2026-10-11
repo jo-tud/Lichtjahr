@@ -66,7 +66,7 @@ function closeWall() {
 function wallKey(e) {
   if (!wall.el) return;
   if (e.key === 'Escape') { e.stopPropagation(); closeWall(); }
-  else if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); e.stopPropagation(); flip(1); }
+  else if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key) || (e.key === ' ' && !(e.target.closest && e.target.closest('button')))) { e.preventDefault(); e.stopPropagation(); flip(1); }
   else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); e.stopPropagation(); flip(-1); }
 }
 // Seitengröße so, dass die Ansicht (ein oder zwei Seiten hoch) in den Bildschirm passt

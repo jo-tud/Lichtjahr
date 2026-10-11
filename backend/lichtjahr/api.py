@@ -10,8 +10,10 @@ from __future__ import annotations
 import getpass
 import hashlib
 import io
+import json
 import mimetypes
 import os
+import re
 import secrets
 import threading
 from typing import Any
@@ -21,7 +23,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageCms
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
@@ -73,7 +75,7 @@ class HandoverAnswer(BaseModel):
 
 
 class MoveRequest(BaseModel):
-    month: int | None
+    month: int | None = Field(ge=0, le=11)
 
 
 class ProofColors(BaseModel):
@@ -111,9 +113,16 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]").lower()
             if host not in LOCAL_HOSTS:
                 return JSONResponse({"detail": _t("Unbekannter Hostname. Bitte über http://localhost aufrufen.")}, status_code=403)
-        if settings.token and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        # Schreibende Anfragen nur von der eigenen Seite: Eine fremde Webseite im selben Browser soll nichts ändern
+        # können (der Browser schickt Sec-Fetch-Site bzw. Origin mit; Werkzeuge wie curl schicken beides nicht)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            site, origin = request.headers.get("sec-fetch-site"), request.headers.get("origin")
+            if site == "cross-site" or (origin and origin.split("://", 1)[-1] != request.headers.get("host", "")):
+                return JSONResponse({"detail": _t("Anfrage von einer fremden Seite abgelehnt.")}, status_code=403)
+        open_paths = ("/api/health", "/api/docs", "/api/openapi.json")   # Beschreibung der Schnittstelle enthält keine Daten
+        if settings.token and request.url.path.startswith("/api/") and request.url.path not in open_paths:
             given = request.headers.get("authorization", "").removeprefix("Bearer ").strip() or request.query_params.get("token", "")
-            if not secrets.compare_digest(given, settings.token):
+            if not secrets.compare_digest(given.encode("utf-8"), settings.token.encode("utf-8")):
                 return JSONResponse({"detail": _t("Zugriffsschlüssel fehlt oder ist falsch.")}, status_code=401)
         return await call_next(request)
 
@@ -142,18 +151,35 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return JSONResponse({"detail": str(exc)}, status_code=400)
 
     @app.exception_handler(ServerLocked)
-    async def _locked(_, exc: ServerLocked):                 # vorübergehend: Klartext, 503 mit Retry-After
+    async def _server_locked(_, exc: ServerLocked):                 # vorübergehend: Klartext, 503 mit Retry-After
         return JSONResponse({"detail": str(exc)}, status_code=503, headers={"Retry-After": "10"})
 
     @app.exception_handler(fontlib.FontError)
     async def _font(_, exc: fontlib.FontError):
         return JSONResponse({"detail": str(exc)}, status_code=400)
 
+    @app.exception_handler(NotFound)
+    async def _notfound(_, exc: NotFound):
+        return JSONResponse({"detail": _t("Datei nicht gefunden: {path}", path=exc)}, status_code=404)
+
     @app.exception_handler(StorageError)
     async def _serr(_, exc: StorageError):
         return JSONResponse({"detail": _t("Speicherfehler: {error}", error=exc)}, status_code=500)
 
+    @app.exception_handler(ValidationError)
+    async def _invalid(_, exc: ValidationError):              # z. B. ein Manifest mit unsinnigen Werten
+        return JSONResponse({"detail": _t("Ungültige Angaben: {error}", error=exc.errors()[0].get("msg", "") if exc.errors() else exc)}, status_code=400)
+
     # -- Hilfen ---------------------------------------------------------------------------
+    def revision_of(if_match: str | None) -> int | None:
+        """If-Match: "3", W/"3" oder 3 → 3"""
+        if not if_match:
+            return None
+        try:
+            return int(if_match.strip().removeprefix("W/").strip('"'))
+        except ValueError:
+            raise HTTPException(400, _t("If-Match muss eine Revision sein."))
+
     def cache_for(project_id: str) -> str:
         return os.path.join(settings.cache_dir, project_id)
 
@@ -314,7 +340,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     def put_manifest(project_id: str, body: dict[str, Any], session: str | None = Depends(session_header),
                      if_match: str | None = Header(default=None)):
         p = get_project(project_id)
-        expected = int(if_match.strip('"')) if if_match else None
+        expected = revision_of(if_match)
         current, _ = p.load()
         man = Manifest.model_validate({**body, "id": current.id, "assets": body.get("assets", [a.model_dump() for a in current.assets])})
         saved = p.save(man, session=session, expected_revision=expected)
@@ -326,7 +352,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         """Nur den Gestaltungsstand speichern (häufigster Fall beim automatischen Speichern)."""
         p = get_project(project_id)
         man, etag = p.load()
-        if if_match and int(if_match.strip('"')) != man.revision:
+        if if_match and revision_of(if_match) != man.revision:
             raise RevisionConflict(man.revision)
         man.editor = body
         saved = p.save(man, session=session, expected_revision=man.revision, etag=etag)
@@ -370,10 +396,18 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     def get_export(project_id: str, name: str):
         p = get_project(project_id)
         safe = os.path.basename(name)
-        local = p.storage.local_path(f"{EXPORT_DIR}/{safe}")
-        if not safe.lower().endswith(".pdf") or not local or not os.path.exists(local):
+        if not safe.lower().endswith(".pdf"):
             raise HTTPException(404, _t("Datei nicht gefunden."))
-        return FileResponse(local, media_type="application/pdf", filename=safe)
+        local = p.storage.local_path(f"{EXPORT_DIR}/{safe}")
+        if local:
+            if not os.path.exists(local):
+                raise HTTPException(404, _t("Datei nicht gefunden."))
+            return FileResponse(local, media_type="application/pdf", filename=safe)
+        try:                                            # WebDAV: über den Speicher holen
+            data, _ = p.storage.read(f"{EXPORT_DIR}/{safe}")
+        except NotFound:
+            raise HTTPException(404, _t("Datei nicht gefunden."))
+        return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{safe}"'})
 
     # -- Druckprofile ---------------------------------------------------------------------
     @app.get("/api/printers")
@@ -405,6 +439,8 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     @app.post("/api/printers/{printer_id}/proof-colors")
     def printer_proof_colors(printer_id: str, req: ProofColors):
         """Vektorfarben (CMYK) so, wie sie gedruckt erscheinen, für die Druckansicht der Oberfläche."""
+        if any(len(c) != 4 or not all(0 <= v <= 1 for v in c) for c in req.colors.values()):   # auch NaN fällt hier heraus
+            raise HTTPException(400, _t("CMYK-Werte müssen vier Zahlen zwischen 0 und 1 sein."))
         return proof_colors(printers.get(printer_id), req.colors, req.paper)
 
     # -- Schriften -------------------------------------------------------------------------
@@ -501,6 +537,8 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             path = p.detail_thumbnail(a, size, eff) if eff else p.thumbnail(a, size)
         except NotFound:
             raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
+        except (OSError, ValueError, Image.DecompressionBombError) as e:   # beschädigte oder unlesbare Bilddatei
+            raise HTTPException(422, _t("Das Foto „{name}“ lässt sich nicht lesen.", name=os.path.basename(a.path))) from e
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable",
                                                                      "ETag": f'"{a.contentHash}_{size}_{detail.fx_key(eff)}"'})
 
@@ -683,7 +721,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     async def upload(project_id: str, file: UploadFile = File(...), month: str | None = Form(default=None),
                      session: str | None = Depends(session_header)):
         p = get_project(project_id)
-        m = int(month) if month not in (None, "", "none") else None
+        try:
+            m = int(month) if month not in (None, "", "none") else None
+        except ValueError:
+            m = -1
         if m is not None and not 0 <= m <= 11:
             raise HTTPException(400, _t("Monat muss zwischen 0 (Januar) und 11 (Dezember) liegen."))
         a, duplicate = p.add_file(session, file.filename or "foto.jpg", await file.read(), m)
@@ -698,28 +739,33 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
         return get_project(project_id).copy_to_month(session, asset_id, req.month).model_dump()
 
     # -- Entwurfsrettung ------------------------------------------------------------------
+    def draft_path(project_id: str) -> str:
+        if not re.fullmatch(r"p_[0-9a-f]{12}", project_id):   # die ID landet im Dateinamen
+            raise HTTPException(404, _t("Projekt unbekannt. Bitte über „Projekt öffnen“ hinzufügen."))
+        return os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
+
     @app.put("/api/projects/{project_id}/draft")
     def save_draft(project_id: str, body: dict[str, Any]):
         """Rettet den Stand des Editors lokal, wenn das Speichern im Projekt gerade nicht möglich ist
         (Sperre verloren, Verbindung weg). Liegt nur auf diesem Rechner."""
-        path = os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
+        path = draft_path(project_id)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        import json as _json
-        with open(path + ".tmp", "w", encoding="utf-8") as fh:
-            _json.dump(body, fh, ensure_ascii=False)
-        os.replace(path + ".tmp", path)
+        tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(body, fh, ensure_ascii=False)
+        os.replace(tmp, path)
         return {"ok": True}
 
     @app.delete("/api/projects/{project_id}/draft")
     def delete_draft(project_id: str):
-        path = os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
+        path = draft_path(project_id)
         if os.path.exists(path):
             os.unlink(path)
         return {"ok": True}
 
     @app.get("/api/projects/{project_id}/draft")
     def get_draft(project_id: str):
-        path = os.path.join(settings.data_dir, "drafts", f"{project_id}.json")
+        path = draft_path(project_id)
         if not os.path.exists(path):
             return Response(status_code=204)          # kein Entwurf – der Normalfall
         return FileResponse(path, media_type="application/json")

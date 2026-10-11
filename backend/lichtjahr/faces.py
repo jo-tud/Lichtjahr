@@ -18,6 +18,8 @@ import threading
 
 from PIL import Image, ImageOps
 
+from .i18n import _t
+
 MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "face_detection_yunet_2023mar.onnx")
 VERSION = "yunet2023mar-1"              # Teil des Cache-Schlüssels: neue Version → neu rechnen
 SIZE = 1600                             # Vorschaugröße, auf der gesucht wird (auch kleine Gesichter in Gruppenfotos)
@@ -127,7 +129,7 @@ def download_recognizer(data_dir: str, url: str = REC_URL) -> None:
                     digest.update(chunk)
                     fh.write(chunk)
         if digest.hexdigest() != REC_SHA256:
-            raise ValueError("checksum")
+            raise ValueError(_t("Das heruntergeladene Modell ist beschädigt (Prüfsumme stimmt nicht). Bitte noch einmal versuchen."))
         os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):

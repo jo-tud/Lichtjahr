@@ -65,6 +65,12 @@ class WebDavStorage:
         if url.lower().startswith("http://") and not _is_private(urlsplit(url).hostname or ""):
             # Ohne Verschlüsselung gingen Benutzername und Passwort lesbar durchs Internet
             raise StorageError(_t("Bitte eine https://-Adresse verwenden; http:// geht nur im eigenen Netz."))
+        parts = urlsplit(url)
+        if parts.username or parts.password:           # https://name:passwort@… – Zugangsdaten nie in der Adresse behalten
+            username = username or unquote(parts.username or "")
+            password = password or unquote(parts.password or "")
+            host = parts.hostname + (f":{parts.port}" if parts.port else "")
+            url = parts._replace(netloc=host).geturl()
         self.url = url.rstrip("/") + "/"
         self._base_path = urlsplit(self.url).path
         self.client = httpx.Client(auth=(username, password) if username else None, timeout=timeout,
@@ -231,6 +237,9 @@ class WebDavStorage:
         except httpx.HTTPError as e:
             tmp.close()
             raise StorageError(_t("Der WebDAV-Server ist nicht erreichbar: {error}", error=e)) from e
+        except StorageError:
+            tmp.close()
+            raise
         tmp.seek(0)
         return tmp
 
@@ -312,6 +321,12 @@ class WebDavStorage:
 
     def check(self) -> None:
         """Verbindung und Anmeldung prüfen; legt den Projektordner an, falls er fehlt."""
+        try:
+            self._check()
+        except httpx.HTTPError as e:                     # Tippfehler in der Adresse, kein Netz, Zertifikat …
+            raise StorageError(_t("Der WebDAV-Server ist nicht erreichbar: {error}", error=e)) from e
+
+    def _check(self) -> None:
         r = self.client.request("PROPFIND", self.url, headers={"Depth": "0", "Content-Type": "application/xml"}, content=PROPFIND_BODY)
         if r.status_code in (401, 403):
             raise StorageError(_t("Anmeldung am WebDAV-Server abgelehnt. Benutzername und App-Passwort prüfen."))

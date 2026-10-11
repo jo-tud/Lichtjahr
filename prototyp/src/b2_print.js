@@ -21,7 +21,6 @@ async function loadPrinters() {
 const usablePrinters = () => PRN.list.filter(p => p.available);
 const printerOf = () => usablePrinters().find(p => p.id === S.doc.printer) || usablePrinters()[0] || null;
 // PDF/X-Standard des Druck-PDFs; ICC-v4-Profile gehen nur mit PDF/X-4
-const STD_LABEL = { x1a: 'PDF/X-1a:2001', x4: 'PDF/X-4' };
 const pdfxOf = (pr = printerOf()) => (pr && pr.iccVersion >= 4) ? 'x4' : (S.doc.pdfx === 'x4' ? 'x4' : 'x1a');
 
 /* ----- Druckansicht (Softproof) ----- */
@@ -107,7 +106,7 @@ function reportHtml(res) {
   const lvl = (l) => l === 'ok' ? '' : l === 'warn' ? 'warn' : l === 'info' ? 'info' : 'bad';
   const details = r.items.filter(i => i.level !== 'info');
   return `<div class="report ${r.ok ? 'ok' : 'bad'}">
-    <b>${r.ok ? _t('Prüfung bestanden: {pdfx}', { pdfx: r.pdfx || 'PDF/X-1a' }) : _t('Prüfung nicht bestanden')}</b>
+    <b>${r.ok ? _t('Prüfung bestanden: {pdfx}', { pdfx: esc(r.pdfx || 'PDF/X-1a') }) : _t('Prüfung nicht bestanden')}</b>
     <span class="muted small">${esc(res.path)} · ${mb} MB · ${r.pages === 1 ? _t('1 Seite') : _t('{n} Seiten', { n: r.pages })}</span>
     <ul class="checks">${r.summary.map(s => `<li><span class="dot ${lvl(s.level)}"></span><span>${esc(s.text)}</span></li>`).join('')}</ul>
     ${details.length ? `<details><summary>${details.length === 1 ? _t('1 Einzelheit') : _t('{n} Einzelheiten', { n: details.length })}</summary><ul class="checks">${details.slice(0, 60).map(i => `<li><span class="dot ${lvl(i.level)}"></span><span>${i.page ? esc(_t('Seite {n}: {text}', { n: i.page, text: i.text })) : esc(i.text)}</span></li>`).join('')}</ul></details>` : ''}

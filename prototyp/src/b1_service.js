@@ -116,9 +116,18 @@ async function openProject(pid) {
   if (SVC.pid && SVC.pid !== pid) await leaveProject();
   SVC.pid = pid; SVC.readOnly = false; SVC.lock = null; SVC.assets = {}; SVC.warnedRO = false;
   try { SVC.session = sessionStorage.getItem('lj-session-' + pid); } catch (e) { SVC.session = null; }
-  SVC.info = await api(PP());
-  const notes = await acquireLock();
-  const man = await api(PP('/manifest'));
+  let notes, man;
+  try {
+    SVC.info = await api(PP());
+    notes = await acquireLock();
+    man = await api(PP('/manifest'));
+  } catch (e) {
+    // Nicht erreichbar (z. B. Nextcloud offline): kein halb geöffnetes Projekt zurücklassen – sonst gehörte der
+    // angezeigte Kalender zur neuen ID, ohne Sperre und ohne Fotoliste
+    if (SVC.session && !SVC.readOnly) api(PP('/lock'), { method: 'DELETE' }).catch(() => {});
+    stopViewing(); SVC.pid = null; SVC.session = null; SVC.info = null;
+    throw e;
+  }
   applyManifest(man); SVC.stamp = man.stamp || null;
   loadPrinters().then(() => { if (ui.view === 'design' && document.body.dataset.view) renderStage(); });   // erst nach dem ersten Zeichnen
   FACES.map = {}; FACES.on = null; prefetchFaces();
@@ -154,7 +163,7 @@ function applyManifest(man) {
   // gespeicherte Stände ohne Angabe stammen aus der Zeit, als es nur Deutsch gab
   const projLang = man.language || (SVC.info && SVC.info.language);
   if (!ed.doc) doc.calLang = LANGS[projLang] ? projLang : LANG;
-  S = { doc: { ...doc, ...(ed.doc || {}) }, pages: ed.pages || {}, photos: {}, demo: false };
+  S = { doc: withDefaults(ed.doc, doc), pages: ed.pages || {}, photos: {}, demo: false };
   if (ed.doc && !ed.doc.calLang) S.doc.calLang = 'de';
   for (const a of man.assets) { gotAsset(a); if (!a.excluded && usable(a)) S.photos[a.id] = photoFromAsset(a); }
   for (const p of Object.values(S.pages)) for (const s of [...(p.slots || []), ...(p.extra || [])]) if (s.photo && !S.photos[s.photo]) s.photo = null;
@@ -275,7 +284,9 @@ function askName() {
     el.innerHTML = `<form class="card"><h2>${_t('Wie heißt du?')}</h2><p class="hint">${_t('Damit die andere Person sieht, wer bearbeiten möchte. Bleibt in diesem Browser gespeichert.')}</p>
       <div class="field"><label for="myname">${_t('Dein Name')}</label><input id="myname" name="name" required maxlength="40" autocomplete="given-name"></div>
       <div class="row"><button class="btn primary" type="submit">${_t('Weiter')}</button><button class="btn" type="button" data-cancel>${_t('Abbrechen')}</button></div></form>`;
-    const done = (v) => { el.remove(); resolve(v); };
+    const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
+    const done = (v) => { document.removeEventListener('keydown', key, true); el.remove(); resolve(v); };
+    document.addEventListener('keydown', key, true);
     el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); const v = el.querySelector('#myname').value.trim(); if (!v) return; try { localStorage.setItem('lj-name', v); } catch (err) { /* egal */ } done(v); });
     el.querySelector('[data-cancel]').addEventListener('click', () => done(null));
     document.body.appendChild(el); el.querySelector('#myname').focus();
@@ -315,7 +326,7 @@ async function offerDraft(man) {
     text: _t('Vom {when} gibt es einen Stand, der nicht mehr ins Projekt gespeichert werden konnte (die Bearbeitung lief zwischenzeitlich woanders). Übernehmen ersetzt die aktuelle Gestaltung.', { when }),
     buttons: [{ label: _t('Übernehmen'), value: true, primary: true }, { label: _t('Verwerfen'), value: false }] });
   if (r) {
-    S.doc = { ...defaultDoc(), ...d.editor.doc }; S.pages = d.editor.pages || {};
+    S.doc = withDefaults(d.editor.doc); S.pages = d.editor.pages || {};
     if (!(d.editor.doc || {}).calLang) S.doc.calLang = 'de';
     for (const [id, m] of Object.entries(d.assets || {})) if (S.photos[id]) { if ('caption' in m) S.photos[id].caption = m.caption; if ('favorite' in m) S.photos[id].fav = m.favorite; }
     ensurePages(); commit(); renderAll(); toast(_t('Gesicherter Stand übernommen.'), 5000, { label: _t('Rückgängig'), fn: undo });
