@@ -178,7 +178,7 @@ Sicherheit → „Dennoch öffnen“. Unter Windows fragt eventuell SmartScreen:
 Wer uv schon hat, braucht nur einen Befehl (die Versionsnummer steht im Release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.0.0/lichtjahr-1.0.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.1.0/lichtjahr-1.1.0-py3-none-any.whl lichtjahr
 ```
 
 Aus dem Repository, mit Python 3.11 oder neuer:

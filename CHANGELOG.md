@@ -4,6 +4,11 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-10-11
+
+Photo quality: corrections that work locally, like in a raw developer, the same for every skin tone, and a print
+loupe that shows a spot as it will be printed. Most of it needs the local service.
+
 ### Photos
 - New automatic mode (auto-3), in linear light: exposure in stops with a soft shoulder and a range in which
   well-exposed photos stay untouched; white balance from a majority of four estimators, as strong as they agree;
@@ -19,11 +24,15 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
   shadows don't turn grainy.
 - New *Texture* slider: fine detail brought out or smoothed at full resolution, without amplifying noise and
   without halos; faces get only half when strengthening.
-- Print sharpening is noise-aware and limits overshoot, so edges get crisper without fringes.
-- Print loupe: hover over (or tap) a photo to see that spot as it will be printed, rendered by the service from
-  the full-size original at Print PDF resolution, at paper size or 100 %.
 - The service measures noise and backlight; the check list names photos that need it, with a one-click fix, and
   *Auto* includes the suggestion (and no longer darkens backlit photos). Two sliders under *Enhance photo* fine-tune it.
+- Clicking *Auto* or a look no longer makes the slider bar taller, so the picture keeps its size and the
+  difference is easy to see.
+
+### Print
+- Print loupe: hover over (or tap) a photo to see that spot as it will be printed, rendered by the service from
+  the full-size original at Print PDF resolution, at paper size or 100 %.
+- Print sharpening is noise-aware and limits overshoot, so edges get crisper without fringes.
 
 ## [1.0.0] – 2026-10-10
 
