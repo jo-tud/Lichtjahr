@@ -579,13 +579,13 @@ function svgPage(p, o = {}) {
     return '';
   };
   const items = pageItems(p);
-  // Aufgeklappte Ansicht: Partnerseite blass oben oder unten daneben zeigen
+  // Aufgeklappte Ansicht: Partnerseite oben oder unten daneben zeigen – blass mit Namen, in der Druckansicht wie gedruckt
   const partner = ed && o.partner && S.pages[o.partner], pdy = partner ? (viewOf(p.key).part === 'upper' ? H : -H) : 0;
   if (partner) {
     live = false;
-    const pc = `${id}p`; defs.push(`<clipPath id="${pc}"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath>`);
-    body.push(`<g transform="translate(0 ${pdy})" opacity=".5" pointer-events="none"><g clip-path="url(#${pc})">${pageItems(partner).map(x => emit(x, false)).join('')}</g>` +
-      `<text x="${W / 2}" y="${pdy < 0 ? H - 8 : 12}" font-size="${Math.min(W, H) * .022}" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".3" paint-order="stroke">${esc(pageLabel(o.partner))}</text></g>`);
+    const asPrinted = proofOn(), pc = `${id}p`; defs.push(`<clipPath id="${pc}"><rect x="0" y="0" width="${W}" height="${H}"/></clipPath>`);
+    body.push(`<g transform="translate(0 ${pdy})"${asPrinted ? '' : ' opacity=".5"'} pointer-events="none"><g clip-path="url(#${pc})">${pageItems(partner).map(x => emit(x, false)).join('')}</g>` +
+      (asPrinted ? '' : `<text x="${W / 2}" y="${pdy < 0 ? H - 8 : 12}" font-size="${Math.min(W, H) * .022}" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".3" paint-order="stroke">${esc(pageLabel(o.partner))}</text>`) + `</g>`);
     live = ed;
     vb[1] = Math.min(vb[1], pdy - 4); vb[3] = H + Math.abs(pdy) + 2 * pad + 4;
   }

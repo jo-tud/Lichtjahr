@@ -4,6 +4,12 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+### Fixes
+- Opened view in the print preview: the other half (top or bottom) is shown as printed, no longer faded and without
+  its name.
+- Flipping on the wall ends smoothly: the shadows of the turning sheet and the page below no longer add up at the
+  start and end of the turn, and the wire binding stays in front of the sheet.
+
 ## [1.3.1] – 2026-10-11
 
 Working together: whoever only views can no longer lose work, and sees the other person's changes live.

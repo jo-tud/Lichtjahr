@@ -16,6 +16,7 @@ function wallViews() {
   return out;
 }
 const wall = { el: null, i: 0, busy: false, showAlt: false };
+const WALL_SHADOW = '0 14px 28px rgba(0,0,0,.22), 0 2px 4px rgba(0,0,0,.18)', WALL_NO_SHADOW = '0 14px 28px rgba(0,0,0,0), 0 2px 4px rgba(0,0,0,0)';   // wie .wall-sheet
 const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function pageSvg(key) { return S.pages[key] ? svgPage(S.pages[key], { mode: 'proof', showBind: true }) : ''; }
 
@@ -135,10 +136,19 @@ async function flip(dir) {
     + `<div class="wall-leaf" style="top:${opened ? ph : 0}px;height:${ph}px"><div class="face front">${pageSvg(leafFront)}<i class="shade"></i></div><div class="face back">${leafBack ? pageSvg(leafBack) : '<div class="paper-back"></div>'}<i class="shade"></i></div></div>`;
   const leaf = cal.querySelector('.wall-leaf'), shades = cal.querySelectorAll('.shade');
   const frames = dir > 0 ? [{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(180deg)' }] : [{ transform: 'rotateX(180deg)' }, { transform: 'rotateX(0deg)' }];
-  const opts = { duration: 950, easing: 'cubic-bezier(.45,.05,.25,1)' };
+  const opts = { duration: 950, easing: 'cubic-bezier(.45,.05,.25,1)', fill: 'forwards' };   // Endstand halten, bis neu gezeichnet ist
   const anim = [leaf.animate(frames, opts)];
   shades.forEach(sh => anim.push(sh.animate([{ opacity: 0 }, { opacity: .45 }, { opacity: 0 }], opts)));
-  if (!opened) anim.push(leaf.animate(dir > 0 ? [{ opacity: 1 }, { opacity: 1, offset: .7 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1 }], opts));
+  // Ohne Rückseite (einseitig, oder die Ansicht hat keinen oberen Teil) blendet das Blatt aus bzw. ein, ebenso der obere Teil
+  const fade = dir > 0 ? [{ opacity: 1 }, { opacity: 1, offset: .7 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 1 }];
+  const sheets = cal.querySelectorAll('.wall-sheet'), lower = sheets[sheets.length - 1], upperEl = opened ? sheets[0] : null;
+  if (!opened || !leafBack) anim.push(leaf.animate(fade, opts));
+  if (opened && !leafBack) anim.push(upperEl.animate(fade, opts));
+  // Schatten: Liegt das Blatt auf einer Seite, wirft nur das Blatt einen. Die Seite, von der es sich hebt, bekommt ihren Schatten
+  // nach und nach, die, auf die es fällt, gibt ihn ab – sonst lägen am Anfang und am Ende zwei Schatten übereinander.
+  const from = dir > 0 ? lower : upperEl, onto = dir > 0 ? upperEl : lower;
+  if (from) anim.push(from.animate([{ boxShadow: WALL_NO_SHADOW }, { boxShadow: WALL_SHADOW }], opts));
+  if (onto) anim.push(onto.animate([{ boxShadow: WALL_SHADOW }, { boxShadow: WALL_NO_SHADOW }], opts));
   await Promise.all(anim.map(x => x.finished)).catch(() => {});
   wall.i = j; wall.busy = false; renderWall();
   if (wall.queued) { const q = wall.queued; wall.queued = 0; flip(q); }
