@@ -92,7 +92,7 @@ function renderProject() {
         <div class="field"><span class="lbl">${_t('Papier / Hintergrund')}</span>${swatches(BG_COLORS, d.bg, 'bg')}${d.bg === 'rich' ? `<p class="hint">${richBlackHint()}</p>` : ''}</div>
       </section>
       <section class="card"><header><h2>${_t('Kalendarium')}</h2><p>${_t('Voreinstellung für alle Monate. Jede Seite kann abweichen.')}</p></header>
-        <div class="field"><span class="lbl">${_t('Form')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')]], d.cal.style, 'defstyle')}</div>
+        <div class="field"><span class="lbl">${_t('Form')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')]], d.cal.style, 'defstyle')}</div>
         <div class="field"><label for="cl">${_t('Sprache im Kalender')}</label><select id="cl" data-bind="doc.calLang">${Object.entries(LANGS).sort((a, b) => a[1].localeCompare(b[1])).map(([v, l]) => `<option value="${v}" lang="${v}" ${calLang() === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <p class="hint">${_t('Monatsnamen, Wochentage, Feiertage und Register im gedruckten Kalender.')}</p></div>
         <div class="field"><label for="rg">${_t('Feiertage (Deutschland)')}</label><select id="rg" data-bind="doc.region">${REGIONS.map(([v, l]) => `<option value="${v}" ${d.region === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -406,8 +406,8 @@ function panelPhotos(p) {
 // Vorschau einer Gestaltungsvariante: das Kalendarium dieses Monats, klein und angeschnitten
 function miniCal(style, design, m) {
   const c = { ...calSettings(curPage()), ...CAL_DESIGNS[design], style, color: 'black', names: false, kw: false, school: false, bd: 'off', width: 'auto', maxW: 0 };
-  const lay = (style === 'v' ? calV : style === 'g' ? calG : calH)(S.doc.year, m, 1, c);
-  const vw = Math.min(lay.w, style === 'h' ? 74 : 62), vh = Math.min(lay.h, style === 'v' ? 46 : 46);
+  const lay = calFn(style)(S.doc.year, m, 1, c);
+  const vw = Math.min(lay.w, style === 'h' || style === 'w' ? 74 : 62), vh = Math.min(lay.h, style === 'v' ? 46 : 46);
   const el = lay.items.map(it => it.t === 'text'
     ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
     : it.t === 'rect' ? `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGBraw(it.fill)}"/>` : it.t === 'circle' ? `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGBraw(it.fill)}"/>` : '').join('');
@@ -443,7 +443,7 @@ function panelCal(p) {
     <button class="linkbtn" data-act="go" data-v="project">${_t('Alle Geburtstage und Anzeige …')}</button></div>` : '';
   const auto = pageMonth(p.key) != null ? `<div class="autoplace"><b>${_t('Platz automatisch finden')}</b><p class="hint">${_t('Sucht im Foto eine ruhige Fläche, etwa Himmel, Wiese oder Wasser, und wählt die passende Schriftfarbe. Danach lässt sich alles von Hand ändern.')}</p>
     <div class="row"><button class="btn primary small" data-act="placehere">${_t('Für diese Seite')}</button><button class="btn small" data-act="placeall">${_t('Für alle Monate')}</button></div></div>` : '';
-  return where + auto + bdBox + `<div class="field"><span class="lbl">${_t('Kalendarium auf dieser Seite')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['off', _t('Aus')]], c.style, 'calstyle')}</div>
+  return where + auto + bdBox + `<div class="field"><span class="lbl">${_t('Kalendarium auf dieser Seite')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')], ['off', _t('Aus')]], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${calDesignBox(p, c)}
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', _t('Größe'))}

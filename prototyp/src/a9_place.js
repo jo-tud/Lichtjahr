@@ -67,7 +67,7 @@ async function suggestPlacement(key, { tryStyles = true } = {}) {
   const img = await renderSmall(p), A = analyse(img);
   await loadFaces(visibleSlots(p).map(s => s.photo).filter(Boolean));
   const faces = pageFaces(p);                                         // Gesichter nie verdecken
-  const styles = tryStyles ? ['h', 'v', 'g'] : [c.style];
+  const styles = tryStyles ? ['h', 'v', 'g', 'w'] : [c.style];
   let best = null;
   for (const st of styles) {
     const s = bestSpot(p, A, img.k, st, faces); if (!s) continue;

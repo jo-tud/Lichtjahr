@@ -266,6 +266,42 @@ function calG(year, m, f, c) {
   if (c.names && info.names.length) hgt = namesBlock(items, info.names.join('  ·  '), w, f, hgt, c.color);
   return { w, h: hgt, items };
 }
+// Doppelraster: zwei Wochen nebeneinander (14 Spalten, meist drei Zeilen) – breit und flach, passt unter ein
+// Motiv, wo ein Raster zu hoch und eine Leiste zu lang wäre
+function calW(year, m, f, c) {
+  const o = calOpts(c), n = daysIn(year, m), info = monthInfo(year, m, c), items = [], wd = WEEKDAYS2[calLang()];
+  const ns = Math.max(4.1 * f, CAL_MIN_NUM), ws = Math.max(ns * .6, CAL_MIN_TEXT), ks = Math.max(1.9 * f, CAL_MIN_TEXT);
+  const cw = Math.max(7.4 * f, 2 * digitAdvance('bold') * ns + .5 * ns), rh = Math.max(6.3 * f, ns * 1.55), kx = c.kw ? ks * 2.6 : 0;
+  const gap = cw * .7, half = kx + 7 * cw + gap;                       // Abstand zwischen den beiden Wochen
+  const title = calTitle(m, year, 7 * f, c.color, o), tx = Math.max(0, (half + kx + 7 * cw - title.w) / 2);
+  items.push(...title.items.map(it => offsetItem(it, tx, 0)));          // Monatsname mittig über beiden Wochen
+  const og = { ...o, wd: o.wd || 1 };
+  const yh = title.base + ws * 1.9;
+  for (const hx of [0, half]) {
+    if (c.kw) items.push(T(hx, yh, _tc('KW'), 'regular', ks, c.color));
+    [1, 2, 3, 4, 5, 6, 0].forEach((dow, i) =>
+      items.push(T(hx + kx + i * cw + cw / 2, yh, wdLabel(wd, dow, og), 'regular', ws, i === 6 && c.hi === 'red' ? 'red' : c.color, 'middle')));
+    if (o.weeks === 'line') items.push(rule(hx + kx, yh + ws * .45, 7 * cw, .2, c.color));
+  }
+  const off = (new Date(year, m, 1).getDay() + 6) % 7;
+  let rows = 0;
+  for (let d = 1; d <= n; d++) {
+    const k = off + d - 1, wk = Math.floor(k / 7), r = Math.floor(wk / 2), hx = (wk % 2) * half, col = k % 7;
+    const h = info.hol.get(`${m}-${d}`), sp = col === 6 || !!h, { fill, font } = dayStyle(c, o, sp);
+    const by = yh + ns * .5 + r * rh + rh * .68, cx = hx + kx + col * cw + cw / 2;
+    if (c.kw && (col === 0 || d === 1)) items.push(T(hx, by, String(isoWeek(year, m, d)), 'regular', ks, c.color));
+    items.push(...tnum(cx, by, d, font, ns, fill));
+    if (info.bd.has(d) && c.bd !== 'off') items.push(bdDot(cx + numWidth(d, font, ns) / 2 - ns * .2, by, ns, c.color));
+    if (info.sch.days.has(d)) items.push(bar(hx + kx + col * cw + cw * .12, by + ns * .32, cw * .76 + (col < 6 && info.sch.days.has(d + 1) ? cw * .24 : 0), Math.max(.3, ns * .1), c.color));
+    rows = r + 1;
+  }
+  const w = Math.max(half + kx + 7 * cw, title.w);
+  let hgt = yh + ns * .5 + rows * rh;
+  if (c.names && info.names.length) hgt = namesBlock(items, info.names.join('  ·  '), w, f, hgt, c.color);
+  return { w, h: hgt, items };
+}
+const CAL_FN = { h: (...a) => calH(...a), v: (...a) => calV(...a), g: (...a) => calG(...a), w: (...a) => calW(...a) };
+const calFn = (style) => CAL_FN[style] || CAL_FN.h;
 function offsetItem(it, dx, dy) {
   const o = { ...it };
   if ('x' in o) o.x += dx; if ('y' in o) o.y += dy;
@@ -284,12 +320,12 @@ function calBlock(p) {
   const c = calSettings(p); if (c.style === 'off') return null;
   // Passt immer auf die Seite: sonst kleiner. „Ganze Breite“ spannt die Leiste zwischen den Rändern auf.
   let f = c.size * Math.min(S.doc.w, S.doc.h) / 300;
-  const fn = c.style === 'v' ? calV : c.style === 'g' ? calG : calH, pad = () => (PANELS[c.panel] ? 3 * f : 0), safe = 6;
+  const fn = calFn(c.style), pad = () => (PANELS[c.panel] ? 3 * f : 0), safe = 6;
   const cc = () => ({ ...c, maxW: S.doc.w - 2 * Math.max(10, S.doc.w * .05) - 2 * pad() });
   let lay = fn(S.doc.year, m, f, cc());
   const k = Math.min((S.doc.w - 2 * safe - 2 * pad()) / lay.w, (S.doc.h - 2 * safe - 2 * pad()) / lay.h);
   if (k < 1) { f *= k * .98; lay = fn(S.doc.year, m, f, cc()); }
-  const a = (p.cal && p.cal.pos && p.cal.pos[c.style]) || S.doc.cal.def[c.style];
+  const a = (p.cal && p.cal.pos && p.cal.pos[c.style]) || S.doc.cal.def[c.style] || { ax: .5, ay: .95 };   // ältere Projekte kennen nicht jede Form
   return { t: 'block', kind: 'cal', ...blockFrame(lay, a, f, c.panel, c.opacity ?? .85) };
 }
 function titleBlock(p) {

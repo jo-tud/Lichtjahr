@@ -5,6 +5,8 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 ## [Unreleased]
 
 ### Design
+- New calendar grid shape *Double grid*: two weeks side by side (14 columns, usually three rows), wide and flat,
+  with the month name centered above. *Find a spot automatically* considers it too.
 - The photo index can have photos behind its text: any page layout as background, photos per index page, a light
   or dark veil with adjustable strength (the text turns dark or light to match). *Fill empty frames* may use
   photos from the calendar for a look back at the year.
