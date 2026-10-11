@@ -132,7 +132,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Sheets:** 12 months, a cover, a photo index at the end and as many extra sheets as you like.
 - **Single- or double-sided:** Back sides *unfolded* (the back of the previous sheet on top, the month below, one shared calendar grid), as a second picture per month or as free photo pages.
 - **Calendar grid:** Strip, column, grid or double grid (two weeks side by side, wide and flat, with the month name centered above), freely movable, with a backdrop of adjustable opacity. Four designs (Classic, Modern, Calm, Bold), shown as previews of the actual month, plus details: month name, weekday labels, week separation, day number weight and, for the strip, full page width. Whatever you pick, the layout follows fixed rules: equal-width figures, never-crowded cells, clear week breaks, no text below 6 pt, and it always fits on the page. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
-- **Fonts:** Jost by default. Headings (cover title, month names, index headings) and the calendar grid with all other texts can each get their own font: any of the free [Google Fonts](https://fonts.google.com) (with the local service), your own font files (TTF, OTF or WOFF with the service; TTF without it), or one of the suggested pairs such as Playfair Display with Lato. The dialog shows the choice on your current page right away. The service prepares each font for print (static weights, TrueType outlines, only the characters the calendar uses), refuses fonts whose license forbids embedding, and keeps them in the project folder, so everyone working on the calendar has the same fonts.
+- **Fonts:** Jost by default. Headings (cover title, month names, index headings) and the calendar grid with all other texts can each get their own font: any of the free [Google Fonts](https://fonts.google.com), your own font files (TTF, OTF or WOFF with the service; TTF without it), or one of the suggested pairs such as Playfair Display with Lato. The dialog shows the choice on your current page right away. The service prepares each font for print (static weights, TrueType outlines, only the characters the calendar uses), refuses fonts whose license forbids embedding, and keeps them in the project folder, so everyone working on the calendar has the same fonts. Without the service, Google Fonts come as ready-made TrueType files from [Fontsource](https://fontsource.org) and stay in your browser; they cover Western European characters, for others such as Š or Ž use the service.
 - **Languages:** The app is available in English and German. It follows your browser's language and can be switched at any time. The printed calendar has its own language setting for month names, weekdays, holidays and the photo index – so you can work in one language and print in the other. So far, only German public holidays and school holidays (for each of Germany's states) are supported.
 - **Photo index:** Pictures per page (with captions, numbers, thumbnails), text per page or free text; flows over as many pages as needed. Optionally with photos behind the text: pick one of the page layouts as the index background, choose the photos per page and lay a light or dark veil over them so the text stays readable.
 - **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
@@ -196,7 +196,7 @@ files). Only one person edits at a time. The other can look through the calendar
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.4.0/lichtjahr-1.4.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.4.1/lichtjahr-1.4.1-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:
@@ -309,7 +309,8 @@ Nextcloud). Other servers are contacted only in these cases:
 - **First start of the download:** the start script installs [uv](https://docs.astral.sh/uv/) from astral.sh (after
   asking), then Python and the packages from the Python Package Index.
 - **Google Fonts:** when you open the Google Fonts list, the service fetches the font directory from fonts.google.com
-  (kept for a week); when you pick a font, it downloads that font. Nothing about your calendar is sent.
+  (kept for a week); when you pick a font, it downloads that font. Without the service, the browser loads the
+  directory from api.fontsource.org and the chosen font from cdn.jsdelivr.net. Nothing about your calendar is sent.
 - **Who appears how often:** the first use downloads the recognition model (SFace, 10 MB) from GitHub.
 - **Online version:** the page is loaded from GitHub Pages; after that, everything stays in your browser.
 
@@ -415,7 +416,7 @@ tested and reviewed is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License and credits
 
 - **Code:** [MIT License](LICENSE)
-- **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Fonts you pick from Google Fonts keep their own licenses (mostly SIL OFL); the service downloads them only when you use the font list and are not part of this repository.
+- **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Fonts you pick from Google Fonts keep their own licenses (mostly SIL OFL); they are downloaded only when you use the font list (via the service, or via [Fontsource](https://fontsource.org) without it) and are not part of this repository.
 - **App font:** [IBM Plex](https://github.com/IBM/plex) Sans and Mono by IBM, SIL Open Font License 1.1 ([`prototyp/fonts/plex/OFL.txt`](prototyp/fonts/plex/OFL.txt)), embedded in the app
 - **School holidays:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The extract in `prototyp/src/schoolholidays.js` is also licensed under the ODbL. No guarantee of accuracy.
 - **Face recognition:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; not included in the repository, downloaded on first use and checked against its SHA-256.

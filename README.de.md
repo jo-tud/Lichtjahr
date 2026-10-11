@@ -132,7 +132,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
 - **Kalendarium:** Leiste, Spalte, Raster oder Doppelraster (zwei Wochen nebeneinander, breit und flach, Monatsname mittig darüber), frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Vier Gestaltungen (Klassisch, Modern, Ruhig, Kräftig) als Vorschau des echten Monats, dazu Feinheiten: Monatsname, Wochentage, Wochentrennung, Stärke der Tageszahlen und bei der Leiste die ganze Seitenbreite. Was auch immer gewählt wird, das Layout folgt festen Regeln: gleich breite Ziffern, nie gedrängte Zellen, deutliche Wochentrennung, keine Schrift unter 6 pt, und es passt immer auf die Seite. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
-- **Schriften:** Standard ist Jost. Überschriften (Titel, Monatsnamen, Überschriften im Register) und das Kalendarium mit allen übrigen Texten bekommen auf Wunsch je eine eigene Schrift: jede freie Schrift von [Google Fonts](https://fonts.google.com) (mit dem lokalen Dienst), eigene Schriftdateien (TTF, OTF oder WOFF mit dem Dienst, ohne ihn TTF) oder eines der vorgeschlagenen Paare wie Playfair Display mit Lato. Der Dialog zeigt die Wahl gleich auf der aktuellen Seite. Der Dienst bereitet jede Schrift für den Druck auf (feste Schnitte, TrueType-Umrisse, nur die Zeichen, die der Kalender braucht), lehnt Schriften ab, deren Lizenz das Einbetten verbietet, und legt sie im Projektordner ab – so haben alle, die mitarbeiten, dieselben Schriften.
+- **Schriften:** Standard ist Jost. Überschriften (Titel, Monatsnamen, Überschriften im Register) und das Kalendarium mit allen übrigen Texten bekommen auf Wunsch je eine eigene Schrift: jede freie Schrift von [Google Fonts](https://fonts.google.com), eigene Schriftdateien (TTF, OTF oder WOFF mit dem Dienst, ohne ihn TTF) oder eines der vorgeschlagenen Paare wie Playfair Display mit Lato. Der Dialog zeigt die Wahl gleich auf der aktuellen Seite. Der Dienst bereitet jede Schrift für den Druck auf (feste Schnitte, TrueType-Umrisse, nur die Zeichen, die der Kalender braucht), lehnt Schriften ab, deren Lizenz das Einbetten verbietet, und legt sie im Projektordner ab – so haben alle, die mitarbeiten, dieselben Schriften. Ohne Dienst kommen Google Fonts als fertige TrueType-Dateien von [Fontsource](https://fontsource.org) und bleiben im Browser; sie enthalten die westeuropäischen Zeichen, für andere wie Š oder Ž den Dienst nutzen.
 - **Sprachen:** Die App gibt es auf Englisch und Deutsch; sie folgt der Sprache des Browsers und lässt sich jederzeit umschalten. Der gedruckte Kalender hat eine eigene Spracheinstellung für Monatsnamen, Wochentage, Feiertage und Register – so kann man in der einen Sprache arbeiten und in der anderen drucken. Feiertage und Schulferien gibt es bisher nur für Deutschland (je Bundesland).
 - **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten. Auf Wunsch mit Fotos hinter dem Text: eines der Seitenlayouts als Hintergrund des Registers wählen, die Fotos je Seite einsetzen und einen hellen oder dunklen Schleier darüberlegen, damit der Text lesbar bleibt.
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
@@ -197,7 +197,7 @@ geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person. Die a
 Wer uv schon hat, braucht nur einen Befehl (die Versionsnummer steht im Release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.4.0/lichtjahr-1.4.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.4.1/lichtjahr-1.4.1-py3-none-any.whl lichtjahr
 ```
 
 Aus dem Repository, mit Python 3.11 oder neuer:
@@ -311,8 +311,9 @@ eigene Nextcloud) nicht. Andere Server werden nur in diesen Fällen angesprochen
 - **Erster Start des Downloads:** Das Startskript installiert [uv](https://docs.astral.sh/uv/) von astral.sh (nach
   Rückfrage), dann Python und die Pakete aus dem Python Package Index.
 - **Google Fonts:** Wenn du die Liste der Google Fonts öffnest, holt der Dienst das Schriftenverzeichnis von
-  fonts.google.com (eine Woche zwischengespeichert); wählst du eine Schrift, lädt er diese. Über deinen Kalender wird
-  nichts übertragen.
+  fonts.google.com (eine Woche zwischengespeichert); wählst du eine Schrift, lädt er diese. Ohne Dienst lädt der
+  Browser das Verzeichnis von api.fontsource.org und die gewählte Schrift von cdn.jsdelivr.net. Über deinen Kalender
+  wird nichts übertragen.
 - **Wer ist wie oft auf den Fotos:** Beim ersten Gebrauch wird das Erkennungsmodell (SFace, 10 MB) von GitHub geladen.
 - **Online-Version:** Die Seite kommt von GitHub Pages; danach bleibt alles in deinem Browser.
 
@@ -418,7 +419,7 @@ gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md) 
 ## Lizenz und Quellen
 
 - **Code:** [MIT-Lizenz](LICENSE)
-- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Schriften von Google Fonts behalten ihre eigenen Lizenzen (meist SIL OFL); der Dienst lädt sie erst, wenn man die Schriftliste benutzt, sie gehören nicht zu diesem Repository.
+- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Schriften von Google Fonts behalten ihre eigenen Lizenzen (meist SIL OFL); sie werden erst geladen, wenn man die Schriftliste benutzt (über den Dienst oder ohne ihn über [Fontsource](https://fontsource.org)), und gehören nicht zu diesem Repository.
 - **Schrift der Oberfläche:** [IBM Plex](https://github.com/IBM/plex) Sans und Mono von IBM, SIL Open Font License 1.1 ([`prototyp/fonts/plex/OFL.txt`](prototyp/fonts/plex/OFL.txt)), in die App eingebettet
 - **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
 - **Wiedererkennung:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; nicht im Repository, wird beim ersten Gebrauch geladen und gegen seine SHA-256-Prüfsumme geprüft.

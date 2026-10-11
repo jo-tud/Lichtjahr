@@ -4,6 +4,15 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.4.1] – 2026-10-11
+
+### Design
+- Google Fonts without the local service: in the online version and the file opened in the browser, the font
+  dialog now lists all Google Fonts too, and the suggested pairs work. The browser loads the chosen font as a
+  ready-made TrueType file from Fontsource (Google itself only offers browsers WOFF2, which a PDF cannot embed)
+  and keeps it in the browser. These files cover Western European characters; for others such as Š or Ž, the
+  service prepares the complete font as before.
+
 ## [1.4.0] – 2026-10-11
 
 Your own fonts, smoother previews, and a thorough review: Lichtjahr now runs on Windows as intended, contacts no
