@@ -171,13 +171,23 @@ packages in your user folder, about 150 MB; nothing is installed system-wide. La
 If macOS refuses to open the script: System Settings → Privacy & Security → “Open Anyway”. On Windows,
 SmartScreen may ask: “More info” → “Run anyway”.
 
+**Updating:** download the new ZIP, close the window of the running Lichtjahr and start the new script. Projects,
+print profiles and access data stay; they live in the project folder and in your user folder, not next to the
+script.
+
+**Working on one calendar together:** share the project folder (in Nextcloud with edit permission, or via
+Syncthing or a network drive). The other person starts Lichtjahr and chooses *Open existing* with their own
+address of the shared folder (in Nextcloud: their own WebDAV address plus the name the shared folder has in their
+files). Only one person edits at a time; the other sees the calendar read-only and can take over as soon as it is
+free. Everyone should use the same Lichtjahr version.
+
 <details>
 <summary>With a terminal</summary>
 
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.0/lichtjahr-1.2.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.1/lichtjahr-1.2.1-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:

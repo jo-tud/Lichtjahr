@@ -32,7 +32,7 @@ from .lock import Locked, LockLost, new_session
 from .media import BROWSER_EXT, browser_copy
 from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
                        print_tune, proof_colors, proof_image, rich_black, sharpen_for_print)
-from .project import Project, ProjectError, RevisionConflict
+from .project import Project, ProjectError, ProjectExists, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
 from .storage.webdav import ServerLocked, WebDavStorage
@@ -124,7 +124,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.exception_handler(ProjectError)
     async def _perr(_, exc: ProjectError):
-        return JSONResponse({"detail": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=409 if isinstance(exc, ProjectExists) else 400)
 
     @app.exception_handler(PrintError)
     async def _print(_, exc: PrintError):

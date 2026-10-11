@@ -20,6 +20,18 @@ work on the calendar; close it to quit.
 From your phone on the home network:  ./lichtjahr.sh --host 0.0.0.0  (Windows: Lichtjahr.bat --host 0.0.0.0)
 The window then shows an address with an access key.
 
+Update
+------
+Download the new ZIP from https://github.com/jo-tud/Lichtjahr/releases/latest and unpack it (it may replace
+this folder). Close the window of the running Lichtjahr, then start the new script. Projects, print profiles
+and access data stay where they are; the first start of a new version takes a moment longer.
+
+Working on one calendar together
+--------------------------------
+Share the project folder (for example in Nextcloud, with edit permission). The other person starts Lichtjahr
+and chooses "Open existing" with their own address of the shared folder. Only one person edits at a time; the
+other sees the calendar read-only and can take over as soon as it is free. Use the same Lichtjahr version.
+
 More: https://github.com/jo-tud/Lichtjahr
 
 
@@ -44,5 +56,18 @@ solange du am Kalender arbeitest; zum Beenden schließen.
 
 Vom Handy im Heimnetz:  ./lichtjahr.sh --host 0.0.0.0  (Windows: Lichtjahr.bat --host 0.0.0.0)
 Das Fenster zeigt dann eine Adresse mit Zugriffsschlüssel.
+
+Aktualisieren
+-------------
+Das neue ZIP von https://github.com/jo-tud/Lichtjahr/releases/latest herunterladen und entpacken (es darf
+diesen Ordner ersetzen). Das Fenster des laufenden Lichtjahr schließen, dann das neue Skript starten.
+Projekte, Druckprofile und Zugangsdaten bleiben erhalten; der erste Start einer neuen Version dauert etwas länger.
+
+Gemeinsam an einem Kalender
+---------------------------
+Den Projektordner teilen (zum Beispiel in Nextcloud, mit dem Recht zum Bearbeiten). Die andere Person startet
+Lichtjahr und wählt „Vorhandenes öffnen“ mit ihrer eigenen Adresse des geteilten Ordners. Bearbeiten kann immer
+nur eine Person; die andere sieht den Kalender zum Ansehen und kann übernehmen, sobald er frei ist. Beide
+dieselbe Lichtjahr-Version verwenden.
 
 Mehr: https://github.com/jo-tud/Lichtjahr

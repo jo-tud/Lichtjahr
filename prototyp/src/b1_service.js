@@ -441,7 +441,7 @@ function projectPicker(list, error = '') {
         <div class="picker-brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Lichtjahr</div>
         <h1>${list.length ? _t('Welcher Kalender?') : _t('Dein erster Kalender')}</h1>
         <p class="hint">${_t('Ein Projekt ist ein Ordner auf diesem Rechner oder in deiner Nextcloud, mit einem Unterordner je Monat. Fotos kannst du dort hineinlegen, wann immer du willst.')}</p>
-        ${list.length ? `<div class="seg picker-tabs">${[['list', _t('Zuletzt')], ['new', _t('Neu anlegen')], ['open', _t('Öffnen')]].map(([v, l]) => `<button aria-pressed="${tab === v}" data-tab="${v}">${l}</button>`).join('')}</div>` : ''}
+        <div class="seg picker-tabs">${[...(list.length ? [['list', _t('Zuletzt')]] : []), ['new', _t('Neu anlegen')], ['open', _t('Vorhandenes öffnen')]].map(([v, l]) => `<button aria-pressed="${tab === v}" data-tab="${v}">${l}</button>`).join('')}</div>
         ${msg ? `<p class="picker-err" role="alert">${esc(msg)}</p>` : ''}
         ${tab === 'list' ? `<div class="picker-list">${list.map(p => `<button class="picker-item" data-pid="${esc(p.id)}"><b>${esc(p.title)} ${esc(String(p.calendarYear))}</b><span title="${esc(p.storage && p.storage.location || '')}">${esc(shortPath(p.storage && (p.storage.display || p.storage.location) || '', 60))}</span></button>`).join('')}</div>` : ''}
         ${tab !== 'list' ? `<div class="seg picker-where">${[['local', _t('Dieser Rechner')], ['dav', _t('Nextcloud / WebDAV')]].map(([v, l]) => `<button aria-pressed="${where === v}" data-where="${v}">${l}</button>`).join('')}</div>` : ''}
@@ -488,7 +488,16 @@ function projectPicker(list, error = '') {
         : { path };
       if (!(loc.url || loc.path)) return;
       // language: Sprache der Ordnernamen im neuen Projekt (Fotos/01 Januar oder Photos/01 January)
-      if (kind === 'new') tryOpen(() => api('projects', { method: 'POST', body: { ...loc, title: String(fd.get('title') || '').trim() || _t('Familienkalender'), calendarYear: +fd.get('year') || year, language: LANG } }));
+      // Liegt dort schon ein Projekt (etwa ein geteilter Kalender), wird es geöffnet statt eine Fehlermeldung zu zeigen
+      if (kind === 'new') tryOpen(async () => {
+        try { return await api('projects', { method: 'POST', body: { ...loc, title: String(fd.get('title') || '').trim() || _t('Familienkalender'), calendarYear: +fd.get('year') || year, language: LANG } }); }
+        catch (err) {
+          if (err.status !== 409) throw err;
+          const r = await api('projects/open', { method: 'POST', body: loc });
+          setTimeout(() => toast(_t('In diesem Ordner gab es schon einen Kalender. Er ist jetzt geöffnet; neu angelegt wurde nichts.'), 7000), 600);
+          return r;
+        }
+      });
       else tryOpen(() => api('projects/open', { method: 'POST', body: loc }));
     });
     draw();
@@ -500,7 +509,7 @@ function projectPicker(list, error = '') {
 function davFields(form, val, year) {
   const ex = _t('https://cloud.example.org/remote.php/dav/files/NAME/Kalender-{year}', { year });
   return `<div class="field"><label for="pk-url-${form}">${_t('WebDAV-Adresse des Projektordners')}</label><input type="url" id="pk-url-${form}" name="url" required value="${val(form + ':url', '')}" placeholder="${esc(ex)}" spellcheck="false" autocomplete="off">
-      <span class="hint">${_t('In Nextcloud steht die WebDAV-Adresse unter Dateien → Einstellungen (unten links). Den Ordnernamen hinten anhängen; ein neuer Ordner wird angelegt.')}</span></div>
+      <span class="hint">${form === 'open' ? _t('Für einen geteilten Ordner die eigene WebDAV-Adresse nehmen (Dateien → Einstellungen, unten links) und den Namen anhängen, unter dem der Ordner bei dir erscheint. Die Freigabe braucht das Recht zum Bearbeiten.') : _t('In Nextcloud steht die WebDAV-Adresse unter Dateien → Einstellungen (unten links). Den Ordnernamen hinten anhängen; ein neuer Ordner wird angelegt.')}</span></div>
     <div class="row"><div class="field" style="flex:1"><label for="pk-user-${form}">${_t('Benutzername')}</label><input type="text" id="pk-user-${form}" name="username" required value="${val(form + ':username', '')}" autocomplete="off" spellcheck="false"></div>
     <div class="field" style="flex:1"><label for="pk-pass-${form}">${_t('App-Passwort')}</label><input type="password" id="pk-pass-${form}" name="password" required autocomplete="off"></div></div>
     <p class="hint">${_t('Ein App-Passwort legst du in Nextcloud unter Einstellungen → Sicherheit an; du kannst es jederzeit widerrufen. Der Dienst speichert es nur auf diesem Rechner, nie im Projekt oder im Browser.')}</p>`;

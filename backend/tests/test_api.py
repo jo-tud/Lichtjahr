@@ -65,6 +65,11 @@ def test_open_existing_folder_and_token(tmp_path):
     r = c2.post("/api/projects/open", json={"path": str(root)}, headers={"Authorization": "Bearer geheim"})
     assert r.status_code == 200 and r.json()["id"] == pid and r.json()["sourceYear"] == 2027
     assert c2.get("/api/health").status_code == 200
+    # Zweite Person legt „neu“ an, wo schon ein Projekt liegt: 409 statt eines allgemeinen Fehlers, nichts überschrieben
+    c3 = client(tmp_path / "mitstreiterin")
+    dup = c3.post("/api/projects", json={"path": str(root), "calendarYear": 2030})
+    assert dup.status_code == 409
+    assert c3.post("/api/projects/open", json={"path": str(root)}).json()["calendarYear"] == 2028
 
 
 def test_foreign_host_is_rejected_without_token(tmp_path):
