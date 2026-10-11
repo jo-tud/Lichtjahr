@@ -244,10 +244,16 @@ function newSlot() { return { photo: null, zoom: 1, cx: .5, cy: .5, rot: 0, fit:
 // Vorlagenrahmen haben Zahlen als Schlüssel, zusätzliche Rahmen eine feste ID
 const keyOf = (v) => /^\d+$/.test(String(v)) ? +v : String(v);
 function slotOf(p, key) { return typeof key === 'number' ? p.slots[key] : (p.extra || []).find(s => s.id === key); }
-function fillSlots(p) { if (p.layout !== 'index') while (p.slots.length < slotCount(p.layout)) p.slots.push(newSlot()); return p; }
+// Vorlage der Fotorahmen; Registerseiten haben nur einen, wenn ein Hintergrund-Layout gewählt ist (bgLayout)
+const slotLayout = (p) => p.layout === 'index' ? (p.bgLayout || null) : p.layout;
+function fillSlots(p) { const l = slotLayout(p); if (l) while (p.slots.length < slotCount(l)) p.slots.push(newSlot()); return p; }
 function newPage(key) {
   const p = { key, layout: 'full', slots: [], ov: {}, cal: {} };
-  if (isIndex(key)) p.layout = 'index';
+  if (isIndex(key)) {
+    p.layout = 'index';
+    const first = S.pages.index;                      // weitere Registerseiten übernehmen den Hintergrund der ersten
+    if (key !== 'index' && first && first.bgLayout) { p.bgLayout = first.bgLayout; p.veil = { ...first.veil }; }
+  }
   if (isBack(key) && isIndex(key.slice(0, -2))) p.layout = 'blank';   // Rückseite des Registers bleibt zunächst leer
   // Titel mit heller Fläche: lesbar auf Foto und auf leerem Papier
   if (key === 'cover') p.title = { text: _t('Familienkalender'), sub: String(S.doc.year), color: 'navy', size: 1, panel: 'light', opacity: .85, ax: .08, ay: .9 };
@@ -262,7 +268,7 @@ function ensurePages() {
   if (!pageKeys().includes(ui.page)) ui.page = pageKeys()[0];
 }
 const curPage = () => S.pages[ui.page];
-function visibleSlots(p) { return p.layout === 'index' ? [] : p.slots.slice(0, slotCount(p.layout)).filter(s => !s.hidden).concat(p.extra || []); }
+function visibleSlots(p) { const l = slotLayout(p); return !l ? [] : p.slots.slice(0, slotCount(l)).filter(s => !s.hidden).concat(p.extra || []); }
 function usage() {
   const u = {};
   for (const k of pageKeys()) visibleSlots(S.pages[k]).forEach(s => { if (s.photo) (u[s.photo] ||= []).push(k); });

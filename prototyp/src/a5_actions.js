@@ -80,6 +80,12 @@ document.addEventListener('input', (e) => {
     if (!SERVICE_KEYS.includes(k)) renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
   if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
+  if (act === 'ixveilamt') {
+    const v = parseFloat(el.value);
+    for (const k of pageKeys().filter(isIndex)) { const p = S.pages[k]; if (p) p.veil = { ...(p.veil || {}), opacity: v }; }
+    el.parentElement.querySelector('output').textContent = Math.round(v * 100) + ' %';
+    renderEditor(); clearTimeout(onBind._v); onBind._v = setTimeout(() => { commit(); renderStrip(); renderPanelKeepScroll(); }, 400);
+  }
   if (act === 'adjlookamt') {
     setAdjust(el.dataset.photo, { lookAmt: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
@@ -154,6 +160,20 @@ const ACTIONS = {
     if (filled) toast(filled > 1 ? _t('{n} freie Fotos des Monats eingesetzt.', { n: filled }) : _t('1 freies Foto des Monats eingesetzt.'));
     const lost = before - after;
     if (lost > 0) toast(lost > 1 ? _t('{n} Fotos haben im neuen Layout keinen Rahmen. Ein Wechsel zurück holt sie wieder.', { n: lost }) : _t('1 Foto hat im neuen Layout keinen Rahmen. Ein Wechsel zurück holt es wieder.'), 5000);
+  },
+  // Hintergrund des Registers: Layout und Schleier für alle Registerseiten, Fotos je Seite
+  ixbg: (el) => {
+    for (const k of pageKeys().filter(isIndex)) {
+      const p = S.pages[k]; if (!p) continue;
+      if (el.dataset.v) { p.bgLayout = el.dataset.v; p.veil ||= { tone: 'light', opacity: .78 }; fillSlots(p); }
+      else delete p.bgLayout;
+      for (const s of p.slots) { delete s.box; delete s.hidden; delete s.z; delete s.border; }
+    }
+    ui.sel = null; ui.crop = null; commit(); renderDesign();
+  },
+  ixveil: (el) => {
+    for (const k of pageKeys().filter(isIndex)) { const p = S.pages[k]; if (p) p.veil = { ...(p.veil || {}), tone: el.dataset.v }; }
+    commit(); renderDesign();
   },
   resetframes: () => {
     const p = curPage(); delete p.ov; p.extra = [];
@@ -376,7 +396,9 @@ async function resetProject(demo) {
 
 /* ---------- Fotos auf Seiten verteilen ---------- */
 function autoFill(key, used = null) {
-  const p = S.pages[key]; if (!p || p.layout === 'index') return 0;
+  const p = S.pages[key]; if (!p || !slotLayout(p)) return 0;
+  // Hintergrund des Registers: ein Rückblick aufs Jahr darf Fotos aus dem Kalender zeigen, nur nicht doppelt auf der Seite
+  if (isIndex(key)) used = new Set(visibleSlots(p).map(s => s.photo).filter(Boolean));
   used ||= new Set(Object.keys(usage()));
   const m = pageMonth(key);
   let cand = Object.values(S.photos).filter(ph => !used.has(ph.id) && (m == null ? true : ph.month === m));

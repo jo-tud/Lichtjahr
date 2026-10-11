@@ -1,7 +1,7 @@
 /* ---------- Geometrie (alles in mm, Ursprung = Endformat oben links) ---------- */
 // Rahmen der Vorlage; Abstand der Seite (falls gesetzt) oder der globale
 function templateRects(p, doc) {
-  const L = layoutById(p.layout), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = p.gap ?? doc.gap;
+  const L = layoutById(slotLayout(p)), W = doc.w, H = doc.h, b = doc.bleed, m = doc.margin, g = p.gap ?? doc.gap;
   const cw = W - 2 * m, ch = H - 2 * m, X = (u) => m + u * cw, Y = (v) => m + v * ch, e = 1e-6;
   const out = [];
   L.slots.forEach(([x, y, w, h], i) => {
@@ -19,7 +19,7 @@ function templateRects(p, doc) {
 }
 // Alle sichtbaren Rahmen einer Seite, nach Ebene sortiert (unten zuerst)
 function slotRects(p, doc = S.doc) {
-  if (p.layout === 'index') return [];
+  if (!slotLayout(p)) return [];
   const out = [];
   for (const r of templateRects(p, doc)) {
     const sl = p.slots[r.i] || {};
@@ -307,7 +307,6 @@ function titleBlock(p) {
 function pageItems(p, opt = {}) {
   const doc = S.doc, b = doc.bleed, items = [];
   items.push({ t: 'rect', x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b, fill: doc.bg, role: 'bg' });
-  if (p.layout === 'index') return items.concat(indexItems(p, opt));
   for (const r of slotRects(p)) {
     const sl = slotOf(p, r.i) || newSlot(), ph = sl.photo && S.photos[sl.photo];
     if (r.border > 0) {                       // Rand in Hintergrundfarbe, nie über Blatt und Beschnitt hinaus
@@ -317,6 +316,12 @@ function pageItems(p, opt = {}) {
     if (ph && sl.fit === 'contain') items.push({ t: 'rect', ...r, fill: doc.bg, slot: r.i, role: 'ovb' });
     if (ph) items.push({ t: 'img', slot: r.i, clip: r, place: placeImage(r, ph, sl), photo: ph.id, overlay: r.overlay });
     else items.push({ t: 'empty', slot: r.i, clip: r, overlay: r.overlay });
+  }
+  if (p.layout === 'index') {
+    // Hintergrundbilder hinter dem Register: Schleier über die ganze Seite, damit der Text lesbar bleibt
+    const v = indexVeil(p);
+    if (v) items.push({ t: 'rect', x: -b, y: -b, w: doc.w + 2 * b, h: doc.h + 2 * b, fill: v.color, opacity: v.opacity, role: 'panel', veil: true });
+    return items.concat(indexItems(p, opt));
   }
   if (!opt.noBlocks) {
     const c = calBlock(p); if (c) items.push(c);
@@ -436,9 +441,16 @@ function schoolSourceNote() {
   if (dm && calLang() !== 'de') date = new Date(+dm[3], dm[2] - 1, +dm[1]).toLocaleDateString(locale(calLang()), { day: 'numeric', month: 'long', year: 'numeric' });
   return _tc('Schulferien: {name} ({url}), {license}, Stand {date}, ohne Gewähr.', { name: SCHOOL_SOURCE.name, url: SCHOOL_SOURCE.url.replace('https://www.', ''), license: SCHOOL_SOURCE.license, date });
 }
+// Schleier über dem Hintergrund des Registers: hell (schwarze Schrift) oder dunkel (weiße Schrift)
+const VEILS = { light: 'white', dark: 'black' };
+function indexVeil(p) {
+  if (!p.bgLayout || !visibleSlots(p).length) return null;
+  const v = p.veil || {}, color = VEILS[v.tone ?? 'light'];
+  return color ? { color, opacity: v.opacity ?? .78, tone: v.tone ?? 'light' } : null;
+}
 function indexItems(p) {
-  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), g = L.geom, { f, mg } = g;
-  const col = doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
+  const doc = S.doc, W = doc.w, items = [], L = indexLayout(), g = L.geom, { f, mg } = g, veil = indexVeil(p);
+  const col = veil && veil.opacity >= .5 ? (veil.tone === 'dark' ? 'white' : 'black') : doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
     items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'bold', 9 * f, col));
@@ -487,11 +499,11 @@ function svgPage(p, o = {}) {
   let cn = 0;
   const clipRect = (r) => { const cid = `${id}c${cn++}`; defs.push(`<clipPath id="${cid}"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/></clipPath>`); return cid; };
   // Gegenlicht und Rauschen rechnet der Dienst ins Vorschaubild ein (fx); das Rezept kommt als SVG-Filter dazu
-  const url = (pid, small) => (proofOn() && proofUrl(pid, small)) || withFx((small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '', fxOf(pid));
+  const plainUrl = (pid, small) => withFx((small ? RT.thumb[pid] : RT.prev[pid]) || RT.thumb[pid] || '', fxOf(pid));
   // Bildanpassung als SVG-Filter; in der Druckansicht steckt sie schon im Bild vom Dienst, beim Vergleichen ist sie aus
   const fdone = new Set();
-  const adjFilter = (pid) => {
-    if (ui.adjCompare || (proofOn() && proofUrl(pid, false))) return '';
+  const adjFilter = (pid, plain = false) => {
+    if (ui.adjCompare || (!plain && proofOn() && proofUrl(pid, false))) return '';
     const c = compileAdjust(adjOf(pid)); if (!c) return '';
     const fid = `${id}${adjFilterId(c)}`;
     if (!fdone.has(fid)) { fdone.add(fid); defs.push(adjFilterDef(c, fid)); }
@@ -500,13 +512,16 @@ function svgPage(p, o = {}) {
   let live = ed;   // nur die bearbeitete Seite reagiert auf Zeiger, nicht die Partnerseite
   const emit = (it, small) => {
     switch (it.t) {
-      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}/>`;
+      case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}${it.veil ? ' pointer-events="none"' : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
       case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
-        const cid = clipRect(it.clip), pl = it.place, flt = adjFilter(it.photo);
-        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}><image href="${url(it.photo, small || it.mini)}" ${imgAttrs(pl)} preserveAspectRatio="none"${flt}/></g>`;
+        const cid = clipRect(it.clip), pl = it.place, sm = small || it.mini, pu = proofOn() && proofUrl(it.photo, sm);
+        const plain = `<image href="${plainUrl(it.photo, sm)}" ${imgAttrs(pl)} preserveAspectRatio="none"${adjFilter(it.photo, true)}/>`;
+        // Druckansicht: das Bild vom Dienst liegt über der normalen Vorschau. Solange es gerechnet wird (mit
+        // Detailbearbeitung einige Sekunden) oder falls es fehlt, bleibt das Foto sichtbar statt einer leeren Fläche
+        return `<g clip-path="url(#${cid})"${live && !it.mini ? ` data-slot="${it.slot}"${ui.crop === it.slot ? ' class="cropping"' : ui.sel === it.slot ? ' class="selframe"' : ''}` : ''}>${plain}${pu ? `<image href="${pu}" ${imgAttrs(pl)} preserveAspectRatio="none"/>` : ''}</g>`;
       }
       case 'empty': {
         const r = it.clip;

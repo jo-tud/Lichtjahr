@@ -4,6 +4,16 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+### Design
+- The photo index can have photos behind its text: any page layout as background, photos per index page, a light
+  or dark veil with adjustable strength (the text turns dark or light to match). *Fill empty frames* may use
+  photos from the calendar for a look back at the year.
+
+### Fixes
+- Print preview (also on the wall): the normal preview stays visible until the service has computed the print
+  version of a photo. Before, a photo with detail edits vanished for a few seconds, and a black background made
+  the page look empty.
+
 ### Print
 - Rich black from the print profile: a black background uses the darkest neutral black the print shop's profile
   allows within its ink limit (for ISO Coated v2: C65 M55 Y40 K100 instead of the fixed C50 M40 Y40 K100), also in

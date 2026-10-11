@@ -126,7 +126,7 @@ async function exportPDF(mode = 'draft') {
         if (it.t === 'rect') {
           if (it.role === 'panel' && it.opacity < 1) continue;          // schon eingerechnet
           if (!(it.role === 'bg' && it.fill === 'white')) ops.push(rectOp(it, kop(it.fill)));
-          for (const pn of panels) { const r = intersect(pn, it); if (r) ops.push(rectOp(r, kmix(pn.fill, pn.opacity, it.fill))); }
+          for (const pn of panels) { if (pn.veil && it.role === 'mini') continue; const r = intersect(pn, it); if (r) ops.push(rectOp(r, kmix(pn.fill, pn.opacity, it.fill))); }
         } else if (it.t === 'circle') {
           const a = '';
           const cx = (it.x + off) * MM, cy = MH - (it.y + off) * MM, r = it.r * MM, c = r * .5523;
@@ -142,7 +142,7 @@ async function exportPDF(mode = 'draft') {
           bar.update(done / nImg, _t('Seite {n} von {total} · {page} · Bild wird umgerechnet', { n: pi + 1, total: keys.length, page: pageLabel(k) }));
           await sleep0();
           const dpi = print ? (it.mini ? 200 : 300) : it.mini ? Math.min(d.dpi, 200) : d.dpi;
-          const r = await renderCrop(it, dpi, panels, print);
+          const r = await renderCrop(it, dpi, it.mini ? panels.filter(pn => !pn.veil) : panels, print);   // Miniaturen liegen über dem Schleier
           const name = 'Im' + Object.keys(images).length;
           if (print) images[name] = pdf.addJpeg(r.jpeg, r.w, r.h, 'DeviceRGB', r.dict);
           else {

@@ -301,8 +301,8 @@ function renderFrameBar() {
   const fb = $('#frameBar'), p = curPage();
   fb.classList.remove('tuning');
   if (ui.swapFrom != null) { fb.innerHTML = `<span>${_t('Tippe auf den Rahmen, mit dem getauscht werden soll.')}</span><button class="btn small" data-act="swapcancel">${_t('Abbrechen')}</button>`; return; }
-  if (ui.sel == null || p.layout === 'index') {
-    fb.innerHTML = `<span class="hint">${p.layout === 'index' ? _t('Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“.') : ui.armed ? _t('Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.') : (coarse() ? _t('Rahmen antippen wählt ihn aus. Doppelt tippen bearbeitet den Bildausschnitt. Lange drücken und ziehen verschiebt einen ausgewählten Rahmen oder tauscht Fotos.') : _t('Foto in einen Rahmen ziehen. Rahmen anklicken wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick bearbeitet den Bildausschnitt. Ein Foto auf einen anderen Rahmen ziehen tauscht die beiden.'))}</span>`;
+  if (ui.sel == null || (p.layout === 'index' && !p.bgLayout)) {
+    fb.innerHTML = `<span class="hint">${p.layout === 'index' && !ui.armed ? _t('Das Register wird automatisch aus allen Seiten erstellt. Bildtexte rechts unter „Register“, Fotos dahinter unter „Hintergrund“.') : ui.armed ? _t('Foto gewählt: Tippe auf einen Rahmen, um es einzusetzen.') : (coarse() ? _t('Rahmen antippen wählt ihn aus. Doppelt tippen bearbeitet den Bildausschnitt. Lange drücken und ziehen verschiebt einen ausgewählten Rahmen oder tauscht Fotos.') : _t('Foto in einen Rahmen ziehen. Rahmen anklicken wählt ihn aus, dann ziehen oder an den Ecken die Größe ändern. Doppelklick bearbeitet den Bildausschnitt. Ein Foto auf einen anderen Rahmen ziehen tauscht die beiden.'))}</span>`;
     return;
   }
   const r = rectOf(p, ui.sel), sl = slotOf(p, ui.sel), ph = sl && S.photos[sl.photo];
@@ -335,12 +335,13 @@ function renderFrameBar() {
 function renderPanel() {
   const p = curPage();
   const third = p.key === 'cover' ? ['title', _t('Titel')] : p.layout === 'index' ? ['index', _t('Register')] : ['cal', _t('Kalender')];
-  const tabs = p.layout === 'index' ? [third] : [['layout', _t('Layout')], ['photos', _t('Fotos')], third];
-  if (p.layout === 'index') ui.sel = null;
+  const tabs = p.layout === 'index' ? [['layout', _t('Hintergrund')], ...(p.bgLayout ? [['photos', _t('Fotos')]] : []), third]
+    : [['layout', _t('Layout')], ['photos', _t('Fotos')], third];
+  if (p.layout === 'index' && !p.bgLayout) ui.sel = null;
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = tabs[0][0];
   $('#tabs').innerHTML = tabs.map(([k, l]) => `<button data-act="tab" data-v="${k}" aria-selected="${ui.tab === k}">${l}</button>`).join('');
   const body = $('#tabBody');
-  if (ui.tab === 'layout') body.innerHTML = panelLayout(p);
+  if (ui.tab === 'layout') body.innerHTML = p.layout === 'index' ? panelIndexBg(p) : panelLayout(p);
   else if (ui.tab === 'photos') body.innerHTML = panelPhotos(p);
   else if (ui.tab === 'cal') body.innerHTML = panelCal(p);
   else if (ui.tab === 'title') body.innerHTML = panelTitle(p);
@@ -365,6 +366,17 @@ function panelLayout(p) {
     ${range('mg2', 'doc.margin', S.doc.margin, 0, 20, 1, ' mm', _t('Außenrand (alle Seiten)'))}
     <div class="row"><button class="btn" data-act="autofill">${_t('Leere Rahmen füllen')}</button><button class="btn" data-act="clearpage">${_t('Seite leeren')}</button></div>
     ${sheetTools(p)}`;
+}
+// Hintergrund des Registers: Fotos in einer Seitenvorlage hinter dem Text, darüber ein Schleier für die Lesbarkeit
+function panelIndexBg(p) {
+  const v = p.veil || {}, tone = v.tone ?? 'light', op = v.opacity ?? .78;
+  const lays = [layoutById('blank'), ...LAYOUTS.filter(l => l.slots.length)];
+  return `<div class="field"><span class="lbl">${_t('Hintergrund des Registers')}</span><div class="layouts">${lays.map(l => `<button class="lay" data-act="ixbg" data-v="${l.id === 'blank' ? '' : l.id}" aria-pressed="${(p.bgLayout || 'blank') === l.id}">${layoutIcon(l)}<span>${l.id === 'blank' ? _t('Ohne Fotos') : l.name}</span></button>`).join('')}</div>
+    <p class="hint">${_t('Fotos liegen hinter dem Text des Registers. Das Layout gilt für alle Registerseiten, die Fotos wählt man je Seite.')}</p></div>
+    ${p.bgLayout ? `<div class="field"><span class="lbl">${_t('Schleier über den Fotos')}</span>${seg([['light', _t('Hell')], ['dark', _t('Dunkel')], ['none', _t('Keiner')]], tone, 'ixveil')}
+      ${tone !== 'none' ? `<div class="range"><input type="range" id="ixva" aria-label="${esc(_t('Stärke des Schleiers'))}" min="0.3" max="0.95" step="0.05" value="${op}" data-act-input="ixveilamt"><output>${Math.round(op * 100)} %</output></div>
+      <p class="hint">${tone === 'light' ? _t('Helle Fläche mit dunkler Schrift.') : _t('Dunkle Fläche mit heller Schrift.')} ${op < .5 ? _t('Unter 50 % kann der Text schwer lesbar sein.') : ''}</p>` : `<p class="hint">${_t('Ohne Schleier kann der Text auf unruhigen Fotos schwer lesbar sein.')}</p>`}</div>
+    <div class="row"><button class="btn" data-act="autofill">${_t('Leere Rahmen füllen')}</button><button class="btn" data-act="clearpage">${_t('Seite leeren')}</button></div>` : ''}`;
 }
 // Blätter einfügen und entfernen
 function sheetTools(p) {
@@ -485,7 +497,7 @@ function checks() {
   let empty = 0, low = 0, tiny = 0;
   for (const k of pageKeys()) {
     const p = S.pages[k];
-    if (p.layout === 'index') continue;
+    if (p.layout === 'index' && !p.bgLayout) continue;
     const items = pageItems(p);
     const e = items.filter(i => i.t === 'empty').length;
     if (e) { empty += e; out.push(['bad', e === 1 ? _t('{page}: ein leerer Rahmen (druckt weiß)', { page: pageLabel(k) }) : _t('{page}: {n} leere Rahmen (druckt weiß)', { page: pageLabel(k), n: e }), k, { act: 'fixpage', label: _t('Füllen') }]); }
