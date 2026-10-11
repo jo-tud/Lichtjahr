@@ -491,3 +491,23 @@ body.view-only #editor .selframe, body.view-only #editor [data-block], body.view
 #strip .pg.live { animation: live-pulse 2.4s ease-out; }
 @keyframes live-pulse { 0%, 30% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { #strip .pg.live { animation: none; outline: 3px solid var(--accent); } }
+
+/* Schriftwahl: links die Liste, rechts die aktuelle Seite mit der gewählten Schrift */
+.busy .font-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; display: grid; gap: 12px; }
+.font-tabs { justify-self: start; }
+.font-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 16px; align-items: start; }
+.font-left { display: grid; gap: 10px; min-width: 0; }
+.font-list { display: grid; gap: 4px; max-height: 46vh; overflow: auto; padding-right: 4px; }
+.font-item { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.font-item[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.font-item .muted { font-size: 12px; white-space: nowrap; }
+.font-cats { flex-wrap: wrap; }
+.font-right { display: grid; gap: 8px; }
+.font-prev svg { width: 100%; height: auto; display: block; box-shadow: 0 1px 4px rgba(0,0,0,.2); background: #fff; }
+.font-sample { margin: 0; font-size: 20px; line-height: 1.35; }
+.font-btn { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; text-align: left; }
+.font-btn > span:first-child { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-btn .muted { font-size: 12px; }
+@media (max-width: 680px) { .font-body { grid-template-columns: 1fr; } .font-right { order: -1; grid-template-columns: 120px 1fr; align-items: center; } .font-list { max-height: 36vh; } .font-sample { font-size: 16px; } }
+.font-pairs { display: flex; flex-wrap: wrap; gap: 6px; }
+.font-pairs .btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }

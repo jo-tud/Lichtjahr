@@ -120,7 +120,7 @@ async function openProject(pid) {
   const notes = await acquireLock();
   const man = await api(PP('/manifest'));
   applyManifest(man); SVC.stamp = man.stamp || null;
-  loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
+  loadPrinters().then(() => { if (ui.view === 'design' && document.body.dataset.view) renderStage(); });   // erst nach dem ersten Zeichnen
   FACES.map = {}; FACES.on = null; prefetchFaces();
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
   const u = new URL(location.href); u.searchParams.set('projekt', pid);

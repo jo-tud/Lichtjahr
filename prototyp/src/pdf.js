@@ -46,14 +46,16 @@ class PDFWriter {
   }
   async addFonts() {
     this.fontIds = {};
-    for (const key of ['regular', 'bold']) {
+    const done = new Map();                       // gleiche Schrift für Text und Überschriften nur einmal einbetten
+    for (const key of ['regular', 'bold', 'hregular', 'hbold']) {
       const f = FONTS[key];
+      if (done.has(f)) { this.fontIds[key] = done.get(f); continue; }
       const ff = this.alloc(), fd = this.alloc(), fo = this.alloc();
       const raw = b64bytes(f.b64);
       await this.streamObj(ff, `/Length1 ${raw.length}`, raw);
-      this.obj(fd, `<< /Type /FontDescriptor /FontName /${f.ps} /Flags 32 /FontBBox [${f.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${f.ascent} /Descent ${f.descent} /CapHeight ${f.cap} /StemV ${key === 'bold' ? 120 : 80} /FontFile2 ${ff} 0 R >>`);
+      this.obj(fd, `<< /Type /FontDescriptor /FontName /${f.ps} /Flags 32 /FontBBox [${f.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${f.ascent} /Descent ${f.descent} /CapHeight ${f.cap} /StemV ${key.endsWith('bold') ? 120 : 80} /FontFile2 ${ff} 0 R >>`);
       this.obj(fo, `<< /Type /Font /Subtype /TrueType /BaseFont /${f.ps} /FirstChar 32 /LastChar 255 /Widths [${f.widths.join(' ')}] /Encoding /WinAnsiEncoding /FontDescriptor ${fd} 0 R >>`);
-      this.fontIds[key] = fo;
+      this.fontIds[key] = fo; done.set(f, fo);
     }
   }
   addJpeg(bytes, w, h, cs = 'DeviceCMYK', extra = '') {
@@ -67,7 +69,7 @@ class PDFWriter {
     const xo = Object.entries(images).map(([n, id]) => `/${n} ${id} 0 R`).join(' ');
     const gs = alphas.map(a => `/GA${Math.round(a * 100)} << /Type /ExtGState /ca ${a} /CA ${a} >>`).join(' ');
     const box = (b) => `[${b.map(v => v.toFixed(3)).join(' ')}]`;
-    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R >> /XObject << ${xo} >> /ExtGState << ${gs} >> >> /Contents ${cid} 0 R >>`);
+    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R /F3 ${this.fontIds.hregular} 0 R /F4 ${this.fontIds.hbold} 0 R >> /XObject << ${xo} >> /ExtGState << ${gs} >> >> /Contents ${cid} 0 R >>`);
     this.pages.push(pid);
   }
   finish(title) {

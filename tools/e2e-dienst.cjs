@@ -52,6 +52,15 @@ for m in range(12):
         im.save(os.path.join(out, f"m{m + 1:02d}_{i + 1}.jpg"), "JPEG", quality=85, exif=ex.tobytes(), **icc)
 `, dir, path.join(__dirname, '..', 'backend', 'tests')]);
 }
+// Eigene Schrift für den Test: OpenType mit CFF-Umrissen, die der Dienst in TrueType umwandeln muss
+function makeFont(file) {
+  execFileSync('python3', ['-c', `
+import sys
+sys.path[:0] = [sys.argv[2], sys.argv[3]]
+from test_fonts import built
+open(sys.argv[1], "wb").write(built("otf", family="E2E Serif"))
+`, file, path.join(__dirname, '..', 'backend', 'tests'), path.join(__dirname, '..', 'backend')]);
+}
 const pid = () => JSON.parse(fs.readFileSync(path.join(TMP, 'data/projects.json')))[0].id;
 const manifest = async () => (await fetch(BASE + `api/projects/${pid()}/manifest`)).json();
 async function waitFor(fn, ms = 15000) {
@@ -175,6 +184,20 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await B.keyboard.press('Escape');
     assert.equal(await B.evaluate(() => document.querySelector('.loupe').hidden), true);
 
+    step('Eigene Schrift für Überschriften: hochgeladen, umgewandelt, im Projektordner, im PDF eingebettet');
+    makeFont(path.join(TMP, 'E2E-Serif.otf'));
+    await B.evaluate(() => setView('project'));
+    await B.click('[data-act="fontpick"][data-v="head"]');
+    await B.click('[data-fp="tab"][data-v="upload"]');
+    await B.setInputFiles('#fontfile', path.join(TMP, 'E2E-Serif.otf'));
+    await B.waitForFunction(() => FONTPICK.error || (FONTPICK.pick && FONTPICK.pick.font && !FONTPICK.busy), null, { timeout: 20000 });
+    assert.equal(await B.evaluate(() => FONTPICK.error), null);
+    await B.click('[data-fp="apply"]');
+    await B.waitForFunction(() => S.doc.fonts.head && FONTSTATE.loaded.head && !FONTSTATE.loading);
+    assert.equal(await B.evaluate(() => [S.doc.fonts.head.family, FONTS.hbold.ps, FONTS.regular.ps].join(' ')), 'E2E Serif E2ESerif-Regular Jost-Regular');
+    assert.ok(fs.readdirSync(path.join(K, '.lichtjahr', 'fonts')).includes('upload-e2e-serif-regular.ttf'));
+    await waitFor(async () => ((await manifest()).editor.doc.fonts || {}).head);
+
     step('PDF-Entwurf landet in Export/');
     await B.evaluate(async () => { S.doc.dpi = 100; await exportPDF(); });
     await waitFor(() => fs.existsSync(path.join(K, 'Export', 'Familienkalender-2027-Entwurf.pdf')));
@@ -188,6 +211,7 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     const printPdf = fs.readFileSync(path.join(K, 'Export', 'Familienkalender-2027-Druck.pdf'));
     assert.equal(printPdf.subarray(0, 8).toString(), '%PDF-1.3');
     assert.ok(printPdf.includes('GTS_PDFX') && printPdf.includes('PDF/X-1a:2001') && printPdf.includes('FOGRA39'));
+    assert.ok(printPdf.includes('E2ESerif-Regular') && printPdf.includes('Jost-Regular'), 'Schriften fehlen im Druck-PDF');
     assert.ok((await B.textContent('.report')).includes('Display P3'), 'P3-Foto nicht aus dem Original umgerechnet');
     assert.ok(!printPdf.includes('LJSource'));
 

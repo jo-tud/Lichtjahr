@@ -140,6 +140,21 @@ Druckprofile: mitgeliefert unter `lichtjahr/icc/` (basICColor, zlib-Lizenz), eig
 `POST /api/printers` (landen im Datenordner unter `printers/`). Das Profil muss ein CMYK-Ausgabeprofil sein;
 Profile der ICC-Version 4 gehen nur mit PDF/X-4. Die Druckbedingung (z. B. FOGRA51) wird aus Beschreibung oder Messdaten erkannt.
 
+## Schriften
+
+Die Oberfläche setzt Text selbst (Breiten aus der Schrift) und bettet jede Schrift als TrueType mit
+WinAnsi-Kodierung ein, im PDF-Entwurf wie im Druck-PDF. `lichtjahr/fonts.py` bringt deshalb jede Schrift in diese
+Form, bevor sie ins Projekt kommt (fontTools): Variable Schriften werden auf die Strichstärke festgelegt (400 für
+normal, 600 oder der nächste vorhandene Schnitt für fett), CFF-Umrisse werden in TrueType umgerechnet, die Schrift
+wird auf die Zeichen reduziert, die der Kalender druckt (Latin-1 und die Sonderzeichen von Windows-1252), und
+Schriften, deren OS/2-`fsType` *Restricted License* sagt, werden abgelehnt.
+
+- **Google Fonts:** `GET /api/fonts/google` liefert das Verzeichnis (von `fonts.google.com/metadata/fonts`, eine Woche
+  im Zwischenspeicher, ohne Internet gilt der letzte Stand). Erst wenn jemand eine Familie auswählt, fragt der
+  Dienst Google danach (TrueType über die CSS-Schnittstelle), bereitet sie auf und hält sie für die Vorschau bereit.
+- **Im Projekt:** Gewählte Schriften liegen in `.lichtjahr/fonts/` mit dem Verzeichnis `fonts.json` – so haben sie
+  alle, die mitarbeiten, auch ohne Internet. Der Gestaltungsstand verweist nur darauf (`doc.fonts.head`, `doc.fonts.text`).
+
 ## Nextcloud und andere WebDAV-Server
 
 `lichtjahr/storage/webdav.py` bietet dieselbe Speicher-Schnittstelle wie der lokale Ordner. Die beiden atomaren
@@ -225,6 +240,10 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/projects/{id}/people` | Gesichter mit je 128 Merkmalen für die angegebenen Fotos; nur lokal zwischengespeichert, nie im Projektordner; die Oberfläche gruppiert sie zu Personen |
 | POST | `/api/projects/{id}/faces` | Gesichter in den angegebenen Fotos (`{ids: [...]}`): Rechtecke in Bruchteilen des Fotos, je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Entwurf auf diesem Rechner retten (204, wenn keiner da ist) |
+| GET | `/api/fonts/google` | Verzeichnis der Google Fonts mit lateinischen Zeichen (`family`, `category`, `weights`), beliebteste zuerst |
+| GET | `/api/fonts/google/{family}` (`/{cut}.ttf`) | Eine Google-Schrift für die Vorschau laden und aufbereiten (zwischengespeichert): Dateien, fehlende Zeichen, Adressen |
+| GET / POST | `/api/projects/{id}/fonts` | Schriften im Projekt / eine hinzufügen: Formularfeld `google` (Familie) oder Dateien `regular` (+ optional `bold`) |
+| GET | `/api/projects/{id}/fonts/{file}` | Eine Schriftdatei aus `.lichtjahr/fonts/` |
 
 Schreibende Aufrufe brauchen die Kopfzeile `X-Lichtjahr-Session` mit der Sitzung aus dem Sperr-Erwerb.
 
