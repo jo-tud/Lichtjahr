@@ -175,3 +175,14 @@ def test_lock_age_comes_from_the_server_clock(store):
         ProjectLock(store).acquire("b", "Bernd")
     with pytest.raises(NotFound):
         store.age(".lichtjahr/gibtsnicht.json")
+
+
+def test_version_changes_with_every_write(store):
+    """Der Stempel für „wurde gespeichert?“ kommt vom Server (ETag) und ändert sich auch bei gleicher Größe."""
+    store.write("x.json", b"aaaa")
+    v1 = store.version("x.json")
+    assert store.version("x.json") == v1
+    store.write("x.json", b"bbbb")
+    assert store.version("x.json") != v1
+    with pytest.raises(NotFound):
+        store.version("gibtsnicht.json")

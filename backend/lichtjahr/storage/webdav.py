@@ -161,6 +161,14 @@ class WebDavStorage:
         e = items[0][1]
         return Entry(path=path, size=e.size, mtime_ns=e.mtime_ns, is_dir=e.is_dir)
 
+    def version(self, path: str) -> str:
+        """ETag des Servers (ändert sich bei jedem Schreiben); ohne ETag Änderungszeit und Größe."""
+        items = self._propfind(path, "0")
+        if not items:
+            raise NotFound(path)
+        _, e, etag = items[0]
+        return etag or f"{e.mtime_ns}-{e.size}"
+
     def age(self, path: str) -> float:
         """Sekunden seit dem letzten Schreiben, beides mit der Uhr des Servers (Last-Modified gegen den
         Date-Header der Antwort). So hängt das Ablaufen einer Sperre nicht davon ab, ob die Uhren der

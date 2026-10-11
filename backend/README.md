@@ -30,7 +30,7 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF photos from the iPhone (pillo
 ```sh
 # Start the service – reachable from this computer only
 lichtjahr serve
-# → Lichtjahr 1.3.0 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
+# → Lichtjahr 1.3.1 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
 ```
 
 Starting it a second time only opens the browser again, with the access key and the named project if
@@ -66,7 +66,7 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 1.3.0 running: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.3.1 running: http://192.168.178.20:8470/?token=…
 ```
 
 As soon as the service is reachable on the network, it requires an access key. The key is generated
@@ -80,7 +80,9 @@ Without a key, the service only answers on `localhost` or `127.0.0.1` and reject
 ### Several windows and devices
 
 Only one window can edit at a time; others show "View only" and take over automatically as soon as the
-project is free. Closing a window releases the lock immediately; if a device is simply left lying around,
+project is free. While viewing, changes are locked in the interface, and the window reloads the editor's state
+whenever `lichtjahr.json` changes (it compares a short `stamp` from the lock status: ETag on WebDAV, modification
+time and size on disk). Closing a window releases the lock immediately; if a device is simply left lying around,
 the lock expires after 2 minutes without a sign of life. If the lock is lost while you are working (the
 computer was asleep and someone else has taken over in the meantime), the app saves the latest state on
 this computer and offers it the next time you open the project.
@@ -195,7 +197,7 @@ The running service shows the complete description at `http://localhost:8470/api
 | GET / POST | `/api/projects` | Known projects / create a new project |
 | POST | `/api/projects/open` | Open an existing project folder |
 | GET | `/api/projects/{id}` | Overview (photos per month, lock, storage location) |
-| GET / POST / DELETE | `/api/projects/{id}/lock` | View / acquire / release the lock |
+| GET / POST / DELETE | `/api/projects/{id}/lock` | View (with open request and `stamp` of the manifest) / acquire / release the lock |
 | POST | `/api/projects/{id}/lock/heartbeat` | Extend the lock (optionally with a new `holder` name); the answer includes a pending handover request |
 | POST | `/api/projects/{id}/lock/request` | Ask the person editing to hand over (`{holder}`); returns the requester's session |
 | POST | `/api/projects/{id}/lock/answer` | Holder answers a request: `{status: "later", minutes}` or `{status: "declined"}` |

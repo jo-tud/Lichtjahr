@@ -14,8 +14,10 @@ const SVC = {
   assets: {}, queue: Promise.resolve(), timer: null, pending: false, beat: null, retry: null,
   lastScan: 0, offline: false, warnedRO: false,
   request: null, lastInput: Date.now(), asking: false,   // Übergabe: eigene oder fremde Anfrage, letzte Eingabe
+  stamp: null, watch: null, live: null,                  // Nur ansehen: Stand von lichtjahr.json, Taktgeber, letzte Änderung
 };
 const SVC_BEAT = 15000, SVC_RETRY = 20000, SVC_ASK_IDLE = 60000;   // Lebenszeichen alle 15 s: Anfragen kommen zügig an
+const SVC_WATCH = 5000;                                              // wer nur ansieht, schaut alle 5 s nach Änderungen
 
 async function api(path, { method = 'GET', body, form, keepalive = false } = {}) {
   const headers = { 'Accept-Language': LANG };   // Fehlermeldungen und Prüfbericht des Dienstes in der Sprache der Oberfläche
@@ -117,7 +119,7 @@ async function openProject(pid) {
   SVC.info = await api(PP());
   const notes = await acquireLock();
   const man = await api(PP('/manifest'));
-  applyManifest(man);
+  applyManifest(man); SVC.stamp = man.stamp || null;
   loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
   FACES.map = {}; FACES.on = null; prefetchFaces();
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
@@ -135,12 +137,12 @@ async function acquireLock() {
     const r = await api(PP('/lock'), { method: 'POST', body: { holder: holderName() } });
     SVC.session = r.session; SVC.readOnly = false; SVC.lock = r.lock;
     try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
-    clearInterval(SVC.retry); SVC.retry = null;
+    stopViewing();
     return r.recovered || [];
   } catch (e) {
     if (e.status !== 423) throw e;
     SVC.readOnly = true; SVC.lock = e.data && e.data.lock;
-    clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
+    startViewing();
     return [];
   }
 }
@@ -163,7 +165,7 @@ function applyManifest(man) {
 }
 async function leaveProject() {
   await flushSave();
-  clearInterval(SVC.beat); clearInterval(SVC.retry);
+  clearInterval(SVC.beat); stopViewing();
   if (SVC.session && !SVC.readOnly) { try { await api(PP('/lock'), { method: 'DELETE' }); } catch (e) { /* läuft ab */ } }
   try { sessionStorage.removeItem('lj-session-' + SVC.pid); } catch (e) { /* egal */ }
   SVC.pid = null; SVC.session = null;
@@ -195,8 +197,9 @@ async function retryLock() {
 async function becomeEditor(r, msg) {
   SVC.session = r.session; SVC.lock = r.lock; SVC.request = null;
   try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
-  clearInterval(SVC.retry); SVC.retry = null; clearInterval(SVC.reqPoll); SVC.reqPoll = null;
-  applyManifest(await api(PP('/manifest')));
+  stopViewing();
+  const man = await api(PP('/manifest'));
+  applyManifest(man); SVC.stamp = man.stamp || null;
   SVC.readOnly = false; SVC.warnedRO = false;
   renderServiceBanner(); renderAll(); setSaveState(_t('Im Projektordner gespeichert'));
   toast(msg, 6000);
@@ -227,7 +230,7 @@ async function giveAway(req, auto) {
   try {
     const r = await api(PP('/lock/handover'), { method: 'POST' });
     SVC.readOnly = true; SVC.lock = r.lock; SVC.request = null; clearTimeout(SVC.timer); SVC.pending = false;
-    clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
+    startViewing(); renderAll();
     renderServiceBanner(); setSaveState(_t('Nur ansehen'));
     toast(auto ? _t('Du warst nicht aktiv: die Bearbeitung ist an {name} übergeben.', { name: req.name }) : _t('Bearbeitung an {name} übergeben.', { name: req.name }), 8000);
   } catch (e) { toast(_t('Übergeben ging nicht: {error}', { error: e.message }), 6000); }
@@ -241,19 +244,21 @@ async function requestEditing() {
     const r = await api(PP('/lock/request'), { method: 'POST', body: { holder: holderName() } });
     SVC.session = r.session; SVC.request = r.request;
     try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
-    clearInterval(SVC.reqPoll); SVC.reqPoll = setInterval(pollRequest, 4000);
     renderServiceBanner();
   } catch (e) { toast(e.message, 6000); }
 }
-async function pollRequest() {
-  if (!SVC.readOnly || !SVC.pid) { clearInterval(SVC.reqPoll); SVC.reqPoll = null; return; }
+// Wer nur ansieht, schaut regelmäßig nach: frei geworden, Anfrage beantwortet, oder hat die andere Person gespeichert?
+async function watchTick() {
+  if (!viewOnly() || SVC.watching) return;
+  SVC.watching = true;
   try {
     const r = await api(PP('/lock'));
     SVC.lock = r.lock; SVC.request = r.request && r.request.mine ? r.request : null;
     if (!r.lock || (SVC.request && SVC.request.status === 'granted')) { await retryLock(); return; }
-    if (!SVC.request) { clearInterval(SVC.reqPoll); SVC.reqPoll = null; }
+    if (r.stamp && r.stamp !== SVC.stamp) await liveUpdate();
     renderServiceBanner();
   } catch (e) { /* nächster Versuch */ }
+  finally { SVC.watching = false; }
 }
 async function forceEditing() {
   const who = (SVC.lock && SVC.lock.holder) || _t('Die andere Person');
@@ -262,7 +267,7 @@ async function forceEditing() {
     buttons: [{ label: _t('Trotzdem übernehmen'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
   if (!ok) return;
   try { await becomeEditor(await api(PP('/lock/force'), { method: 'POST', body: { holder: holderName() } }), _t('Du bearbeitest das Projekt jetzt.')); }
-  catch (e) { toast(e.message, 6000); pollRequest(); }
+  catch (e) { toast(e.message, 6000); watchTick(); }
 }
 function askName() {
   return new Promise((resolve) => {
@@ -294,7 +299,7 @@ async function lockLost() {
   // Letzten Stand auf diesem Rechner sichern; beim nächsten Öffnen wird er angeboten
   try { await api(PP('/draft'), { method: 'PUT', body: { savedAt: new Date().toISOString(), editor: editorState(), assets: photoMeta(true) } }); } catch (e) { /* egal */ }
   try { const r = await api(PP('/lock')); SVC.lock = r.lock; } catch (e) { /* egal */ }
-  clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
+  startViewing(); renderAll();
   renderServiceBanner(); setSaveState(_t('Nur ansehen'));
   await ask({ title: _t('Bearbeitung an anderer Stelle'),
     text: SVC.lock ? _t('Ein anderes Fenster ({holder}) bearbeitet das Projekt jetzt. Dein letzter Stand ist auf diesem Rechner gesichert und wird beim nächsten Öffnen angeboten.', { holder: SVC.lock.holder })
@@ -316,6 +321,69 @@ async function offerDraft(man) {
     ensurePages(); commit(); renderAll(); toast(_t('Gesicherter Stand übernommen.'), 5000, { label: _t('Rückgängig'), fn: undo });
   }
   try { await api(PP('/draft'), { method: 'DELETE' }); } catch (e) { /* egal */ }
+}
+
+/* ----- Nur ansehen ----- */
+// Solange woanders bearbeitet wird, ist der Kalender hier zum Ansehen da: blättern, Wand, Druckansicht, Drucklupe,
+// PDF-Entwurf. Was etwas ändern würde, wird gar nicht erst ausgeführt (sonst ginge es beim Übernehmen verloren);
+// stattdessen ein Hinweis mit „Bearbeitung anfragen“. Letzte Sicherung: commit() nimmt jede Änderung zurück.
+// Dafür sieht man live mit: Speichert die andere Person, erscheint ihr Stand hier nach wenigen Sekunden.
+function viewOnly() { return !!(SVC.on && SVC.pid && SVC.readOnly); }
+function startViewing() {
+  clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
+  clearInterval(SVC.watch); SVC.watch = setInterval(watchTick, SVC_WATCH);
+  document.body.classList.add('view-only'); updateUndo();
+}
+function stopViewing() {
+  clearInterval(SVC.retry); SVC.retry = null; clearInterval(SVC.watch); SVC.watch = null; SVC.live = null;
+  document.body.classList.remove('view-only');
+}
+// Aktionen, die nichts am Kalender ändern; alle anderen sind beim Ansehen gesperrt
+const VIEW_ACTIONS = new Set(['go', 'tab', 'page', 'nextpage', 'prevpage', 'jump', 'tg', 'vzoom', 'wall', 'ltmode', 'lang',
+  'hidebanner', 'bannerphotos', 'clearerr', 'clearsel', 'crop', 'tune', 'adjmore', 'swapcancel', 'export', 'savepdf', 'printexport',
+  'people', 'peopleload', 'proof', 'printeradd', 'printerdel', 'loupe', 'loupezoom', 'svcrequest', 'svcforce', 'svcretry', 'svcswitch', 'svcscan']);
+// Eingaben, die nur die Anzeige betreffen
+const VIEW_CHANGES = new Set(['pool', 'myname', 'proof', 'proofpaper', 'proofgamut']);
+function editsCalendar(el) {
+  const d = el.dataset || {};
+  if (!el.closest || el.closest('[role="dialog"]')) return false;
+  return !!(d.bind || d.bd || d.pageCap || d.photoCap || d.actInput || (d.actChange && !VIEW_CHANGES.has(d.actChange)));
+}
+function resetControl(el) {
+  if (el.type === 'checkbox' || el.type === 'radio') el.checked = el.defaultChecked;
+  else if (el.tagName === 'SELECT') { const o = [...el.options].findIndex(x => x.defaultSelected); el.selectedIndex = Math.max(0, o); }
+  else if ('defaultValue' in el) el.value = el.defaultValue;
+}
+function viewOnlyHint() {
+  if (Date.now() - (SVC.hinted || 0) < 2500) return;
+  SVC.hinted = Date.now();
+  const who = (SVC.lock && SVC.lock.holder) || _t('Jemand anderes'), q = SVC.request && SVC.request.mine ? SVC.request : null;
+  if (q && q.status !== 'declined') toast(_t('Nur ansehen: Deine Anfrage läuft, {name} wird gefragt.', { name: who }), 5000);
+  else toast(_t('Nur ansehen: {name} bearbeitet gerade. Ändern geht, sobald du die Bearbeitung hast.', { name: who }), 7000,
+    { label: q ? _t('Erneut anfragen') : _t('Bearbeitung anfragen'), fn: requestEditing });
+}
+// Änderung, die doch durchgekommen ist (z. B. eine Taste im Editor), zurücknehmen; ohne eigene Eingabe still
+function refuseEdit() {
+  if (hist.last && snap() !== hist.last) { restore(hist.last); renderAll(); }
+  if (Date.now() - SVC.lastInput < 3000) viewOnlyHint();
+}
+// Stand der anderen Person übernehmen, ohne die Ansicht zu verlieren (Seite, Bereich, Bildlauf)
+async function liveUpdate() {
+  if (document.querySelector('.busy') || drag.active) return;      // nicht mitten in einem Dialog oder beim Ziehen
+  const man = await api(PP('/manifest'));
+  if (!viewOnly()) return;
+  const before = JSON.parse(snap());
+  applyManifest(man); SVC.stamp = man.stamp || null;
+  const after = JSON.parse(snap()), same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const docChanged = !same(before.doc, after.doc), pages = pageKeys().filter(k => !same(before.pages[k], after.pages[k]));
+  if (!docChanged && !pages.length && same(before.photos, after.photos)) return;
+  SVC.live = { at: Date.now(), what: docChanged ? _t('Gestaltung') : pages.length ? pageLabel(pages[0]) + (pages.length > 1 ? ' …' : '') : _t('Fotos') };
+  const tb = $('#tabBody'), st = tb ? tb.scrollTop : 0, sy = window.scrollY;
+  renderAll();
+  const tb2 = $('#tabBody'); if (tb2) tb2.scrollTop = st; window.scrollTo(0, sy);
+  for (const k of docChanged ? pageKeys() : pages) {                // geänderte Seiten in der Leiste kurz aufleuchten lassen
+    const b = $(`#strip [data-v="${k}"]`); if (b) { b.classList.remove('live'); void b.offsetWidth; b.classList.add('live'); }
+  }
 }
 
 /* ----- Speichern ----- */
@@ -481,13 +549,14 @@ function renderServiceBanner() {
     const l = SVC.lock;
     b.hidden = false;
     const q = SVC.request && SVC.request.mine ? SVC.request : null, who = (l && l.holder) || _t('Die andere Person');
-    const state = !q ? _t('Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.')
+    const live = SVC.live ? ' ' + _t('Zuletzt geändert: {what}, {ago}.', { what: SVC.live.what, ago: agoS((Date.now() - SVC.live.at) / 1000) }) : '';
+    const state = !q ? _t('Du siehst Änderungen live; sobald es frei ist, kannst du hier weiterarbeiten.')
       : q.status === 'later' ? _t('{name} gibt in {n} Minuten ab.', { name: who, n: q.minutes || 5 })
       : q.status === 'declined' ? _t('{name} möchte noch weiterarbeiten.', { name: who })
       : _t('Angefragt – {name} wird gefragt …', { name: who });
     const canForce = q && q.status !== 'declined' && q.forceIn === 0;
     b.innerHTML = `<p><b>${_t('Nur ansehen.')}</b> ${l ? esc(_t('{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).', { holder: l.holder, ago: lockAgo(l) })) : _t('Das Projekt wird gerade woanders bearbeitet.')}
-      ${esc(state)}</p>
+      ${esc(state + live)}</p>
       ${!q || q.status === 'declined' ? `<button class="btn small primary" data-act="svcrequest">${q ? _t('Erneut anfragen') : _t('Bearbeitung anfragen')}</button>` : ''}
       ${canForce ? `<button class="btn small danger" data-act="svcforce">${_t('Trotzdem übernehmen …')}</button>` : ''}
       <button class="btn small" data-act="svcretry">${_t('Jetzt prüfen')}</button>`;
@@ -616,7 +685,18 @@ function davFields(form, val, year) {
 
 /* ----- Ereignisse ----- */
 function serviceEvents() {
-  for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, () => { SVC.lastInput = Date.now(); }, { capture: true, passive: true });
+  for (const ev of ['pointerdown', 'pointerup', 'keydown', 'wheel']) document.addEventListener(ev, () => { SVC.lastInput = Date.now(); }, { capture: true, passive: true });
+  // Nur ansehen: ändernde Klicks und Eingaben abfangen, bevor sie etwas tun
+  document.addEventListener('click', (e) => {
+    if (!viewOnly()) return;
+    const a = e.target.closest && e.target.closest('[data-act]');
+    if (!a || a.disabled || VIEW_ACTIONS.has(a.dataset.act) || a.closest('[role="dialog"]')) return;
+    e.stopImmediatePropagation(); e.preventDefault(); viewOnlyHint();
+  }, true);
+  for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => {
+    if (!viewOnly() || !editsCalendar(e.target)) return;
+    e.stopImmediatePropagation(); resetControl(e.target); viewOnlyHint();
+  }, true);
   document.addEventListener('visibilitychange', () => {
     if (!SVC.pid) return;
     if (document.visibilityState === 'hidden') flushSave();

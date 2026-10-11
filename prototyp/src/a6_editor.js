@@ -142,6 +142,7 @@ function bindEditor(svg) {
     const p = curPage(), dx = pt.x - g.start.x, dy = pt.y - g.start.y;
     if (!g.moved && Math.hypot(dx, dy) > tol() * .5) {
       g.moved = true;
+      if (viewOnly() && g.type !== 'none' && g.type !== 'tap') { g.type = 'cancel'; viewOnlyHint(); return; }   // nur ansehen: nichts verschieben
       if (g.type === 'pendmove' || g.type === 'pendswap') { g.type = 'cancel'; return; }   // vor dem langen Drücken bewegt: scrollen statt ziehen
       if (!['tap', 'none', 'selblock', 'cancel'].includes(g.type)) svg.classList.add('dragging');
     }
@@ -269,7 +270,7 @@ function bindEditor(svg) {
     setCrop(keyOf(slotEl.dataset.slot));
   });
   svg.addEventListener('wheel', (e) => {
-    if (ui.crop == null) return;                             // ohne Ausschnitt-Modus scrollt die Seite normal
+    if (ui.crop == null || viewOnly()) return;               // ohne Ausschnitt-Modus (oder beim Ansehen) scrollt die Seite normal
     const slotEl = e.target.closest('[data-slot]'); if (!slotEl || keyOf(slotEl.dataset.slot) !== ui.crop) return;
     const p = curPage(), k = ui.crop, sl = slotOf(p, k), ph = sl && S.photos[sl.photo]; if (!ph) return;
     e.preventDefault();
@@ -280,7 +281,7 @@ function bindEditor(svg) {
 }
 // Während einer Geste neu zeichnen, ohne die Zeigerbindung am SVG zu verlieren
 function renderEditorKeepGesture(svg) {
-  const fresh = new DOMParser().parseFromString(svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides }), 'image/svg+xml').documentElement;
+  const fresh = new DOMParser().parseFromString(svgPage(curPage(), { mode: 'editor', showBleed: ui.showBleed, showBind: ui.showBind, showGuides: ui.showGuides, partner: ui.showPartner ? partnerOf(ui.page) : null }), 'image/svg+xml').documentElement;
   svg.innerHTML = fresh.innerHTML;
 }
 
@@ -306,6 +307,7 @@ document.addEventListener('touchmove', (e) => { if (drag.active || drag.block) e
 document.addEventListener('contextmenu', (e) => { if (e.target.closest('.thumb')) e.preventDefault(); });
 function startDrag(x, y) {
   const p = drag.pend; if (!p) return;
+  if (viewOnly()) { drag.pend = null; viewOnlyHint(); return; }
   drag.active = true; drag.suppressClick = true;
   drag.ids = ui.view === 'photos' && ui.photoSel.has(p.id) ? [...ui.photoSel] : [p.id];
   const g = document.createElement('div'); g.className = 'ghost';

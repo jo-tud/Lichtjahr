@@ -133,6 +133,13 @@ class Project:
         except ValidationError as e:
             raise ProjectError(_t("lichtjahr.json ist ungültig: {error}", error=e)) from e
 
+    def stamp(self) -> str | None:
+        """Kurzer Stand von lichtjahr.json, ohne die Datei zu lesen: Wer nur ansieht, lädt neu, wenn er sich ändert."""
+        try:
+            return self.storage.version(MANIFEST)
+        except Exception:                      # unbekannt: dann eben ohne Live-Ansicht
+            return None
+
     # -- Speichern (nur unter Sperre, mit Revisionsprüfung) ----------------------------------
     def save(self, man: Manifest, *, session: str | None, expected_revision: int | None, etag: str | None = None) -> Manifest:
         """Schreibt das Manifest atomar. Schutz gegen veraltete Schreiber auf zwei Ebenen:

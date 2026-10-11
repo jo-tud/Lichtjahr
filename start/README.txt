@@ -30,7 +30,8 @@ Working on one calendar together
 --------------------------------
 Share the project folder (for example in Nextcloud, with edit permission). The other person starts Lichtjahr
 and chooses "Open existing" with their own address of the shared folder. Only one person edits at a time; the
-other sees the calendar read-only and can click "Request editing" to ask for it. Use the same Lichtjahr version.
+other can look at the calendar, sees changes live and can click "Request editing" to ask for it. Use the same
+Lichtjahr version.
 
 More: https://github.com/jo-tud/Lichtjahr
 
@@ -67,7 +68,7 @@ Gemeinsam an einem Kalender
 ---------------------------
 Den Projektordner teilen (zum Beispiel in Nextcloud, mit dem Recht zum Bearbeiten). Die andere Person startet
 Lichtjahr und wählt „Vorhandenes öffnen“ mit ihrer eigenen Adresse des geteilten Ordners. Bearbeiten kann immer
-nur eine Person; die andere sieht den Kalender zum Ansehen und kann mit „Bearbeitung anfragen“ darum bitten. Beide
-dieselbe Lichtjahr-Version verwenden.
+nur eine Person; die andere kann den Kalender ansehen, sieht Änderungen live mit und kann mit „Bearbeitung
+anfragen“ darum bitten. Beide dieselbe Lichtjahr-Version verwenden.
 
 Mehr: https://github.com/jo-tud/Lichtjahr
