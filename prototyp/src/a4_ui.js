@@ -46,6 +46,13 @@ function renderAll() {
   if (ui.view === 'print') renderPrint();
   updateUndo();
 }
+// Tiefschwarz: Werte für das gewählte Druckprofil (vom Dienst) oder die feste Mischung
+const cmykText = (v) => ['C', 'M', 'Y', 'K'].map((n, i) => n + Math.round(v[i] * 100)).join(' ');
+function richBlackHint() {
+  const pr = typeof PRN !== 'undefined' && PRN.loaded ? printerOf() : null, rb = pr && pr.richBlack;
+  return rb ? _t('Tiefschwarz für „{profile}“: {cmyk} ({total} % Farbauftrag), das dunkelste neutrale Schwarz, das das Druckprofil erlaubt. Schrift bleibt reines Schwarz.', { profile: pr.name, cmyk: cmykText(rb.cmyk), total: rb.total })
+    : _t('Tiefschwarz {cmyk}. Mit dem lokalen Dienst und einem Druckprofil nimmt Lichtjahr das dunkelste neutrale Schwarz, das das Profil der Druckerei erlaubt.', { cmyk: cmykText(COLORS.rich.cmyk) });
+}
 const swatches = (ids, cur, act) => `<div class="swatches">${ids.map(c => `<button class="swatch" style="background:${COLORS[c].rgb}" title="${COLORS[c].name}" aria-label="${COLORS[c].name}" aria-pressed="${c === cur}" data-act="${act}" data-v="${c}"></button>`).join('')}</div>`;
 const seg = (opts, cur, act) => `<div class="seg">${opts.map(([v, l]) => `<button aria-pressed="${v === cur}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
 const range = (id, bind, val, min, max, step, unit, label, scale = 1) =>
@@ -82,7 +89,7 @@ function renderProject() {
         ${range('gp', 'doc.gap', d.gap, 0, 5, .5, ' mm', _t('Abstand zwischen Bildern'))}
         ${range('mg', 'doc.margin', d.margin, 0, 20, 1, ' mm', _t('Außenrand (0 = randabfallend)'))}
         ${range('ob', 'doc.ovBorder', d.ovBorder, 0, 6, .5, ' mm', _t('Rahmen um Einleger-Bilder'))}
-        <div class="field"><span class="lbl">${_t('Papier / Hintergrund')}</span>${swatches(BG_COLORS, d.bg, 'bg')}</div>
+        <div class="field"><span class="lbl">${_t('Papier / Hintergrund')}</span>${swatches(BG_COLORS, d.bg, 'bg')}${d.bg === 'rich' ? `<p class="hint">${richBlackHint()}</p>` : ''}</div>
       </section>
       <section class="card"><header><h2>${_t('Kalendarium')}</h2><p>${_t('Voreinstellung für alle Monate. Jede Seite kann abweichen.')}</p></header>
         <div class="field"><span class="lbl">${_t('Form')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')]], d.cal.style, 'defstyle')}</div>

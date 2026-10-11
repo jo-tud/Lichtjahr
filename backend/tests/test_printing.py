@@ -220,3 +220,26 @@ def test_softproof_api(tmp_path):
     bad = c.post(f"/api/projects/{pid}/export/print", headers=H, data={"printer": "fogra39", "standard": "x2"},
                  files={"file": ("K-Druck.pdf", page_pdf(), "application/pdf")})
     assert bad.status_code == 400
+
+
+def test_rich_black_is_darkest_neutral_within_ink_limit(tmp_path):
+    """Tiefschwarz aus dem Profil: deutlich dunkler als reines K, neutral, innerhalb des Farbauftrags."""
+    import numpy as np
+    from PIL import ImageCms
+    from lichtjahr.printing import RICH_TAC, rich_black
+    reg = PrinterRegistry(str(tmp_path))
+    for p in (reg.get("fogra39"), reg.get("fogra47")):
+        rb = rich_black(p)
+        c, m, y, k = rb["cmyk"]
+        assert k == 1.0 and rb["total"] == round((c + m + y + k) * 100) <= min(RICH_TAC, p.tac - 20)
+        assert rb["L"] < rb["kOnlyL"] - 2.5
+        assert c >= m >= y > 0                       # klassisch kühl-neutral: Cyan vorn, Gelb am wenigsten
+        to_lab = ImageCms.buildTransform(ImageCms.getOpenProfile(p.path), ImageCms.createProfile("LAB"), "CMYK", "LAB",
+                                         renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+        lab = np.asarray(ImageCms.applyTransform(Image.new("CMYK", (1, 1), tuple(round(v * 255) for v in rb["cmyk"])), to_lab))[0, 0]
+        assert np.hypot(*lab[1:].view(np.int8).astype(float)) <= 2.5
+        old = np.asarray(ImageCms.applyTransform(Image.new("CMYK", (1, 1), (128, 102, 102, 255)), to_lab))[0, 0]
+        assert lab[0] <= old[0]                       # mindestens so dunkel wie das frühere feste 50/40/40/100
+    c = TestClient(create_app(Settings(data_dir=str(tmp_path / "d"), cache_dir=str(tmp_path / "c"))), base_url="http://localhost")
+    listed = {p["id"]: p for p in c.get("/api/printers").json()}
+    assert listed["fogra39"]["richBlack"]["cmyk"][3] == 1.0

@@ -4,6 +4,13 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+### Print
+- Rich black from the print profile: a black background uses the darkest neutral black the print shop's profile
+  allows within its ink limit (for ISO Coated v2: C65 M55 Y40 K100 instead of the fixed C50 M40 Y40 K100), also in
+  the print preview. Text stays plain black.
+- Photos shown in full or rotated are clipped to their own area in the PDF, so the background around them is the
+  same vector color as the rest of the page instead of a slightly different box.
+
 ## [1.1.0] – 2026-10-11
 
 Photo quality: corrections that work locally, like in a raw developer, the same for every skin tone, and a print

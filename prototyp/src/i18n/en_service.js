@@ -128,6 +128,7 @@ Object.assign(EN, {
   'Druckbedingung': 'Printing condition',
   'Umrechnung': 'Conversion',
   'Farbauftrag': 'Ink coverage',
+  'L* {l} statt {k} bei reinem Schwarz': 'L* {l} instead of {k} with plain black',
   'höchstens {tac} %': 'max. {tac}%',
   'Beschnitt': 'Bleed',
   '(eingestellt: {bleed} mm)': '(currently set: {bleed} mm)',

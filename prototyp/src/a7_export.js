@@ -77,9 +77,29 @@ async function renderCrop(it, dpi, panels = [], rgb = false) {
 const hexRGB = (hex) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 const pdfNum = (v) => (Math.round(v * 1000) / 1000).toString();
 const pdfStr = (t) => [...t].map(ch => { const s = String.fromCharCode(winAnsi(ch)); return s === '(' || s === ')' || s === '\\' ? '\\' + s : s; }).join('');
-const kop = (id) => (COLORS[id] || COLORS.black).cmyk.map(pdfNum).join(' ');
+// Druckfarbe einer Farbe; Tiefschwarz kommt, wenn bekannt, aus dem Druckprofil (dunkelstes neutrales Schwarz
+// innerhalb des Farbauftrags, vom Dienst berechnet), sonst der feste Wert
+function inkOf(id) {
+  if (id === 'rich' && typeof PRN !== 'undefined' && PRN.loaded) { const pr = printerOf(); if (pr && pr.richBlack) return pr.richBlack.cmyk; }
+  return (COLORS[id] || COLORS.black).cmyk;
+}
+const kop = (id) => inkOf(id).map(pdfNum).join(' ');
 // Fläche mit Deckkraft a über einer Vektorfläche: Farben vorab mischen
-const kmix = (top, a, under) => { const t = (COLORS[top] || COLORS.black).cmyk, u = (COLORS[under] || COLORS.white).cmyk; return t.map((v, i) => pdfNum(a * v + (1 - a) * u[i])).join(' '); };
+const kmix = (top, a, under) => { const t = inkOf(top), u = inkOf(under || 'white'); return t.map((v, i) => pdfNum(a * v + (1 - a) * u[i])).join(' '); };
+// Liegt der Rahmen ganz im (gedrehten) Foto? Sonst enthält das Bild Hintergrundfarbe, die als Bildpixel anders
+// umgerechnet würde als die Fläche daneben – dann wird das Bild auf die Fotofläche beschnitten
+function photoQuad(pl) {
+  const th = (pl.rot || 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+  return [[pl.x, pl.y], [pl.x + pl.w, pl.y], [pl.x + pl.w, pl.y + pl.h], [pl.x, pl.y + pl.h]]
+    .map(([x, y]) => [pl.fx + (x - pl.fx) * cs - (y - pl.fy) * sn, pl.fy + (x - pl.fx) * sn + (y - pl.fy) * cs]);
+}
+function coversFrame(pl, r) {
+  const th = -(pl.rot || 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th), e = 1e-3;
+  return [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]].every(([x, y]) => {
+    const u = pl.fx + (x - pl.fx) * cs - (y - pl.fy) * sn, v = pl.fy + (x - pl.fx) * sn + (y - pl.fy) * cs;
+    return u >= pl.x - e && u <= pl.x + pl.w + e && v >= pl.y - e && v <= pl.y + pl.h + e;
+  });
+}
 let lastPdf = null;
 
 // mode 'draft': CMYK mit einfacher Formel, ganz im Browser. 'print': Fotos als sRGB an den lokalen Dienst,
@@ -129,8 +149,8 @@ async function exportPDF(mode = 'draft') {
             const jpg = await JPEG.encodeCMYK(r.cmyk, r.w, r.h, d.quality, async (f) => { bar.update((done + f) / nImg); await sleep0(); });
             images[name] = pdf.addJpeg(jpg, r.w, r.h);
           }
-          const c = it.clip;
-          ops.push(`q ${pdfNum(c.w * MM)} 0 0 ${pdfNum(c.h * MM)} ${X(c.x)} ${Y(c.y + c.h)} cm /${name} Do Q`);
+          const c = it.clip, q = coversFrame(it.place, c) ? '' : photoQuad(it.place).map(([x, y], i) => `${X(x)} ${Y(y)} ${i ? 'l' : 'm'}`).join(' ') + ' h W n ';
+          ops.push(`q ${q}${pdfNum(c.w * MM)} 0 0 ${pdfNum(c.h * MM)} ${X(c.x)} ${Y(c.y + c.h)} cm /${name} Do Q`);
           done++;
         }
       }

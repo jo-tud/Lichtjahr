@@ -37,6 +37,8 @@ Object.assign(EN, {
   'Außenrand (0 = randabfallend)': 'Outer margin (0 = full bleed)',
   'Rahmen um Einleger-Bilder': 'Border around inset photos',
   'Papier / Hintergrund': 'Paper / background',
+  'Tiefschwarz für „{profile}“: {cmyk} ({total} % Farbauftrag), das dunkelste neutrale Schwarz, das das Druckprofil erlaubt. Schrift bleibt reines Schwarz.': 'Rich black for “{profile}”: {cmyk} ({total} % ink coverage), the darkest neutral black the print profile allows. Text stays plain black.',
+  'Tiefschwarz {cmyk}. Mit dem lokalen Dienst und einem Druckprofil nimmt Lichtjahr das dunkelste neutrale Schwarz, das das Profil der Druckerei erlaubt.': 'Rich black {cmyk}. With the local service and a print profile, Lichtjahr uses the darkest neutral black the print shop’s profile allows.',
   // Projekt: Kalendarium
   'Kalendarium': 'Calendar grid',
   'Voreinstellung für alle Monate. Jede Seite kann abweichen.': 'Default for all months. Each page can differ.',

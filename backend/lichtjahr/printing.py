@@ -316,6 +316,41 @@ def _tune(path: str, intent: str, mtime: float) -> dict:
             "sharpen": {"radius": 1.0, "amount": round(.8 + .6 * p, 2)}}
 
 
+RICH_TAC = 280                                             # Tiefschwarz höchstens so viel Farbe (und 20 % unter dem Profil)
+
+
+@functools.lru_cache(maxsize=16)
+def _rich_black(path: str, mtime: float, tac: int) -> dict:
+    import numpy as np
+    prof = ImageCms.getOpenProfile(path)
+    to_lab = ImageCms.buildTransform(prof, ImageCms.createProfile("LAB"), "CMYK", "LAB",
+                                     renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+    steps = np.arange(0, 101, 5)
+    c, m, y = (v.ravel() for v in np.meshgrid(steps, steps, steps, indexing="ij"))
+    k = np.full_like(c, 100)
+    ink = np.stack([c, m, y, k], 1)
+    im = Image.fromarray(np.round(ink * 2.55).astype(np.uint8).reshape(1, -1, 4), "CMYK")
+    raw = np.asarray(ImageCms.applyTransform(im, to_lab)).reshape(-1, 3)
+    lum = raw[:, 0] / 2.55
+    chroma = np.hypot(raw[:, 1].view(np.int8).astype(float), raw[:, 2].view(np.int8).astype(float))
+    total = c + m + y + k
+    limit = min(RICH_TAC, tac - 20)
+    score = np.where(total <= limit, lum + 0.5 * chroma, np.inf)    # dunkel und neutral (kein Farbstich)
+    near = np.nonzero(score <= score.min() + 0.6)[0]              # davon das mit der wenigsten Farbe
+    best = near[np.argmin(total[near])]
+    k_only = int(np.nonzero((c == 0) & (m == 0) & (y == 0))[0][0])
+    return {"cmyk": [round(float(v) / 100, 2) for v in ink[best]], "total": int(total[best]),
+            "L": round(float(lum[best]), 1), "kOnlyL": round(float(lum[k_only]), 1)}
+
+
+def rich_black(profile: PrinterProfile) -> dict:
+    """Tiefschwarz für große Flächen: das dunkelste neutrale Schwarz, das das Druckprofil innerhalb des
+    Farbauftrags erlaubt (K 100 % plus C, M, Y in 5-%-Schritten, höchstens 280 % und 20 % unter dem Limit des
+    Profils). Unter fast gleich dunklen Mischungen gewinnt die mit der wenigsten Farbe (trocknet besser).
+    Dazu die Helligkeit L* im Vergleich zu reinem Schwarz (nur K)."""
+    return _rich_black(profile.path, _mtime(profile), profile.tac)
+
+
 def print_tune(profile: PrinterProfile) -> dict:
     """Druckausgleich für dieses Profil: Kurve, Stärke, Schärfung."""
     return _tune(profile.path, profile.intent, _mtime(profile))
