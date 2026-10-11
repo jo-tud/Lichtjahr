@@ -239,10 +239,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .wall-sheet { position: relative; box-shadow: 0 14px 28px rgba(0,0,0,.22), 0 2px 4px rgba(0,0,0,.18); background: #fff; }
 .wall-sheet.ghost { visibility: hidden; }
 .wall-sheet svg { width: 100%; height: 100%; display: block; }
-.wall-wire { position: absolute; left: 0; pointer-events: none; z-index: 3; overflow: visible; }
+.wall-wire { position: absolute; left: 0; pointer-events: none; z-index: 5; overflow: visible; }   /* auch über dem umblätternden Blatt */
 .wall-leaf { position: absolute; left: 0; width: 100%; transform-origin: 50% 0; transform-style: preserve-3d; z-index: 4; }
-.wall-leaf .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: #fff; box-shadow: 0 10px 22px rgba(0,0,0,.2); }
-.wall-leaf .face.back { transform: rotateX(180deg); }
+.wall-leaf .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: #fff; box-shadow: 0 14px 28px rgba(0,0,0,.22), 0 2px 4px rgba(0,0,0,.18); }   /* wie .wall-sheet */
+.wall-leaf .face.back { transform: rotateX(180deg); clip-path: polygon(-60px -60px, calc(100% + 60px) -60px, calc(100% + 60px) calc(100% + 60px), 100% calc(100% + 60px), 100% 100%, 0 100%, 0 calc(100% + 60px), -60px calc(100% + 60px)); }
+/* Rückseite: kein Schatten auf die Monatsseite unter der Bindung (im Ruhezustand liegt sie darüber), seitlich schon */
 .wall-leaf .face svg { width: 100%; height: 100%; display: block; }
 .wall-leaf .paper-back { width: 100%; height: 100%; background: #f3f3f1; }
 .wall-leaf .shade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,.1)); opacity: 0; pointer-events: none; }
