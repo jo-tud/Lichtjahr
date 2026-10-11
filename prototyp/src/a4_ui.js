@@ -242,7 +242,7 @@ const dpiPill = (ph, r, sl) => {
 };
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
-const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')]];
+const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')]] : [])];
 // Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
 const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
 function detailSliders(ph) {
@@ -259,7 +259,7 @@ function lookThumb(ph, look) {
   const c = compileAdjust(adjOf(ph.id, { look })), fid = c ? `lk${look || 'x'}${adjFilterId(c)}` : '';
   return `<svg viewBox="0 0 64 48" aria-hidden="true">${c ? `<defs>${adjFilterDef(c, fid)}</defs>` : ''}<image href="${RT.thumb[ph.id]}" width="64" height="48" preserveAspectRatio="xMidYMid slice"${c ? ` filter="url(#${fid})"` : ''}/></svg>`;
 }
-const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`;
+const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj"${LOCAL_KEYS.includes(k) ? ' data-act-change="adjtone"' : ''} data-k="${k}" data-photo="${ph.id}"></label>`;
 // Stärke von Automatik und Look: der Platz ist immer reserviert (unsichtbar, wenn aus), damit ein Klick auf „Auto“
 // oder einen Look die Leiste nicht höher macht und das Bild nicht schrumpft – sonst sieht man den Unterschied nicht
 const strengthSlot = (cls, on, label, val, act, ph) => `<label class="adj strength ${cls}"${on ? '' : ' style="visibility:hidden" aria-hidden="true"'}><span>${label}<output>${Math.round(val * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${val}" data-act-input="${act}" data-photo="${ph.id}"${on ? '' : ' tabindex="-1"'}></label>`;

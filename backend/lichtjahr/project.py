@@ -479,7 +479,11 @@ class Project:
             data = fh.read()
         with Image.open(io.BytesIO(data)) as full, Image.open(self.thumbnail(asset, 1600)) as proxy:
             full = ImageOps.exif_transpose(full)
-            found = detail.analyze(full, proxy)
+            try:
+                faces = self.faces(asset)
+            except Exception:                            # ohne Gesichter messen
+                faces = []
+            found = detail.analyze(full, proxy, faces)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
         with open(tmp, "w", encoding="utf-8") as fh:

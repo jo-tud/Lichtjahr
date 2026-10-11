@@ -1609,6 +1609,7 @@ Object.assign(EN, {
   'Weniger Regler': 'Fewer sliders',
   'Gegenlicht ausgleichen': 'Fix backlight',
   'Stärke': 'Strength',
+  'Klarheit': 'Clarity',
   'Rauschen mindern': 'Reduce noise',
   'Lichter, Tiefen, Gegenlicht …': 'Highlights, shadows, backlight …',
   'Belichtung, Weißabgleich, Kontrast, Farbe, Gegenlicht und Rauschen automatisch, mit Vorrang für Gesichter': 'Exposure, white balance, contrast, color, backlight and noise automatically, with priority for faces',
@@ -3402,7 +3403,7 @@ const dpiPill = (ph, r, sl) => {
 };
 // Bild verbessern: Regler direkt unter dem Bild, wie beim Ausschnitt; gedrückt halten zeigt das Original
 const ADJ_SLIDERS = () => [['exposure', _t('Helligkeit')], ['contrast', _t('Kontrast')], ['warmth', _t('Wärme')], ['saturation', _t('Farbe')]];
-const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')]];
+const ADJ_MORE = () => [['highlights', _t('Lichter')], ['shadows', _t('Tiefen')], ['tint', _t('Tönung')], ...(detailOn() ? [['clarity', _t('Klarheit')]] : [])];
 // Detailbearbeitung im Dienst (0–100 %); der Wert gilt erst beim Loslassen, weil der Dienst das Bild neu rechnet
 const DETAIL_SLIDERS = () => [['fusion', _t('Gegenlicht ausgleichen')], ['denoise', _t('Rauschen mindern')]];
 function detailSliders(ph) {
@@ -3419,7 +3420,7 @@ function lookThumb(ph, look) {
   const c = compileAdjust(adjOf(ph.id, { look })), fid = c ? `lk${look || 'x'}${adjFilterId(c)}` : '';
   return `<svg viewBox="0 0 64 48" aria-hidden="true">${c ? `<defs>${adjFilterDef(c, fid)}</defs>` : ''}<image href="${RT.thumb[ph.id]}" width="64" height="48" preserveAspectRatio="xMidYMid slice"${c ? ` filter="url(#${fid})"` : ''}/></svg>`;
 }
-const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj" data-k="${k}" data-photo="${ph.id}"></label>`;
+const adjSlider = (ph, r, [k, l]) => `<label class="adj"><span>${l}<output>${adjFmt(r[k] || 0)}</output></span><input type="range" min="-1" max="1" step="0.05" value="${r[k] || 0}" data-act-input="adj"${LOCAL_KEYS.includes(k) ? ' data-act-change="adjtone"' : ''} data-k="${k}" data-photo="${ph.id}"></label>`;
 // Stärke von Automatik und Look: der Platz ist immer reserviert (unsichtbar, wenn aus), damit ein Klick auf „Auto“
 // oder einen Look die Leiste nicht höher macht und das Bild nicht schrumpft – sonst sieht man den Unterschied nicht
 const strengthSlot = (cls, on, label, val, act, ph) => `<label class="adj strength ${cls}"${on ? '' : ' style="visibility:hidden" aria-hidden="true"'}><span>${label}<output>${Math.round(val * 100)} %</output></span><input type="range" min="0" max="1" step="0.05" value="${val}" data-act-input="${act}" data-photo="${ph.id}"${on ? '' : ' tabindex="-1"'}></label>`;
@@ -3831,9 +3832,11 @@ document.addEventListener('input', (e) => {
     renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
   if (act === 'adj') {
-    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    const k = el.dataset.k, loc = localTone() && LOCAL_KEYS.includes(k);
+    if (loc) ui.toneDrag = el.dataset.photo;        // beim Ziehen globale Näherung, örtlich erst beim Loslassen
+    setAdjust(el.dataset.photo, { [k]: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
-    renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+    if (k !== 'clarity') renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
   if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
@@ -3864,6 +3867,7 @@ document.addEventListener('change', (e) => {
 
 const CHANGE_ACTIONS = {   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
   // Gegenlicht/Rauschen: erst beim Loslassen, der Dienst rechnet das Vorschaubild neu
+  adjtone: () => { ui.toneDrag = null; commit(); renderEditor(); updateThumb(); },
   adjdetail: (el) => {
     setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
     commit(); renderEditor(); updateThumb();
@@ -6009,7 +6013,12 @@ function faceCover(faces, r) {
    Dazu kommt die Detailbearbeitung (DETAIL_KEYS): Gegenlicht ausgleichen und Rauschen mindern wirken örtlich und
    laufen deshalb im Dienst (detail.py), vor dem Rezept. Die Oberfläche hängt dafür „fx=f0.40n0.30“ an die Adresse
    von Vorschau, Druckansicht und Original; das Druck-PDF gibt es dem Dienst im Bildobjekt mit. */
-const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation'];
+const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity'];
+// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu) und Klarheit überhaupt erst:
+// dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
+// globale Näherung sofort, beim Loslassen kommt das örtliche Ergebnis.
+const LOCAL_KEYS = ['highlights', 'shadows', 'clarity'];
+const localTone = () => detailOn();
 // Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
 const LOOKS = {
   vivid: { contrast: .2, saturation: .35, shadows: .05 },
@@ -6040,7 +6049,9 @@ function adjOf(id, { noMatch = false, look } = {}) {
     if (a.wbR && a.wbR !== 1) out.wbR = 1 + (a.wbR - 1) * s;
     if (a.wbB && a.wbB !== 1) out.wbB = 1 + (a.wbB - 1) * s;
   }
-  return Object.keys(out).length ? out : null;
+  if (!Object.keys(out).length) return null;
+  Object.defineProperty(out, 'local', { value: localTone() && ui.toneDrag !== id, enumerable: false });
+  return out;
 }
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -6058,7 +6069,10 @@ function toneCurve(r) {
   };
 }
 function compileAdjust(r) {
-  if (!r || !Object.keys(r).some(k => !DETAIL_KEYS.includes(k))) return null;   // nur Detailbearbeitung: kein Filter
+  if (!r) return null;
+  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && k !== 'clarity' && !(loc && LOCAL_KEYS.includes(k));
+  if (!Object.keys(r).some(inCurve)) return null;      // nur Örtliches (Dienst): kein Filter
+  if (loc) r = { ...r, highlights: 0, shadows: 0 };
   const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
   const gain = [(1 + .07 * w + .02 * t) * (r.wbR || 1), 1 - .045 * t, (1 - .07 * w + .02 * t) * (r.wbB || 1)];
   const m = [];
@@ -6187,7 +6201,7 @@ function autoRecipe(st, { backlit = false } = {}) {
 async function computeAuto(id) {
   // Mit dem Dienst: erst Gegenlicht und Rauschen messen, dann Belichtung und Farbe auf dem bearbeiteten Bild
   if (SVC.pid) { try { await loadQuality([id]); } catch (e) { /* ohne Analyse weiter */ } }
-  const q = qualityOf(id), fx = q ? fxText(q.fusion, q.denoise) : '';
+  const q = qualityOf(id), fx = q && detailOn() ? fxText({ fusion: q.fusion, denoise: q.denoise }) : '';
   const px = await photoPixels(id, 256, fx); if (!px) return null;
   const a = autoRecipe(photoStats(px, facesOf(id) || []), { backlit: !!(q && q.fusion) });
   if (q && q.fusion) a.fusion = q.fusion;
@@ -6210,12 +6224,17 @@ async function setAuto(id, on) {
    Prüfliste nennt Fotos, bei denen es sich lohnt; die Automatik übernimmt die Vorschläge. Ohne Dienst oder ohne
    OpenCV im Dienst gibt es beides nicht, alles andere funktioniert wie zuvor. */
 const QUALITY = { available: null, q: {}, busy: false };
-const fxText = (f, n) => (f >= .01 || n >= .01 ? `f${(f || 0).toFixed(2)}n${(n || 0).toFixed(2)}` : '');
+// „f0.40n0.30h-0.20s0.35c0.25“: Fusion, Rauschen, Lichter, Tiefen, Klarheit (nur was nicht 0 ist); tone: Lichter
+// und Tiefen gehören dazu (örtlich), sonst stecken sie in der Kurve
+function fxText(r, tone = true) {
+  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity]];
+  return parts.filter(([, v]) => v && Math.abs(v) >= .01).map(([k, v]) => k + v.toFixed(2)).join('');
+}
 const detailOn = () => !!SVC.pid && QUALITY.available !== false;
 // live: im Editor zeigt „Original“ (gedrückt halten) auch das Foto ohne Detailbearbeitung
 function fxOf(id, live = true) {
   if (!detailOn() || (live && ui.adjCompare)) return '';
-  const r = adjOf(id); return r ? fxText(r.fusion, r.denoise) : '';
+  const r = adjOf(id); return r ? fxText(r, live ? r.local : true) : '';
 }
 const withFx = (url, fx) => (url && fx ? url + (url.includes('?') ? '&' : '?') + 'fx=' + fx : url);
 const qualityOf = (id) => { const ph = S.photos[id], a = ph && faceAsset(ph); return (a && QUALITY.q[a]) || null; };

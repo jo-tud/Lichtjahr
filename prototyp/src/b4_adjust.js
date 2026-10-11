@@ -10,7 +10,12 @@
    Dazu kommt die Detailbearbeitung (DETAIL_KEYS): Gegenlicht ausgleichen und Rauschen mindern wirken örtlich und
    laufen deshalb im Dienst (detail.py), vor dem Rezept. Die Oberfläche hängt dafür „fx=f0.40n0.30“ an die Adresse
    von Vorschau, Druckansicht und Original; das Druck-PDF gibt es dem Dienst im Bildobjekt mit. */
-const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation'];
+const ADJ_KEYS = ['exposure', 'contrast', 'highlights', 'shadows', 'warmth', 'tint', 'saturation', 'clarity'];
+// Mit dem Dienst wirken Lichter und Tiefen örtlich (nach Beleuchtung, kantentreu) und Klarheit überhaupt erst:
+// dann stehen sie nicht in der Kurve, sondern reisen mit fx zum Dienst. Beim Ziehen zeigt die Vorschau die
+// globale Näherung sofort, beim Loslassen kommt das örtliche Ergebnis.
+const LOCAL_KEYS = ['highlights', 'shadows', 'clarity'];
+const localTone = () => detailOn();
 // Looks: Rezeptanteile, mit eigener Stärke dazugerechnet. mono = Schwarzweiß-Anteil, fade = angehobenes Schwarz (Film)
 const LOOKS = {
   vivid: { contrast: .2, saturation: .35, shadows: .05 },
@@ -41,7 +46,9 @@ function adjOf(id, { noMatch = false, look } = {}) {
     if (a.wbR && a.wbR !== 1) out.wbR = 1 + (a.wbR - 1) * s;
     if (a.wbB && a.wbB !== 1) out.wbB = 1 + (a.wbB - 1) * s;
   }
-  return Object.keys(out).length ? out : null;
+  if (!Object.keys(out).length) return null;
+  Object.defineProperty(out, 'local', { value: localTone() && ui.toneDrag !== id, enumerable: false });
+  return out;
 }
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -59,7 +66,10 @@ function toneCurve(r) {
   };
 }
 function compileAdjust(r) {
-  if (!r || !Object.keys(r).some(k => !DETAIL_KEYS.includes(k))) return null;   // nur Detailbearbeitung: kein Filter
+  if (!r) return null;
+  const loc = !!r.local, inCurve = (k) => !DETAIL_KEYS.includes(k) && k !== 'clarity' && !(loc && LOCAL_KEYS.includes(k));
+  if (!Object.keys(r).some(inCurve)) return null;      // nur Örtliches (Dienst): kein Filter
+  if (loc) r = { ...r, highlights: 0, shadows: 0 };
   const w = r.warmth || 0, t = r.tint || 0, k = (1 + .5 * (r.saturation || 0)) * (1 - (r.mono || 0)), L = [.2126, .7152, .0722];
   const gain = [(1 + .07 * w + .02 * t) * (r.wbR || 1), 1 - .045 * t, (1 - .07 * w + .02 * t) * (r.wbB || 1)];
   const m = [];
@@ -188,7 +198,7 @@ function autoRecipe(st, { backlit = false } = {}) {
 async function computeAuto(id) {
   // Mit dem Dienst: erst Gegenlicht und Rauschen messen, dann Belichtung und Farbe auf dem bearbeiteten Bild
   if (SVC.pid) { try { await loadQuality([id]); } catch (e) { /* ohne Analyse weiter */ } }
-  const q = qualityOf(id), fx = q ? fxText(q.fusion, q.denoise) : '';
+  const q = qualityOf(id), fx = q && detailOn() ? fxText({ fusion: q.fusion, denoise: q.denoise }) : '';
   const px = await photoPixels(id, 256, fx); if (!px) return null;
   const a = autoRecipe(photoStats(px, facesOf(id) || []), { backlit: !!(q && q.fusion) });
   if (q && q.fusion) a.fusion = q.fusion;
@@ -211,12 +221,17 @@ async function setAuto(id, on) {
    Prüfliste nennt Fotos, bei denen es sich lohnt; die Automatik übernimmt die Vorschläge. Ohne Dienst oder ohne
    OpenCV im Dienst gibt es beides nicht, alles andere funktioniert wie zuvor. */
 const QUALITY = { available: null, q: {}, busy: false };
-const fxText = (f, n) => (f >= .01 || n >= .01 ? `f${(f || 0).toFixed(2)}n${(n || 0).toFixed(2)}` : '');
+// „f0.40n0.30h-0.20s0.35c0.25“: Fusion, Rauschen, Lichter, Tiefen, Klarheit (nur was nicht 0 ist); tone: Lichter
+// und Tiefen gehören dazu (örtlich), sonst stecken sie in der Kurve
+function fxText(r, tone = true) {
+  const parts = [['f', r.fusion], ['n', r.denoise], ['h', tone && r.highlights], ['s', tone && r.shadows], ['c', r.clarity]];
+  return parts.filter(([, v]) => v && Math.abs(v) >= .01).map(([k, v]) => k + v.toFixed(2)).join('');
+}
 const detailOn = () => !!SVC.pid && QUALITY.available !== false;
 // live: im Editor zeigt „Original“ (gedrückt halten) auch das Foto ohne Detailbearbeitung
 function fxOf(id, live = true) {
   if (!detailOn() || (live && ui.adjCompare)) return '';
-  const r = adjOf(id); return r ? fxText(r.fusion, r.denoise) : '';
+  const r = adjOf(id); return r ? fxText(r, live ? r.local : true) : '';
 }
 const withFx = (url, fx) => (url && fx ? url + (url.includes('?') ? '&' : '?') + 'fx=' + fx : url);
 const qualityOf = (id) => { const ph = S.photos[id], a = ph && faceAsset(ph); return (a && QUALITY.q[a]) || null; };
