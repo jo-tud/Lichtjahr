@@ -147,9 +147,36 @@ process.stdout.write(JSON.stringify({ dark: autoRecipe(photoStats(dark)), sunset
   brightScene: autoRecipe(photoStats(backlit)), backlit: autoRecipe(photoStats(backlit), { backlit: true }),
   detailOnly: compileAdjust({ fusion: .5, denoise: .3 }) }));"""
     r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
-    assert r["dark"]["exposure"] > .2 and r["dark"]["wbB"] < 1
-    assert "wbR" not in r["sunset"] and "wbB" not in r["sunset"]
-    assert r["portrait"].get("exposure", 0) <= .2
+    # dunkel und blaustichig: heller; der reine Farbverlauf narrt Gray-Edge, die Schätzer sind uneins → höchstens wenig
+    assert r["dark"]["ev"] > .15 and r["dark"].get("wbB", 1) <= 1
+    assert "wbR" not in r["sunset"] and "wbB" not in r["sunset"]          # Sonnenuntergang bleibt warm
+    assert r["portrait"].get("ev", 0) <= .35                              # helle Lichter vorhanden: kaum aufhellen
     # Gegenlicht (Vorschlag des Dienstes): nicht abdunkeln, sonst versinkt das Motiv wieder
-    assert r["brightScene"].get("exposure", 0) < 0 and r["backlit"].get("exposure", 0) >= 0
+    assert r["brightScene"].get("ev", 0) <= 0 and r["backlit"].get("ev", 0) >= 0
     assert r["detailOnly"] is None                     # nur Detailbearbeitung: kein Farbfilter in der Vorschau
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="Node.js fehlt")
+def test_auto_is_the_same_for_every_skin_tone():
+    """Fairness der Automatik: Gesichter zählen in keiner Statistik (Belichtung, Weißabgleich) und dienen nur als
+    Grenzen. Dieselbe Szene mit heller oder dunkler Haut ergibt dieselbe Korrektur. Dazu: Hoch-Key bleibt hell,
+    ein Farbstich wird von der Mehrheit der Schätzer erkannt."""
+    js = open(os.path.join(ROOT, "prototyp", "src", "b4_adjust.js"), encoding="utf-8").read()
+    script = js + """
+const S = { doc: {} };
+function img(w, h, fn) { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = fn(x / w, y / h, x, y), i = (y * w + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255; } return { w, h, data: d }; }
+const face = [{ x: .4, y: .2, w: .2, h: .25, score: .95 }];
+const scene = (skin) => img(120, 100, (x, y, px, py) => (x > .4 && x < .6 && y > .2 && y < .45) ? skin.map(v => v + ((px + py) % 5) * 2)
+  : y > .7 ? [70 + 40 * x, 90, 60] : [120 + 60 * y, 130 + 50 * y, 150 + 40 * y]);
+const light = scene([215, 170, 150]), dark = scene([92, 60, 46]);
+const snow = img(100, 80, (x, y) => [232 + 10 * x, 236 + 8 * x, 242]);
+const cast = img(100, 80, (x, y, px, py) => { const v = 40 + 160 * ((px * 7 + py * 13) % 37) / 37; return [v * .85, v * .95, v * 1.15]; });
+process.stdout.write(JSON.stringify({ light: autoRecipe(photoStats(light, face)), dark: autoRecipe(photoStats(dark, face)),
+  lightNoFace: autoRecipe(photoStats(light)), darkNoFace: autoRecipe(photoStats(dark)), snow: autoRecipe(photoStats(snow)), cast: autoRecipe(photoStats(cast)),
+  castStats: photoStats(cast).illum }));"""
+    r = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+    for k in ("ev", "wbR", "wbB"):
+        assert abs(r["light"].get(k, 0 if k == "ev" else 1) - r["dark"].get(k, 0 if k == "ev" else 1)) < .02, (k, r["light"], r["dark"])
+    assert abs(r["snow"].get("ev", 0)) < .25                              # Schnee bleibt hell
+    assert r["cast"]["wbB"] < 1 and r["cast"]["wbR"] > 1 and r["castStats"]["conf"] > .5   # Blaustich erkannt, einig
+
