@@ -468,6 +468,37 @@ class Project:
                 self._save_image(detail.apply(im, fx), path, 95)
         return path
 
+    _masters: dict = {}                                  # zuletzt gebrauchte Druckfassungen im Speicher (für die Lupe)
+    _masters_lock = threading.Lock()
+
+    def master(self, asset: Asset, fx: dict | None):
+        """Foto in voller Größe, wie es in den Druck geht (aufrecht, mit Detailbearbeitung, Farbprofil bleibt).
+        Die letzten zwei bleiben im Speicher: die Lupe fragt viele Ausschnitte desselben Fotos nacheinander."""
+        from PIL import Image, ImageOps
+        key = (self.cache_dir, asset.contentHash, detail.fx_key(fx), detail.VERSION)
+        with self._masters_lock:
+            if key in self._masters:
+                self._masters[key] = self._masters.pop(key)         # zuletzt benutzt nach hinten
+                return self._masters[key]
+        if fx:
+            with Image.open(self.detail_original(asset, fx)) as im:
+                im.load()
+                out = im.convert("RGB")
+                icc = im.info.get("icc_profile")
+        else:
+            with self.storage.open_read(asset.path) as fh:
+                data = fh.read()
+            with Image.open(io.BytesIO(data)) as im:
+                icc = im.info.get("icc_profile")
+                out = ImageOps.exif_transpose(im).convert("RGB")
+        if icc:
+            out.info["icc_profile"] = icc
+        with self._masters_lock:
+            self._masters[key] = out
+            while len(self._masters) > 2:
+                self._masters.pop(next(iter(self._masters)))
+        return out
+
     def quality(self, asset: Asset) -> dict:
         """Rauschen und Gegenlicht messen, mit Vorschlag für die Stärke (zwischengespeichert)."""
         from PIL import Image, ImageOps

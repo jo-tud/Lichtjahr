@@ -313,7 +313,7 @@ def _tune(path: str, intent: str, mtime: float) -> dict:
         x = (i / 64) ** g
         lut.append(round(min(1.0, x + lift * x * (1 - x) ** 3), 5))
     return {"strength": round(p, 2), "blackL": round(black, 1), "lut": lut, "midtones": round((lut[32] - .5) * 200),
-            "sharpen": {"radius": 1.2, "percent": round(45 + 45 * p), "threshold": 3}}
+            "sharpen": {"radius": 1.0, "amount": round(.8 + .6 * p, 2)}}
 
 
 def print_tune(profile: PrinterProfile) -> dict:
@@ -322,11 +322,17 @@ def print_tune(profile: PrinterProfile) -> dict:
 
 
 def sharpen_for_print(im: Image.Image, tune: dict) -> Image.Image:
-    """Ausgabeschärfung nur auf der Helligkeit (keine Farbsäume), in der Auflösung des Druckbilds."""
+    """Ausgabeschärfung nur auf der Helligkeit (keine Farbsäume), in der Auflösung des Druckbilds. Mit OpenCV
+    rauschabhängig und ohne Säume an Kanten (``detail.sharpen``), sonst klassische Unscharfmaskierung."""
     s = tune["sharpen"]
-    y, cb, cr = im.convert("YCbCr").split()
-    y = y.filter(ImageFilter.UnsharpMask(radius=s["radius"], percent=s["percent"], threshold=s["threshold"]))
-    out = Image.merge("YCbCr", (y, cb, cr)).convert("RGB")
+    if detail.available():
+        import numpy as np
+        a = detail.sharpen(np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0, s["radius"], s["amount"])
+        out = Image.fromarray((a * 255.0 + 0.5).astype(np.uint8), "RGB")
+    else:
+        y, cb, cr = im.convert("YCbCr").split()
+        y = y.filter(ImageFilter.UnsharpMask(radius=s["radius"] * 1.2, percent=round(s["amount"] * 55), threshold=3))
+        out = Image.merge("YCbCr", (y, cb, cr)).convert("RGB")
     if im.info.get("icc_profile"):
         out.info["icc_profile"] = im.info["icc_profile"]
     return out

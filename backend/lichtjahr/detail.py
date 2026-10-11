@@ -9,9 +9,14 @@ Bild aufsetzen. Gleiches Ergebnis in Vorschau, Druckansicht und Druck-PDF:
   Fassung mit 1600 Pixeln Kantenlänge; heraus kommt eine Helligkeitskarte (Verstärkung je Stelle), die kantentreu
   (Guided Filter, geführt von der Helligkeit des Bildes) auf jede Größe übertragen wird. So hellt sich ein
   dunkles Gesicht vor hellem Himmel auf, ohne dass der Himmel ausfrisst – und die Vorschau zeigt, was gedruckt wird.
-- **Rauschen:** Stärke nach dem gemessenen Rauschen (Immerkær-Schätzer). Farbrauschen, das auf Fotos aus dem
-  Handy am meisten stört, wird kräftig gemindert, Helligkeitsrauschen behutsam (Non-Local Means), damit
-  Haut und Haare nicht wie gemalt aussehen.
+- **Rauschen:** Stärke nach dem gemessenen Rauschen (Immerkær-Schätzer, je Helligkeitsstufe). Farbrauschen, das auf
+  Fotos aus dem Handy am meisten stört, wird kräftig gemindert, Helligkeitsrauschen behutsam (Non-Local Means), damit
+  Haut und Haare nicht wie gemalt aussehen. Wo das Foto danach aufgehellt wird (Gegenlicht, Tiefen), wird das
+  Rauschen um denselben Faktor sichtbarer – dort wird entsprechend kräftiger entrauscht, der Rest bleibt fein.
+- **Struktur:** feine Details (Haut, Stoff, Laub) betonen oder glätten, in voller Auflösung, mit Coring nach dem
+  gemessenen Rauschen und ohne Säume an großen Kanten.
+- **Ausgabeschärfung (``sharpen``):** für das Druck-PDF und die Drucklupe, nur auf der Helligkeit, rauschabhängig und
+  mit begrenztem Überschwingen.
 
 - **Lichter, Tiefen, Klarheit (örtlich):** wie in Lightroom kantentreu statt als globale Kurve. Lichter und Tiefen
   wirken auf eine Basisschicht, die die Beleuchtung schätzt (Guided Filter auf der Helligkeit in Blenden): Schatten
@@ -22,8 +27,8 @@ Bild aufsetzen. Gleiches Ergebnis in Vorschau, Druckansicht und Druck-PDF:
 Alles Örtliche entsteht als eine Helligkeitskarte auf 1600 Pixeln und wird einmal kantentreu auf die Zielgröße
 übertragen. Gesichter werden dabei nie stärker aufgehellt als die übrigen Schattenbereiche des Fotos.
 
-Die Einstellung reist als kurzer Text mit, z. B. ``f0.60n0.40h-0.30s0.50c0.20`` (Fusion, Rauschminderung,
-Lichter, Tiefen, Klarheit; nur was nicht 0 ist).
+Die Einstellung reist als kurzer Text mit, z. B. ``f0.60n0.40h-0.30s0.50c0.20t0.30`` (Fusion, Rauschminderung,
+Lichter, Tiefen, Klarheit, Struktur; nur was nicht 0 ist).
 """
 
 from __future__ import annotations
@@ -33,15 +38,15 @@ import re
 
 from PIL import Image
 
-VERSION = "d3"                      # ändert sich, wenn sich das Ergebnis ändert (Zwischenspeicher)
+VERSION = "d4"                      # ändert sich, wenn sich das Ergebnis ändert (Zwischenspeicher)
 PROXY = 1600                        # Kantenlänge, auf der die Helligkeitskarte entsteht
 ANALYZE = 800                       # Kantenlänge für die Analyse (Gegenlicht ja oder nein)
 GUIDE_MAX = 2400                    # bis zu dieser Größe kantentreu übertragen, darüber glatt hochrechnen
 EVS = (-1.0, 0.0, 1.0, 2.0, 3.0)    # künstliche Belichtungsreihe in Blenden
 COARSEST = 32                       # gröbste Stufe der Pyramide in Pixeln: so bleibt die Wirkung örtlich
-_FX = re.compile(r"([fnhsc])(-?\d*\.?\d+)")
-KEYS = {"f": "fusion", "n": "denoise", "h": "highlights", "s": "shadows", "c": "clarity"}
-SIGNED = {"highlights", "shadows", "clarity"}       # −1 … +1, die anderen 0 … 1
+_FX = re.compile(r"([fnhsct])(-?\d*\.?\d+)")
+KEYS = {"f": "fusion", "n": "denoise", "h": "highlights", "s": "shadows", "c": "clarity", "t": "texture"}
+SIGNED = {"highlights", "shadows", "clarity", "texture"}       # −1 … +1, die anderen 0 … 1
 TONE = ("fusion", "highlights", "shadows", "clarity")
 
 
@@ -344,10 +349,7 @@ def tone_log_gain(p, fx: dict, faces=None):
             L2 = clarity(L2, c)
         g += ((L2 - L) / 2.2).astype(np.float32)        # Blenden → Faktor auf kodierte Werte
     if fx.get("fusion", 0) >= 0.01 or s > 0:
-        if faces is None:
-            from . import faces as facedet
-            faces = facedet.detect_rgb((np.clip(p, 0, 1) * 255 + 0.5).astype(np.uint8)) if facedet.available() else []
-        g = guard_faces(g, faces)
+        g = guard_faces(g, _faces_of(p) if faces is None else faces)
     return g
 
 
@@ -355,15 +357,16 @@ def _shoulder(orig, out, knee: float = 0.85):
     """Weiche Schulter für Aufgehelltes: was über ``knee`` (bzw. den ursprünglichen Wert) hinausgeht, wird sanft
     gestaucht statt abgeschnitten; Farbton bleibt (alle Kanäle gleich), Unverändertes bleibt unverändert."""
     import numpy as np
+    out = out.astype(np.float32, copy=False)
     m0, m1 = orig.max(axis=2), out.max(axis=2)
-    k0 = np.maximum(knee, m0)
+    k0 = np.maximum(np.float32(knee), m0)
     over = m1 > k0
-    if not over.any():
-        return np.clip(out, 0.0, 1.0)
-    room = np.maximum(1.0 - k0, 1e-4)
-    soft = k0 + room * (1.0 - np.exp(-np.maximum(m1 - k0, 0.0) / room))
-    k = np.where(over, soft / np.maximum(m1, 1e-6), 1.0)
-    return np.clip(out * k[..., None], 0.0, 1.0)
+    if over.any():                                       # nur die betroffenen Bildpunkte rechnen (schnell bei 12 MP)
+        k0o, m1o = k0[over], m1[over]
+        room = np.maximum(1.0 - k0o, 1e-4)
+        soft = k0o + room * (1.0 - np.exp(-(m1o - k0o) / room))
+        out[over] *= (soft / np.maximum(m1o, 1e-6))[:, None]
+    return np.clip(out, 0.0, 1.0, out=out)
 
 
 def tone(a, fx: dict, faces=None):
@@ -373,44 +376,181 @@ def tone(a, fx: dict, faces=None):
     return _shoulder(a, a * np.power(2.0, transfer(a, lg))[..., None])
 
 
-def fuse(a, strength: float):
-    return tone(a, {"fusion": strength})
+def noise_profile(y):
+    """Rauschen je Helligkeit (Immerkær je Helligkeitsstufe, nur glatte Stellen): ``(stufen, sigmas)`` für
+    ``np.interp``. Bei Fotos hängt das Rauschen vom Signal ab (Photonenrauschen, Tonkurve der Kamera); wo eine
+    Stufe zu wenig glatte Stellen hat, gilt der Wert fürs ganze Bild."""
+    import cv2
+    import numpy as np
+    y = np.asarray(y, dtype=np.float32)
+    h, w = y.shape
+    if max(h, w) > 1600:
+        cy, cx, s = h // 2, w // 2, 800
+        y = y[max(0, cy - s):cy + s, max(0, cx - s):cx + s]
+    every = noise_sigma(y)
+    centers = np.array([24.0, 72.0, 120.0, 168.0, 216.0], np.float32)
+    if min(y.shape) < 8:
+        return centers, np.full(5, every, np.float32)
+    lap = np.abs(cv2.filter2D(y, -1, np.array([[1, -2, 1], [-2, 4, -2], [1, -2, 1]], np.float32))[1:-1, 1:-1])
+    grad = np.hypot(cv2.Sobel(y, -1, 1, 0), cv2.Sobel(y, -1, 0, 1))[1:-1, 1:-1]
+    level = cv2.blur(y, (5, 5))[1:-1, 1:-1]
+    flat = grad <= np.percentile(grad, 60)
+    out = []
+    for c in centers:
+        m = flat & (np.abs(level - c) < 24)
+        out.append(math.sqrt(math.pi / 2) * float(lap[m].mean()) / 6.0 if m.sum() >= 400 else every)
+    return centers, np.asarray(out, np.float32)
 
 
-def denoise(a, strength: float):
-    """Farbrauschen kräftig, Helligkeitsrauschen behutsam; Stärke folgt dem gemessenen Rauschen."""
+def _blend_anchors(src, anchors, want):
+    """Je Bildpunkt zwischen Ergebnissen verschiedener Stärke ``anchors`` [(h, bild), …] (aufsteigend, das erste ist
+    h = 0) linear nach der gewünschten Stärke ``want`` mischen: Rauschminderung mit örtlich verschiedener Stärke."""
+    import numpy as np
+    hs = [h for h, _ in anchors]
+    want = np.clip(want, 0.0, hs[-1])
+    out = src.astype(np.float32)
+    for (h0, a), (h1, b) in zip(anchors, anchors[1:]):
+        t = np.clip((want - h0) / max(h1 - h0, 1e-6), 0.0, 1.0)
+        seg = (want > h0) & ((want <= h1) | (h1 == hs[-1]))
+        a, b = a.astype(np.float32), b.astype(np.float32)
+        out[seg] = a[seg] + (b[seg] - a[seg]) * t[seg]
+    return out
+
+
+def denoise(a, strength: float, lift=None):
+    """Farbrauschen kräftig, Helligkeitsrauschen behutsam (Non-Local Means). Die Stärke folgt dem gemessenen
+    Rauschen – je Helligkeit (dunkle Stellen rauschen anders als helle) und je Stelle nach dem, was danach
+    aufgehellt wird (``lift``: log2 der Verstärkung): aufgehellte Schatten werden kräftiger entrauscht, damit sie
+    nicht krisseln, der Rest bleibt so fein wie zuvor."""
     import cv2
     import numpy as np
     a8 = (np.clip(a, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
     ycc = cv2.cvtColor(a8, cv2.COLOR_RGB2YCrCb)
     y, cr, cb = (np.ascontiguousarray(ycc[..., i]) for i in range(3))
     sy = noise_sigma(y)
-    hy = strength * 1.3 * sy
-    if hy >= 0.5:
-        y = cv2.fastNlMeansDenoising(y, None, h=hy, templateWindowSize=5, searchWindowSize=11)
-    h0, w0 = cr.shape
+    centers, sigmas = noise_profile(y)
+    h0, w0 = y.shape
+    qw, qh = max(1, w0 // 4), max(1, h0 // 4)            # Stärke ändert sich nur langsam: auf einem Viertel rechnen
+    level = cv2.GaussianBlur(_resize(y.astype(np.float32), qw, qh), (0, 0), 1.0)
+    gain = np.ones((qh, qw), np.float32) if lift is None else \
+        np.power(np.float32(2.0), np.clip(_resize(lift.astype(np.float32), qw, qh), 0.0, 2.5))
+    rel_q = np.interp(level, centers, sigmas / max(sy, 0.3)).astype(np.float32) * gain   # gewünschte Stärke je Stelle
+    rel = _resize(rel_q, w0, h0)
+    h1 = strength * 1.3 * sy
+    if h1 >= 0.5:
+        anchors = [(0.0, y), (h1, cv2.fastNlMeansDenoising(y, None, h=h1, templateWindowSize=5, searchWindowSize=11))]
+        top = float(min(3.0, np.percentile(rel, 99)))
+        if top > 1.25:                                   # deutlich mehr Rauschen in Teilen (aufgehellt): zweite Stufe,
+            strong = anchors[1][1].copy()                # gerechnet nur, wo sie gebraucht wird
+            rows, cols = np.nonzero(rel > 1.0)
+            m = 16
+            r0, r1, c0, c1 = max(0, rows.min() - m), rows.max() + m + 1, max(0, cols.min() - m), cols.max() + m + 1
+            strong[r0:r1, c0:c1] = cv2.fastNlMeansDenoising(np.ascontiguousarray(y[r0:r1, c0:c1]), None, h=h1 * top,
+                                                            templateWindowSize=5, searchWindowSize=11)
+            anchors.append((h1 * top, strong))
+        y = np.clip(_blend_anchors(y, anchors, rel * h1) + 0.5, 0, 255).astype(np.uint8)
     sw, sh = max(1, w0 // 2), max(1, h0 // 2)
+    g_small = _resize(gain, sw, sh)
+    top_c = float(min(2.5, np.percentile(g_small, 99)))
     out_c = []
     for c in (cr, cb):
         small = _resize(c, sw, sh)                       # Farbrauschen ist grobkörnig: auf halber Größe messen und mindern
         hc = strength * 3.0 * max(noise_sigma(small), 1.0)
-        small = cv2.fastNlMeansDenoising(small, None, h=hc, templateWindowSize=5, searchWindowSize=15)
+        anchors = [(0.0, small), (hc, cv2.fastNlMeansDenoising(small, None, h=hc, templateWindowSize=5, searchWindowSize=15))]
+        if top_c > 1.25:
+            anchors.append((hc * top_c, cv2.fastNlMeansDenoising(small, None, h=hc * top_c, templateWindowSize=5, searchWindowSize=15)))
+            small = np.clip(_blend_anchors(small, anchors, g_small * hc) + 0.5, 0, 255).astype(np.uint8)
+        else:
+            small = anchors[1][1]
         out_c.append(_resize(small, w0, h0))
     ycc = np.dstack([y, *out_c])
     return cv2.cvtColor(ycc, cv2.COLOR_YCrCb2RGB).astype(np.float32) / 255.0
 
 
+def _soft_core(d, tau):
+    """Kleine Ausschläge (Rauschen, unter etwa ``tau``) weich unterdrücken, große durchlassen."""
+    d2 = d * d
+    return d * d2 / (d2 + tau * tau + 1e-12)
+
+
+def texture(a, amount: float, lift=None, faces=None):
+    """Struktur: feine Details (Haut, Stoff, Laub, Haare) betonen oder glätten, große Kanten bleiben unberührt.
+    Feindetail ist, was ein Guided Filter mit kleinem Radius (etwa 1/600 der langen Seite) und kleinem ε von
+    der Helligkeit abzieht – starke Kanten bleiben dabei im Basisbild, also keine Lichthöfe. Was kaum größer ist
+    als das gemessene Rauschen (nach dem Aufhellen), wird nicht verstärkt (weiches Coring). Gesichter bekommen
+    beim Betonen nur die Hälfte: Poren und Fältchen will niemand verstärkt sehen."""
+    import cv2
+    import numpy as np
+    y = _luma(a).astype(np.float32)
+    h, w = y.shape
+    r = max(1, round(max(h, w) / 600))
+    d = y - _guided(y, y, r, 0.04 ** 2)
+    if amount > 0:
+        tau = 3.0 * noise_sigma(y * 255.0) / 255.0
+        if lift is not None:
+            tau = tau * np.power(2.0, np.clip(lift, 0.0, 2.5))
+        d = _soft_core(d, np.maximum(tau, 0.75 / 255.0)) * (2.0 * amount)
+        if faces:
+            m = np.zeros((h, w), np.float32)
+            for f in faces:
+                a0, a1, b0, b1 = _boxes((h, w), f, 0.1)
+                m[a0:a1, b0:b1] = 1.0
+            k = max(3, int(0.05 * max(h, w)) | 1)
+            d = d * (1.0 - 0.5 * cv2.GaussianBlur(m, (k, k), 0))
+    else:
+        d = d * amount                                   # −1: Feindetail ganz heraus (weich), ohne Coring
+    return np.clip(a + d[..., None], 0.0, 1.0)
+
+
+def sharpen(a, radius: float, amount: float, noise: float | None = None):
+    """Ausgabeschärfung für den Druck: Unscharfmaskierung nur auf der Helligkeit (keine Farbsäume), mit
+    weichem Coring nach dem gemessenen Rauschen (Rauschen wird nicht mitgeschärft) und Begrenzung des
+    Überschwingens auf die Nachbarschaft (keine hellen und dunklen Säume an Kanten)."""
+    import cv2
+    import numpy as np
+    y = _luma(a).astype(np.float32)
+    d = y - cv2.GaussianBlur(y, (0, 0), radius)
+    sigma = noise_sigma(y * 255.0) if noise is None else noise
+    d = _soft_core(d, max(1.5, 3.0 * sigma) / 255.0)
+    s = y + amount * d
+    k = np.ones((3, 3), np.uint8)
+    lo, hi = cv2.erode(y, k), cv2.dilate(y, k)
+    room = 0.15 * (hi - lo) + 2.0 / 255.0               # etwas Überschwingen ist Schärfe, mehr sind Säume
+    s = np.clip(s, lo - room, hi + room)
+    return np.clip(a + (s - y)[..., None], 0.0, 1.0)
+
+
+def _faces_of(p):
+    import numpy as np
+    from . import faces as facedet
+    return facedet.detect_rgb((np.clip(p, 0, 1) * 255 + 0.5).astype(np.uint8)) if facedet.available() else []
+
+
+def process(a, fx: dict, faces=None):
+    """Detailbearbeitung auf einem Bild (RGB 0–1) beliebiger Größe: Helligkeitskarte auf der 1600er-Fassung,
+    dann Rauschen (stärker, wo aufgehellt wird), örtliche Tonwerte, zuletzt Struktur in voller Auflösung."""
+    import numpy as np
+    tone_on = any(abs(fx.get(k, 0)) >= 0.01 for k in TONE)
+    p = _proxy(a)
+    if faces is None and (fx.get("fusion", 0) >= 0.01 or fx.get("shadows", 0) > 0 or fx.get("texture", 0) > 0):
+        faces = _faces_of(p)
+    lg = tone_log_gain(p, fx, faces or []) if tone_on else None
+    rough = _resize(lg, a.shape[1], a.shape[0]) if lg is not None else None     # genügt zum Steuern der Stärke
+    if fx.get("denoise", 0) >= 0.01:
+        a = denoise(a, fx["denoise"], rough)
+    if lg is not None:
+        a = _shoulder(a, a * np.power(2.0, transfer(a, lg))[..., None])
+    if abs(fx.get("texture", 0)) >= 0.01:
+        a = texture(a, fx["texture"], rough, faces)
+    return a
+
+
 def apply(im: Image.Image, fx: dict | None) -> Image.Image:
-    """Bild mit Detailbearbeitung; Farbprofil bleibt erhalten. Erst Rauschen, dann Gegenlicht (das Aufhellen
-    würde Rauschen sonst verstärken)."""
+    """Bild mit Detailbearbeitung; Farbprofil bleibt erhalten."""
     import numpy as np
     if not fx or not available():
         return im
-    a = np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0
-    if fx.get("denoise", 0) >= 0.01:
-        a = denoise(a, fx["denoise"])
-    if any(abs(fx.get(k, 0)) >= 0.01 for k in TONE):
-        a = tone(a, fx)
+    a = process(np.asarray(im.convert("RGB"), dtype=np.float32) / 255.0, fx)
     out = Image.fromarray((a * 255.0 + 0.5).astype(np.uint8), "RGB")
     if im.info.get("icc_profile"):
         out.info["icc_profile"] = im.info["icc_profile"]
@@ -468,6 +608,8 @@ def analyze(full: Image.Image, proxy: Image.Image, faces=None) -> dict:
     fusion = round(min(0.8, 0.45 + 0.4 * (lift - 0.75)), 2) if backlit else 0.0
     # Rauschen: ab etwa 2,5 (Helligkeit) bzw. 1,5 (Farbe, halbe Größe) auf 0–255 sichtbar, vor allem nach dem Aufhellen
     level = max(ycc_noise / 2.5, chroma / 1.5)
+    if backlit:                                          # aufgehellte Schatten rauschen um den Faktor der Aufhellung mehr
+        level *= 2.0 ** (0.5 * fusion * lift)
     denoise_s = round(min(0.9, 0.3 + 0.25 * (level - 1.0)), 2) if level >= 1.0 else 0.0
     return {"version": VERSION, "noise": round(ycc_noise, 2), "chromaNoise": round(chroma, 2),
             "dark": round(dark_share, 3), "bright": round(bright_share, 3), "lift": round(lift, 2),

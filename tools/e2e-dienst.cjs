@@ -160,6 +160,16 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     const lifted = await fetch(BASE + href.replace(/^\/?/, '')); assert.equal(lifted.status, 200);
     assert.ok(!/Gegenlicht/.test(await B.evaluate(() => checks().map(c => c[1]).join(' '))));
 
+    step('Drucklupe: zeigt die Stelle unter dem Zeiger in Druckauflösung, scharf vom Dienst');
+    await B.evaluate(() => { ui.sel = 0; renderAll(); });
+    await B.click('[data-act="loupe"]');
+    const fr = await B.evaluate(() => { const r = document.querySelector('#editor g[data-slot="0"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await B.mouse.move(fr.x - 20, fr.y - 20); await B.mouse.move(fr.x, fr.y, { steps: 4 });
+    await B.waitForFunction(() => { const i = document.querySelector('.loupe img.on'); return i && i.naturalWidth > 0 && /loupe\?.*fx=f0\.\d\d/.test(i.src); }, null, { timeout: 60000 });
+    assert.match(await B.textContent('.loupe-info'), /\d+ dpi/);
+    await B.keyboard.press('Escape');
+    assert.equal(await B.evaluate(() => document.querySelector('.loupe').hidden), true);
+
     step('PDF-Entwurf landet in Export/');
     await B.evaluate(async () => { S.doc.dpi = 100; await exportPDF(); });
     await waitFor(() => fs.existsSync(path.join(K, 'Export', 'Familienkalender-2027-Entwurf.pdf')));

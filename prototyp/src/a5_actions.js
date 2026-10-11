@@ -77,7 +77,7 @@ document.addEventListener('input', (e) => {
     if (loc) ui.toneDrag = el.dataset.photo;        // beim Ziehen globale Näherung, örtlich erst beim Loslassen
     setAdjust(el.dataset.photo, { [k]: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
-    if (k !== 'clarity') renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+    if (!SERVICE_KEYS.includes(k)) renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
   if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
