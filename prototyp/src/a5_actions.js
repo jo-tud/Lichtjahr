@@ -73,9 +73,11 @@ document.addEventListener('input', (e) => {
     renderEditor(); clearTimeout(onBind._b); onBind._b = setTimeout(() => { commit(); updateThumb(); }, 400);
   }
   if (act === 'adj') {
-    setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
+    const k = el.dataset.k, loc = localTone() && LOCAL_KEYS.includes(k);
+    if (loc) ui.toneDrag = el.dataset.photo;        // beim Ziehen globale Näherung, örtlich erst beim Loslassen
+    setAdjust(el.dataset.photo, { [k]: parseFloat(el.value) });
     el.parentElement.querySelector('output').textContent = adjFmt(parseFloat(el.value));
-    renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
+    if (k !== 'clarity') renderEditor(); clearTimeout(onBind._a); onBind._a = setTimeout(() => { commit(); updateThumb(); const b = $('[data-act="adjreset"]'); if (b) b.disabled = !adjOf(el.dataset.photo); }, 400);
   }
   if (act === 'adjdetail') el.parentElement.querySelector('output').textContent = Math.round(parseFloat(el.value) * 100) + ' %';
   if (act === 'adjlookamt') {
@@ -106,6 +108,7 @@ document.addEventListener('change', (e) => {
 
 const CHANGE_ACTIONS = {   // weitere Auswahlfelder (z. B. Druckprofil), von anderen Teilen ergänzt
   // Gegenlicht/Rauschen: erst beim Loslassen, der Dienst rechnet das Vorschaubild neu
+  adjtone: () => { ui.toneDrag = null; commit(); renderEditor(); updateThumb(); },
   adjdetail: (el) => {
     setAdjust(el.dataset.photo, { [el.dataset.k]: parseFloat(el.value) });
     commit(); renderEditor(); updateThumb();

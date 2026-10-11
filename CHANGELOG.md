@@ -5,6 +5,9 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 ## [Unreleased]
 
 ### Photos
+- Highlights and shadows work locally with the service (edge-aware, by lighting), and there is a new Clarity
+  slider (local Laplacian filter, no halos). Dark skin, hair and clothing keep their brightness, white stays white;
+  a face is never lifted more than its surroundings. A test checks light and dark skin in the same scene.
 - Backlight: with the local service, exposure fusion lifts a dark subject in front of a bright sky, while the sky
   stays white. Preview, soft proof, Draft PDF and Print PDF show the same result.
 - Noise reduction for dark phone photos: color noise firmly, luminance noise gently.
