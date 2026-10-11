@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
   echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">'
   echo '<style>'; cat src/style.css; echo '</style>'
   cat src/body.html
-  echo '<script>'; cat fonts/fonts.js src/schoolholidays.js src/i18n.js src/i18n/*.js src/jpeg.js src/pdf.js src/a1_core.js src/a2_photos.js src/a3_render.js src/a4_ui.js src/a5_actions.js src/a6_editor.js src/a7_export.js src/a9_place.js src/b1_service.js src/b2_print.js src/b3_faces.js src/b4_adjust.js src/b5_series.js src/b6_people.js src/b7_loupe.js src/a8_wall.js; echo '</script>'
+  echo '<script>'; cat fonts/fonts.js src/schoolholidays.js src/i18n.js src/i18n/*.js src/jpeg.js src/pdf.js src/a1_core.js src/a2_photos.js src/a3_render.js src/a4_ui.js src/a5_actions.js src/a6_editor.js src/a7_export.js src/a9_place.js src/b1_service.js src/b2_print.js src/b3_faces.js src/b4_adjust.js src/b5_series.js src/b6_people.js src/b7_loupe.js src/b8_fonts.js src/a8_wall.js; echo '</script>'
 } > dist/kalenderwerkstatt.html
 # Eigenständige Seite für den Start ohne Claude-Artefakt (lokal im Browser oder über den Dienst)
 {

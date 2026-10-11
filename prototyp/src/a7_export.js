@@ -107,6 +107,7 @@ let lastPdf = null;
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
   if (print && tuneOn()) await loadTune(printerOf());
+  await ensureFonts();                            // eingebettet wird, was gerade gewählt ist
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
   const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;
@@ -136,7 +137,7 @@ async function exportPDF(mode = 'draft') {
         } else if (it.t === 'text') {
           const w = it.ls ? trackedWidth(it.text, it.font, it.size, it.ls) : textWidth(it.text, it.font, it.size);
           const x = it.anchor === 'middle' ? it.x - w / 2 : it.anchor === 'end' ? it.x - w : it.x;
-          const bt = `BT /${it.font === 'bold' ? 'F2' : 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`;
+          const bt = `BT /${PDF_FONT[it.font] || 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`;
           ops.push(it.ls ? `q ${pdfNum(it.ls * MM)} Tc ${bt} Q` : bt);   // Laufweite gehört zum Grafikzustand: mit q/Q begrenzen
         } else if (it.t === 'img') {
           bar.update(done / nImg, _t('Seite {n} von {total} · {page} · Bild wird umgerechnet', { n: pi + 1, total: keys.length, page: pageLabel(k) }));
@@ -224,12 +225,7 @@ function fallbackSave() {
 }
 
 /* ---------- Start ---------- */
-function injectFonts() {
-  const st = document.createElement('style');
-  st.textContent = `@font-face{font-family:CalJost;font-weight:400;src:url(data:font/ttf;base64,${FONTS.regular.b64}) format("truetype")}
-@font-face{font-family:CalJost;font-weight:600;src:url(data:font/ttf;base64,${FONTS.bold.b64}) format("truetype")}`;
-  document.head.appendChild(st);
-}
+const PDF_FONT = { regular: 'F1', bold: 'F2', hregular: 'F3', hbold: 'F4' };
 async function loadSaved() {
   const json = await DB.get('kv', 'state');
   if (!json) return false;
@@ -250,6 +246,7 @@ async function loadSaved() {
   hist.past = past;
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {
+    if (String(id).startsWith('font:')) continue;                 // eigene Schriften (b8_fonts.js), keine Fotos
     const rec = await DB.get('blobs', id);
     if (!S.photos[id] && !keep.has(id) && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
     if (rec) { setUrls(id, rec.prev, rec.thumb); if (rec.file) RT.file[id] = rec.file; }
@@ -261,7 +258,7 @@ async function loadSaved() {
   return true;
 }
 async function init() {
-  injectFonts();
+  applyFonts();                                   // Jost, bis die Schriften des Projekts geladen sind
   applyStaticTexts();
   $('#undo').innerHTML = ICON.undo; $('#redo').innerHTML = ICON.redo;
   try { downloadsCap = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); } catch (e) { downloadsCap = Promise.resolve(null); }
@@ -294,7 +291,8 @@ async function init() {
   if (!SVC.on) { hist.last = snap(); scheduleSave(); }
   updateUndo();
   if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(_t('Willkommen zurück. Weiter bei {page}.', { page: pageLabel(pg) })), 600); } } catch (e) { /* egal */ } }
-  if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalJost'), document.fonts.load('600 16px CalJost')]); } catch (e) { /* egal */ } }
+  await ensureFonts();
+  if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalText'), document.fonts.load('600 16px CalHead')]); } catch (e) { /* egal */ } }
   const hv = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (hv) ui.view = hv;   // Direktlink auf einen Schritt
   try { history.replaceState({ view: ui.view }, '', '#' + VIEW_HASH[ui.view]); } catch (e) { /* egal */ }
   renderAll();

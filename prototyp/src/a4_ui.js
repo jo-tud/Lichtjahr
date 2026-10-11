@@ -32,6 +32,7 @@ function setView(v, fromHistory = false) {
 }
 function renderAll() {
   ensurePages();
+  ensureFonts();                                   // lädt geänderte Schriften und zeichnet dann noch einmal
   document.body.dataset.view = ui.view;
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
@@ -90,6 +91,9 @@ function renderProject() {
         ${range('mg', 'doc.margin', d.margin, 0, 20, 1, ' mm', _t('Außenrand (0 = randabfallend)'))}
         ${range('ob', 'doc.ovBorder', d.ovBorder, 0, 6, .5, ' mm', _t('Rahmen um Einleger-Bilder'))}
         <div class="field"><span class="lbl">${_t('Papier / Hintergrund')}</span>${swatches(BG_COLORS, d.bg, 'bg')}${d.bg === 'rich' ? `<p class="hint">${richBlackHint()}</p>` : ''}</div>
+      </section>
+      <section class="card"><header><h2>${_t('Schrift')}</h2><p>${_t('Gilt für den ganzen Kalender: Google Fonts oder eigene Schriften.')}</p></header>
+        ${fontRow('head')}${fontRow('text')}${fontPairs()}
       </section>
       <section class="card"><header><h2>${_t('Kalendarium')}</h2><p>${_t('Voreinstellung für alle Monate. Jede Seite kann abweichen.')}</p></header>
         <div class="field"><span class="lbl">${_t('Form')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')]], d.cal.style, 'defstyle')}</div>
@@ -409,9 +413,9 @@ function miniCal(style, design, m) {
   const lay = calFn(style)(S.doc.year, m, 1, c);
   const vw = Math.min(lay.w, style === 'h' || style === 'w' ? 74 : 62), vh = Math.min(lay.h, style === 'v' ? 46 : 46);
   const el = lay.items.map(it => it.t === 'text'
-    ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
+    ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" ${fontAttrs(it.font)} fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
     : it.t === 'rect' ? `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGBraw(it.fill)}"/>` : it.t === 'circle' ? `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGBraw(it.fill)}"/>` : '').join('');
-  return `<svg viewBox="-2 -2 ${vw + 4} ${vh + 4}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" aria-hidden="true">${el}</svg>`;
+  return `<svg viewBox="-2 -2 ${vw + 4} ${vh + 4}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalText,sans-serif;font-kerning:none" aria-hidden="true">${el}</svg>`;
 }
 const CAL_DESIGN_NAMES = () => ({ classic: _t('Klassisch'), modern: _t('Modern'), minimal: _t('Ruhig'), bold: _t('Kräftig') });
 // Gestaltung des Kalendariums: vier Varianten als Vorschau, Feinheiten aufklappbar. Gilt für alle Monate.
@@ -446,6 +450,7 @@ function panelCal(p) {
   return where + auto + bdBox + `<div class="field"><span class="lbl">${_t('Kalendarium auf dieser Seite')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')], ['off', _t('Aus')]], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${calDesignBox(p, c)}
+    ${fontRow('text')}
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', _t('Größe'))}
     <div class="field"><span class="lbl">${_t('Schriftfarbe')}</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
     <div class="field"><span class="lbl">${_t('Fläche dahinter')}</span>${seg([['none', _t('Keine')], ['light', _t('Hell')], ['dark', _t('Dunkel')], ['paper', _t('Papier')]], c.panel, 'calpanel')}</div>
@@ -461,6 +466,7 @@ function panelTitle(p) {
   const t = p.title;
   return `<div class="field"><label for="tt">${_t('Titel')}</label><input type="text" id="tt" data-bind="page.title.text" value="${esc(t.text)}"></div>
     <div class="field"><label for="ts">${_t('Untertitel')}</label><input type="text" id="ts" data-bind="page.title.sub" value="${esc(t.sub)}"></div>
+    ${fontRow('head')}
     ${range('tz', 'page.title.size', t.size, .5, 2, .05, '×', _t('Größe'))}
     <div class="field"><span class="lbl">${_t('Schriftfarbe')}</span>${swatches(TEXT_COLORS, t.color, 'titlecolor')}</div>
     <div class="field"><span class="lbl">${_t('Fläche dahinter')}</span>${seg([['none', _t('Keine')], ['light', _t('Hell')], ['dark', _t('Dunkel')], ['paper', _t('Papier')]], t.panel, 'titlepanel')}</div>
@@ -572,7 +578,7 @@ function renderPrint() {
           ${[[300, _t('Für den Druck (300 dpi)')], [200, _t('Kleinere Datei (200 dpi)')], [100, _t('Schnelle Vorschau (100 dpi)')]].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <details class="specs-box"><summary>${_t('Technische Angaben für die Druckerei')}</summary>
         <dl class="specs"><dt>${_t('Endformat')}</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>${_t('Mit Beschnitt')}</dt><dd>${_t('{w} × {h} mm ({b} mm Rand, der beim Schneiden wegfällt)', { w: fmt1(d.w + 2 * d.bleed), h: fmt1(d.h + 2 * d.bleed), b: fmt1(d.bleed) })}</dd>
-          <dt>${_t('Farben')}</dt><dd>${_t('CMYK, einfache Umrechnung ohne ICC-Profil')}</dd><dt>${_t('Schrift')}</dt><dd>${_t('Jost, eingebettet, Text als Vektor')}</dd>
+          <dt>${_t('Farben')}</dt><dd>${_t('CMYK, einfache Umrechnung ohne ICC-Profil')}</dd><dt>${_t('Schrift')}</dt><dd>${_t('{fonts}, eingebettet, Text als Vektor', { fonts: esc(fontNames()) })}</dd>
           <dt>${_t('Transparenz')}</dt><dd>${_t('keine (Flächen werden eingerechnet)')}</dd><dt>${_t('Fehlt noch')}</dt><dd>${_t('ICC-Ausgabeprofil, PDF/X, Druckerei-Profil')}</dd></dl>
         <div class="field"><label for="jq">${_t('JPEG-Qualität')}</label><select id="jq" data-bind="doc.quality">
           ${[[95, _t('Sehr hoch')], [90, _t('Hoch')], [80, _t('Mittel')]].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>

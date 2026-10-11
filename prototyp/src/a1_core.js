@@ -127,6 +127,7 @@ function defaultDoc() {
     birthdays: [], indexBirthdays: true,
     indexTitle: _t('Die Fotos des Jahres'), indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
     dpi: 300, quality: 90,
+    fonts: { head: null, text: null },   // null = Jost; sonst { id, family, files: { regular, bold } } (b8_fonts.js)
   };
 }
 // Das zuletzt gewählte Bundesland gilt auch für neue Projekte

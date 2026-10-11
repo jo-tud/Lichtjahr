@@ -4,7 +4,17 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+### Design
+- Fonts: headings (cover title, month names, index headings) and the calendar grid with all other texts can each
+  get their own font. Pick any free Google Font (with the local service), upload your own TTF/OTF/WOFF file, or
+  take one of the suggested pairs such as Playfair Display with Lato. The dialog shows the font on your current
+  page right away. The service prepares each font for print (static weights, TrueType outlines, only the
+  characters the calendar uses), refuses fonts whose license forbids embedding, and stores it in the project
+  folder, so everyone working on the calendar has it. Both PDFs embed the chosen fonts. Without the service,
+  your own TrueType files work too and stay in the browser.
+
 ### Fixes
+- Opening a project directly in the design view no longer throws an error when the print profiles load first.
 - Opened view in the print preview: the other half (top or bottom) is shown as printed, no longer faded and without
   its name.
 - Flipping on the wall ends smoothly: the shadows of the turning sheet and the page below no longer add up at the

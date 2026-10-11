@@ -168,4 +168,18 @@ EN = {
     "Projekt „{title}“ für {year} angelegt in {root}": "Project “{title}” for {year} created in {root}",
     "Fotos in die Monatsordner unter {photos}/ legen oder später in der App hinzufügen.": "Put photos into the month folders under {photos}/ or add them later in the app.",
     "Familienkalender": "Family Calendar",
+    # Schriften
+    "Bitte eine Google-Schrift wählen oder eine Schriftdatei hochladen.": "Please choose a Google font or upload a font file.",
+    "Das Verzeichnis der Google Fonts ist gerade nicht erreichbar: {error}": "The Google Fonts directory can’t be reached right now: {error}",
+    "Die Lizenz dieser Schrift erlaubt nicht, sie in ein PDF einzubetten.": "The license of this font does not allow embedding it in a PDF.",
+    "Die Schriftdatei fehlt im Projektordner.": "The font file is missing from the project folder.",
+    "Die Schriftdatei ist zu groß.": "The font file is too large.",
+    "Diese Schrift hat keine lateinischen Buchstaben.": "This font has no Latin letters.",
+    "Eigene Schrift": "Own font",
+    "Google Fonts ist gerade nicht erreichbar: {error}": "Google Fonts can’t be reached right now: {error}",
+    "Keine lesbare Schriftdatei (TrueType, OpenType oder WOFF erwartet).": "Not a readable font file (TrueType, OpenType or WOFF expected).",
+    "Unbekannte Schriftdatei.": "Unknown font file.",
+    "eigene Datei": "own file",
+    "„{family}“ gibt es bei Google Fonts nicht im normalen Schnitt.": "“{family}” has no regular weight on Google Fonts.",
+    "„{family}“ gibt es bei Google Fonts nicht.": "“{family}” is not on Google Fonts.",
 }

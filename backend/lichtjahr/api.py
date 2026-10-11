@@ -15,6 +15,7 @@ import os
 import secrets
 import threading
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -26,6 +27,7 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__
 from . import detail
 from . import faces as facedet
+from . import fonts as fontlib
 from .config import Credentials, Registry, Settings
 from .i18n import _t, pick, set_lang
 from .lock import Handover, Locked, LockError, LockLost, new_session
@@ -142,6 +144,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     @app.exception_handler(ServerLocked)
     async def _locked(_, exc: ServerLocked):                 # vorübergehend: Klartext, 503 mit Retry-After
         return JSONResponse({"detail": str(exc)}, status_code=503, headers={"Retry-After": "10"})
+
+    @app.exception_handler(fontlib.FontError)
+    async def _font(_, exc: fontlib.FontError):
+        return JSONResponse({"detail": str(exc)}, status_code=400)
 
     @app.exception_handler(StorageError)
     async def _serr(_, exc: StorageError):
@@ -400,6 +406,68 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     def printer_proof_colors(printer_id: str, req: ProofColors):
         """Vektorfarben (CMYK) so, wie sie gedruckt erscheinen, für die Druckansicht der Oberfläche."""
         return proof_colors(printers.get(printer_id), req.colors, req.paper)
+
+    # -- Schriften -------------------------------------------------------------------------
+    # Verzeichnis und Vorschau der Google Fonts kommen in den Zwischenspeicher des Dienstes; ins Projekt
+    # (.lichtjahr/fonts) kommt eine Schrift erst, wenn sie gewählt wird – dann haben sie alle, die mitarbeiten.
+    @app.get("/api/fonts/google")
+    def google_catalog():
+        return {"families": fontlib.catalog(settings.cache_dir)}
+
+    def google_info(family: str) -> dict:
+        entry = next((f for f in fontlib.catalog(settings.cache_dir) if f["family"] == family), None)
+        if entry is None:
+            raise HTTPException(404, _t("„{family}“ gibt es bei Google Fonts nicht.", family=family))
+        return fontlib.google_files(family, settings.cache_dir, entry["weights"])
+
+    @app.get("/api/fonts/google/{family}")
+    def google_font(family: str):
+        info = google_info(family)
+        return {**info, "urls": {cut: f"api/fonts/google/{quote(family)}/{cut}.ttf" for cut in info["files"]}}
+
+    @app.get("/api/fonts/google/{family}/{cut}.ttf")
+    def google_font_file(family: str, cut: str):
+        info = google_info(family)
+        if cut not in info["files"]:
+            raise HTTPException(404, _t("Unbekannte Schriftdatei."))
+        path = os.path.join(settings.cache_dir, "fonts", "google", fontlib.slug(family), info["files"][cut])
+        return FileResponse(path, media_type="font/ttf", headers={"Cache-Control": "max-age=86400"})
+
+    @app.get("/api/projects/{project_id}/fonts")
+    def list_fonts(project_id: str):
+        return {"fonts": fontlib.project_fonts(get_project(project_id).storage)}
+
+    @app.post("/api/projects/{project_id}/fonts")
+    async def add_font(project_id: str, google: str | None = Form(default=None), regular: UploadFile | None = File(default=None),
+                       bold: UploadFile | None = File(default=None), session: str | None = Depends(session_header)):
+        """Schrift ins Projekt: eine Google-Schrift (Feld ``google``) oder eigene Dateien (``regular``, ``bold``)."""
+        p = get_project(project_id)
+        p.lock.check(session)
+        if google:
+            info = await run_in_threadpool(google_info, google)
+            folder = os.path.join(settings.cache_dir, "fonts", "google", fontlib.slug(google))
+            files = {}
+            for cut, name in info["files"].items():
+                with open(os.path.join(folder, name), "rb") as fh:
+                    files[cut] = fh.read()
+            entry = fontlib.add_to_project(p.storage, google, files, "google", info["license"], info["missing"])
+        elif regular is not None:
+            reg = await regular.read()
+            bd = await bold.read() if bold is not None else None
+            files, meta = await run_in_threadpool(fontlib.from_uploads, reg, bd)
+            family = meta["family"] or os.path.splitext(regular.filename or "")[0] or _t("Eigene Schrift")
+            entry = fontlib.add_to_project(p.storage, family, files, "upload", _t("eigene Datei"), meta["missing"])
+        else:
+            raise HTTPException(400, _t("Bitte eine Google-Schrift wählen oder eine Schriftdatei hochladen."))
+        return entry
+
+    @app.get("/api/projects/{project_id}/fonts/{name}")
+    def project_font_file(project_id: str, name: str):
+        try:
+            data = fontlib.font_file(get_project(project_id).storage, name)
+        except NotFound:
+            raise HTTPException(404, _t("Die Schriftdatei fehlt im Projektordner."))
+        return Response(data, media_type="font/ttf", headers={"Cache-Control": "max-age=3600"})
 
     @app.delete("/api/printers/{printer_id}")
     def delete_printer(printer_id: str):
