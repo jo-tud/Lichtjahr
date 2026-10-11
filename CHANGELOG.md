@@ -4,6 +4,19 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.2.1] – 2026-10-11
+
+Working on one calendar together.
+
+### Fixes
+- Joining a shared calendar: the project picker always offers *Open existing*. Before, someone without any
+  project could only create one, and choosing the shared folder ended in "this folder already contains a project".
+  Choosing *New* on a folder that already holds a calendar now simply opens it; nothing is overwritten.
+- The hint under *Open existing* explains which WebDAV address to use for a shared Nextcloud folder.
+
+### Documentation
+- How to update, and how to work on one calendar together (also in the README.txt of the download).
+
 ## [1.2.0] – 2026-10-11
 
 A deeper black for black backgrounds, a photo index with pictures behind the text, a calendar grid with two weeks
