@@ -186,7 +186,7 @@ files). Only one person edits at a time. The other sees the calendar read-only a
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.2/lichtjahr-1.2.2-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.0/lichtjahr-1.3.0-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:
