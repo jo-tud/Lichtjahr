@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import getpass
 import hashlib
+import io
 import mimetypes
 import os
 import secrets
@@ -30,7 +31,7 @@ from .i18n import _t, pick, set_lang
 from .lock import Locked, LockLost, new_session
 from .media import BROWSER_EXT, browser_copy
 from .printing import (STANDARDS, PrinterRegistry, PrintError, apply_adjust, compose_lut, make_print_pdf, parse_adjust,
-                       print_tune, proof_colors, proof_image)
+                       print_tune, proof_colors, proof_image, sharpen_for_print)
 from .project import Project, ProjectError, RevisionConflict
 from .schema import EXPORT_DIR, Manifest
 from .storage import LocalStorage, NotFound, StorageError
@@ -483,6 +484,48 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
             out.save(tmp, "JPEG", quality=88)
             os.replace(tmp, path)
         return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    @app.get("/api/projects/{project_id}/assets/{asset_id}/loupe")
+    def loupe(project_id: str, asset_id: str, cx: float = .5, cy: float = .5, w: int = 480, h: int = 320, scale: float = 1.0,
+              pw: int = 0, fx: str = "", adj: str = "", printer: str = "", tune: bool = False, proof: bool = False,
+              paper: bool = True):
+        """Drucklupe: Ausschnitt um (cx, cy) (Bruchteile des Fotos) in Druckauflösung, ``scale`` Druckpixel je
+        Fotopixel (bei einem Foto ``pw`` Pixel breit, wie die Oberfläche es kennt), ``w`` × ``h`` Druckpixel. Gerechnet wie das Druck-PDF: Original in voller Größe mit
+        Detailbearbeitung, Rezept, Druckausgleich und Ausgabeschärfung; mit ``proof`` als Softproof."""
+        p = get_project(project_id)
+        a = asset_or_404(p, asset_id)
+        w, h = max(32, min(1600, w)), max(32, min(1600, h))
+        scale = max(0.02, min(4.0, scale))
+        profile = printers.get(printer) if printer else None
+        eff = detail.parse_fx(fx) if detail.available() else None
+        try:
+            src = p.master(a, eff)
+        except NotFound:
+            raise HTTPException(404, _t("Die Datei fehlt im Projektordner."))
+        if pw > 0:                                             # Oberfläche kennt das Foto evtl. in anderer Größe
+            scale = scale * pw / src.width
+        bw, bh = min(src.width, w / scale), min(src.height, h / scale)        # Ausschnitt im Foto, am Rand eingerückt
+        x0 = max(0.0, min(src.width - bw, cx * src.width - bw / 2))
+        y0 = max(0.0, min(src.height - bh, cy * src.height - bh / 2))
+        out_w, out_h = max(1, round(bw * scale)), max(1, round(bh * scale))
+        im = src.resize((out_w, out_h), Image.Resampling.LANCZOS, box=(x0, y0, x0 + bw, y0 + bh))
+        if src.info.get("icc_profile"):
+            im.info["icc_profile"] = src.info["icc_profile"]
+        m, lut = parse_adjust(adj)
+        tuned = print_tune(profile) if profile and tune else None
+        lut = compose_lut(lut, tuned and tuned["lut"])
+        if m or lut:
+            im = apply_adjust(im, m, lut)
+        if tuned:
+            im = sharpen_for_print(im, tuned)
+        if profile and proof:
+            im = proof_image(im, profile, paper=paper)
+        buf = io.BytesIO()
+        icc = im.info.get("icc_profile")
+        im.save(buf, "JPEG", quality=92, subsampling=0, **({"icc_profile": icc} if icc else {}))
+        box = [x0 / src.width, y0 / src.height, bw / src.width, bh / src.height]
+        return Response(buf.getvalue(), media_type="image/jpeg",
+                        headers={"Cache-Control": "private, max-age=600", "X-Lichtjahr-Box": ",".join(f"{v:.5f}" for v in box)})
 
     @app.get("/api/projects/{project_id}/assets/{asset_id}/original")
     def original(project_id: str, asset_id: str, fx: str = ""):

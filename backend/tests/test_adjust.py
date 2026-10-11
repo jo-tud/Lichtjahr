@@ -46,7 +46,7 @@ process.stdout.write(JSON.stringify(out));"""
 def test_tune_depends_on_paper(printers):
     coated, uncoated = print_tune(printers.get("fogra39")), print_tune(printers.get("fogra47"))
     assert coated["blackL"] < 15 < uncoated["blackL"]
-    assert 0 < coated["midtones"] < uncoated["midtones"] and coated["sharpen"]["percent"] < uncoated["sharpen"]["percent"]
+    assert 0 < coated["midtones"] < uncoated["midtones"] and coated["sharpen"]["amount"] < uncoated["sharpen"]["amount"]
     lut = coated["lut"]
     assert lut[0] == 0 and abs(lut[-1] - 1) < 1e-6 and all(b >= a for a, b in zip(lut, lut[1:]))
     assert compose_lut([0, .5, 1], [0, 1]) == [0, .5, 1]

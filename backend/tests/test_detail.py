@@ -54,12 +54,13 @@ def luma(im):
 
 
 def test_fx_text():
-    zero = {"fusion": 0.0, "denoise": 0.0, "highlights": 0.0, "shadows": 0.0, "clarity": 0.0}
+    zero = {"fusion": 0.0, "denoise": 0.0, "highlights": 0.0, "shadows": 0.0, "clarity": 0.0, "texture": 0.0}
     assert detail.parse_fx("f0.6n0.4") == {**zero, "fusion": .6, "denoise": .4}
     assert detail.parse_fx("n2f-1") == {**zero, "denoise": 1.0}                  # begrenzt, Fusion nie negativ
     assert detail.parse_fx("h-0.3s0.5c2") == {**zero, "highlights": -.3, "shadows": .5, "clarity": 1.0}
     assert detail.parse_fx("") is None and detail.parse_fx("f0n0") is None and detail.parse_fx("x") is None
     assert detail.fx_key(detail.parse_fx("n.5f.25s-.1")) == "f0.25n0.50s-0.10"
+    assert detail.parse_fx("t-0.4")["texture"] == -.4 and detail.fx_key(detail.parse_fx("t.3n.2")) == "n0.20t0.30"
 
 
 def test_fusion_lifts_the_subject_and_keeps_white_sky():
@@ -256,3 +257,72 @@ def test_local_tone_controls():
         d = lambda x: np.abs((x - cv2.GaussianBlur(x, (0, 0), period))[100:-100, 100:-100]).mean()   # noqa: E731
         return d(out) / d(L)
     assert amp(64, .8) > 1.4 and amp(8, .8) < 1.05 and amp(64, -.8) < .8
+
+
+# -- Rauschen nach Aufhellung, Struktur, Ausgabeschärfung, Drucklupe --------------------------
+def grain(seed=3, sigma=6.0, size=(240, 320)):
+    rng = np.random.default_rng(seed)
+    return np.clip(np.full((*size, 3), .35, np.float32) + rng.normal(0, sigma / 255, (*size, 1)).astype(np.float32), 0, 1)
+
+
+def test_denoise_is_stronger_where_lifted():
+    """Was danach aufgehellt wird, rauscht sichtbar stärker – dort wird kräftiger entrauscht, der Rest wie zuvor."""
+    a = grain()
+    lift = np.zeros(a.shape[:2], np.float32)
+    lift[:, :160] = 1.5                                                # linke Hälfte wird 1,5 Blenden heller
+    plain, aware = detail.denoise(a, .5), detail.denoise(a, .5, lift)
+    noise = lambda x: detail.noise_sigma(detail._luma(x) * 255)       # noqa: E731
+    assert noise(aware[:, 20:140]) < noise(plain[:, 20:140]) * .8
+    assert abs(noise(aware[:, 180:300]) - noise(plain[:, 180:300])) < .25
+
+
+def test_texture_lifts_fine_detail_but_not_noise_or_edges():
+    h, w = 240, 320
+    yy, xx = np.mgrid[0:h, 0:w]
+    fine = (.45 + .03 * np.sin(xx / .8) * (xx > w // 3))[..., None].repeat(3, 2).astype(np.float32)   # glatt | feine Struktur
+    amp = lambda x: float(detail._luma(x)[:, 140:300].std())           # noqa: E731
+    assert amp(detail.texture(fine, .8)) > amp(fine) * 1.3
+    assert amp(detail.texture(fine, -.8)) < amp(fine) * .7              # negativ: glätten
+    noise = grain(sigma=4.0)
+    assert detail.noise_sigma(detail._luma(detail.texture(noise, .8)) * 255) < detail.noise_sigma(detail._luma(noise) * 255) * 1.2
+    step = np.where(xx < w // 2, .2, .8)[..., None].repeat(3, 2).astype(np.float32)
+    out = detail.texture(step, 1.0)
+    assert out.min() > .2 - .01 and out.max() < .8 + .01                 # keine Säume an der großen Kante
+
+
+def test_print_sharpening_cores_noise_and_limits_halos():
+    h, w = 120, 160
+    yy, xx = np.mgrid[0:h, 0:w]
+    step = np.where(xx < w // 2, .25, .75)[..., None].repeat(3, 2).astype(np.float32)
+    step = detail._resize(detail._resize(step, w // 2, h // 2), w, h)    # weiche Kante wie nach dem Verkleinern
+    out = detail.sharpen(step, 1.0, 1.4)
+    grad = lambda x: float(np.abs(np.diff(detail._luma(x), axis=1)).max())   # noqa: E731
+    assert grad(out) > grad(step) * 1.2                                  # Kante steiler
+    assert out.min() > .25 - .035 and out.max() < .75 + .035            # Säume begrenzt (klassisch: ±0,15)
+    noise = grain(sigma=3.0)
+    assert detail.noise_sigma(detail._luma(detail.sharpen(noise, 1.0, 1.4)) * 255) < detail.noise_sigma(detail._luma(noise) * 255) * 1.25
+
+
+def test_loupe_shows_print_pixels(tmp_path):
+    c = TestClient(create_app(Settings(data_dir=str(tmp_path / "d"), cache_dir=str(tmp_path / "c"))), base_url="http://localhost")
+    root = tmp_path / "Kalender"
+    pid = c.post("/api/projects", json={"path": str(root), "calendarYear": 2027}).json()["id"]
+    H = {"X-Lichtjahr-Session": c.post(f"/api/projects/{pid}/lock", json={}).json()["session"]}
+    im = noisy(1.0)
+    put(str(root), "Photos/03 March/night.jpg", jpeg(im))
+    added = c.post(f"/api/projects/{pid}/scan", headers=H).json()["added"][0]
+    base = f"/api/projects/{pid}/assets/{added['id'] if isinstance(added, dict) else added}/loupe"
+
+    r = c.get(f"{base}?cx=.5&cy=.5&w=200&h=100&scale=1")
+    assert r.status_code == 200 and Image.open(io.BytesIO(r.content)).size == (200, 100)
+    x, y, bw, bh = (float(v) for v in r.headers["x-lichtjahr-box"].split(","))
+    assert abs(x + bw / 2 - .5) < .01 and abs(bw - 200 / im.width) < .01
+    corner = c.get(f"{base}?cx=0&cy=0&w=200&h=100&scale=1")             # am Rand eingerückt, nicht schwarz aufgefüllt
+    assert corner.headers["x-lichtjahr-box"].startswith("0.00000,0.00000")
+    half = c.get(f"{base}?cx=.5&cy=.5&w=100&h=50&scale=.5")              # halbe Druckauflösung: gleicher Ausschnitt
+    assert Image.open(io.BytesIO(half.content)).size == (100, 50) and half.headers["x-lichtjahr-box"] == r.headers["x-lichtjahr-box"]
+    clean = c.get(f"{base}?cx=.5&cy=.5&w=200&h=100&scale=1&fx=n0.6")
+    assert luma(Image.open(io.BytesIO(clean.content))).std() < luma(Image.open(io.BytesIO(r.content))).std()
+    tuned = c.get(f"{base}?cx=.5&cy=.5&w=200&h=100&scale=1&printer=fogra39&tune=1")
+    proof = c.get(f"{base}?cx=.5&cy=.5&w=200&h=100&scale=1&printer=fogra39&tune=1&proof=1")
+    assert len({r.content, tuned.content, proof.content}) == 3
