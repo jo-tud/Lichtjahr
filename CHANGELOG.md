@@ -21,6 +21,10 @@ Handing over editing when working together.
 - Double grid: *Separate weeks* had no effect. *None* now puts the 14 columns side by side, *Gap* leaves space
   between the two weeks of a row, *Line* draws a line there.
 
+## [1.2.2] – 2026-10-11
+
+Working together on two computers: the editing lock no longer depends on the computers' clocks.
+
 ### Fixes
 - Working together on two computers: whether someone else's lock was abandoned used to be decided by comparing
   the waiting computer's clock with the times the other computer had written. If one clock was a few minutes

@@ -30,7 +30,7 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF photos from the iPhone (pillo
 ```sh
 # Start the service – reachable from this computer only
 lichtjahr serve
-# → Lichtjahr 1.2.1 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
+# → Lichtjahr 1.2.2 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
 ```
 
 Starting it a second time only opens the browser again, with the access key and the named project if
@@ -66,7 +66,7 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 1.2.1 running: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.2.2 running: http://192.168.178.20:8470/?token=…
 ```
 
 As soon as the service is reachable on the network, it requires an access key. The key is generated

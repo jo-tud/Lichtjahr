@@ -187,7 +187,7 @@ geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person. Die a
 Wer uv schon hat, braucht nur einen Befehl (die Versionsnummer steht im Release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.1/lichtjahr-1.2.1-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.2/lichtjahr-1.2.2-py3-none-any.whl lichtjahr
 ```
 
 Aus dem Repository, mit Python 3.11 oder neuer:
