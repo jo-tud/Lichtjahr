@@ -504,6 +504,26 @@ body.view-only #editor .selframe, body.view-only #editor [data-block], body.view
 #strip .pg.live { animation: live-pulse 2.4s ease-out; }
 @keyframes live-pulse { 0%, 30% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { #strip .pg.live { animation: none; outline: 3px solid var(--accent); } }
+
+/* Schriftwahl: links die Liste, rechts die aktuelle Seite mit der gewählten Schrift */
+.busy .font-card { width: min(860px, 96vw); max-height: 92vh; overflow: auto; display: grid; gap: 12px; }
+.font-tabs { justify-self: start; }
+.font-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 16px; align-items: start; }
+.font-left { display: grid; gap: 10px; min-width: 0; }
+.font-list { display: grid; gap: 4px; max-height: 46vh; overflow: auto; padding-right: 4px; }
+.font-item { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.font-item[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.font-item .muted { font-size: 12px; white-space: nowrap; }
+.font-cats { flex-wrap: wrap; }
+.font-right { display: grid; gap: 8px; }
+.font-prev svg { width: 100%; height: auto; display: block; box-shadow: 0 1px 4px rgba(0,0,0,.2); background: #fff; }
+.font-sample { margin: 0; font-size: 20px; line-height: 1.35; }
+.font-btn { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; text-align: left; }
+.font-btn > span:first-child { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-btn .muted { font-size: 12px; }
+@media (max-width: 680px) { .font-body { grid-template-columns: 1fr; } .font-right { order: -1; grid-template-columns: 120px 1fr; align-items: center; } .font-list { max-height: 36vh; } .font-sample { font-size: 16px; } }
+.font-pairs { display: flex; flex-wrap: wrap; gap: 6px; }
+.font-pairs .btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 </style>
 <header class="bar">
   <div class="brand"><span class="cmyk" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Lichtjahr</span></div>
@@ -1719,6 +1739,52 @@ Object.assign(EN, {
   'Alle Fotos zeigen': 'Show all photos',
   'HEIC-Fotos vom iPhone kann dieser Browser nicht lesen. Mit dem lokalen Dienst gehen sie direkt, in Safari meist auch; sonst am iPhone unter Einstellungen → Kamera → Formate „Maximale Kompatibilität“ wählen oder die Fotos als JPEG teilen.': 'This browser can’t read HEIC photos from an iPhone. With the local service they work directly, usually in Safari too; otherwise go to Settings → Camera → Formats on the iPhone and choose “Most Compatible”, or share the photos as JPEG.',
   'Für HEIC-Fotos braucht der lokale Dienst seine Erweiterung: pip install "lichtjahr[heic]".': 'For HEIC photos, the local service needs its extension: pip install "lichtjahr[heic]".',
+  'Gilt für den ganzen Kalender: Google Fonts oder eigene Schriften.': 'Applies to the whole calendar: Google Fonts or your own fonts.',
+  '{fonts}, eingebettet, Text als Vektor': '{fonts}, embedded, text as vectors',
+  'Diese Datei hat PostScript-Umrisse (OpenType/CFF). Ohne den lokalen Dienst gehen nur TrueType-Dateien (.ttf); mit dem Dienst wird sie umgewandelt.': 'This file has PostScript outlines (OpenType/CFF). Without the local service only TrueType files (.ttf) work; with the service it is converted.',
+  'Webschriften (WOFF) gehen ohne den lokalen Dienst nicht. Bitte die TTF-Datei nehmen.': 'Web fonts (WOFF) don’t work without the local service. Please use the TTF file.',
+  'Die Lizenz dieser Schrift erlaubt nicht, sie in ein PDF einzubetten.': 'The license of this font does not allow embedding it in a PDF.',
+  'Keine lesbare Schriftdatei (TrueType, OpenType oder WOFF erwartet).': 'Not a readable font file (TrueType, OpenType or WOFF expected).',
+  'Die Schriftdatei fehlt im Projektordner.': 'The font file is missing from the project folder.',
+  'Die Schriftdatei fehlt in diesem Browser.': 'The font file is missing in this browser.',
+  'Schrift „{family}“ konnte nicht geladen werden, ersatzweise Jost: {error}': 'Font “{family}” could not be loaded, using Jost instead: {error}',
+  'Alle': 'All',
+  'Serifen': 'Serif',
+  'Serifenlos': 'Sans serif',
+  'Auffällig': 'Display',
+  'Handschrift': 'Handwriting',
+  'Schreibmaschine': 'Monospace',
+  'Im Projekt': 'In the project',
+  'Eigene Datei': 'Own file',
+  'Schrift für Überschriften': 'Font for headings',
+  'Schrift für Kalendarium und Texte': 'Font for calendar grid and texts',
+  'Titel, Monatsnamen und Überschriften im Register.': 'Titles, month names and headings in the index.',
+  'Tageszahlen, Wochentage, Feiertage, Bildtexte.': 'Day numbers, weekdays, holidays, captions.',
+  'Schrift wird geladen …': 'Loading font …',
+  'Eine Schrift wählen: Die Vorschau zeigt sie gleich auf dieser Seite.': 'Choose a font: the preview shows it on this page right away.',
+  'ohne fetten Schnitt': 'no bold weight',
+  'Es fehlen Zeichen: {chars}': 'Missing characters: {chars}',
+  'mitgeliefert': 'included',
+  'eigene Datei': 'own file',
+  'Schriften im Projekt liegen im Projektordner und sind bei allen da, die mitarbeiten.': 'Fonts in the project live in the project folder, so everyone working on the calendar has them.',
+  'Google Fonts gibt es mit dem lokalen Dienst: Er lädt die Schrift und bereitet sie für den Druck auf. Ohne Dienst kannst du eigene TrueType-Dateien hochladen.': 'Google Fonts are available with the local service: it downloads the font and prepares it for print. Without the service you can upload your own TrueType files.',
+  'Schrift suchen': 'Search fonts',
+  'Verzeichnis wird geladen …': 'Loading the directory …',
+  'Freie Schriften von Google Fonts (meist SIL Open Font License). Der Dienst lädt nur die gewählte Schrift; ins Projekt kommt sie erst beim Übernehmen.': 'Free fonts from Google Fonts (mostly SIL Open Font License). The service only downloads the font you pick; it goes into the project when you apply it.',
+  'Schriftdatei': 'Font file',
+  'TTF, OTF oder WOFF. Eine Datei für den normalen Schnitt, optional eine zweite für den fetten; variable Schriften liefern beide. Nur Schriften, deren Lizenz das Einbetten erlaubt.': 'TTF, OTF or WOFF. One file for the regular weight, optionally a second for bold; variable fonts provide both. Only fonts whose license allows embedding.',
+  'TrueType-Datei (.ttf). Eine Datei für den normalen Schnitt, optional eine zweite für den fetten. Nur Schriften, deren Lizenz das Einbetten erlaubt.': 'TrueType file (.ttf). One file for the regular weight, optionally a second for bold. Only fonts whose license allows embedding.',
+  '{n} weitere – Suche eingrenzen.': '{n} more – narrow the search.',
+  'Keine Schrift gefunden.': 'No font found.',
+  'Schrift für {slot}: {family}': 'Font for {slot}: {family}',
+  'Überschriften': 'Headings',
+  'Kalendarium und Texte': 'Calendar grid and texts',
+  'Ändern …': 'Change …',
+  'Passende Paare': 'Matching pairs',
+  'Überschrift · Text. Ein Klick lädt beide Schriften und setzt sie im ganzen Kalender.': 'Heading · text. One click loads both fonts and uses them throughout the calendar.',
+  'Schriften werden geladen': 'Loading fonts',
+  'Schriften: {head} für Überschriften, {text} für Kalendarium und Texte.': 'Fonts: {head} for headings, {text} for the calendar grid and texts.',
+  'Wieder Jost für alles.': 'Back to Jost for everything.',
 });
 /* ---------- CMYK-JPEG-Encoder (Baseline, 4 Kanäle, ohne Unterabtastung) ---------- */
 const JPEG = (() => {
@@ -1893,14 +1959,16 @@ class PDFWriter {
   }
   async addFonts() {
     this.fontIds = {};
-    for (const key of ['regular', 'bold']) {
+    const done = new Map();                       // gleiche Schrift für Text und Überschriften nur einmal einbetten
+    for (const key of ['regular', 'bold', 'hregular', 'hbold']) {
       const f = FONTS[key];
+      if (done.has(f)) { this.fontIds[key] = done.get(f); continue; }
       const ff = this.alloc(), fd = this.alloc(), fo = this.alloc();
       const raw = b64bytes(f.b64);
       await this.streamObj(ff, `/Length1 ${raw.length}`, raw);
-      this.obj(fd, `<< /Type /FontDescriptor /FontName /${f.ps} /Flags 32 /FontBBox [${f.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${f.ascent} /Descent ${f.descent} /CapHeight ${f.cap} /StemV ${key === 'bold' ? 120 : 80} /FontFile2 ${ff} 0 R >>`);
+      this.obj(fd, `<< /Type /FontDescriptor /FontName /${f.ps} /Flags 32 /FontBBox [${f.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${f.ascent} /Descent ${f.descent} /CapHeight ${f.cap} /StemV ${key.endsWith('bold') ? 120 : 80} /FontFile2 ${ff} 0 R >>`);
       this.obj(fo, `<< /Type /Font /Subtype /TrueType /BaseFont /${f.ps} /FirstChar 32 /LastChar 255 /Widths [${f.widths.join(' ')}] /Encoding /WinAnsiEncoding /FontDescriptor ${fd} 0 R >>`);
-      this.fontIds[key] = fo;
+      this.fontIds[key] = fo; done.set(f, fo);
     }
   }
   addJpeg(bytes, w, h, cs = 'DeviceCMYK', extra = '') {
@@ -1914,7 +1982,7 @@ class PDFWriter {
     const xo = Object.entries(images).map(([n, id]) => `/${n} ${id} 0 R`).join(' ');
     const gs = alphas.map(a => `/GA${Math.round(a * 100)} << /Type /ExtGState /ca ${a} /CA ${a} >>`).join(' ');
     const box = (b) => `[${b.map(v => v.toFixed(3)).join(' ')}]`;
-    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R >> /XObject << ${xo} >> /ExtGState << ${gs} >> >> /Contents ${cid} 0 R >>`);
+    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R /F3 ${this.fontIds.hregular} 0 R /F4 ${this.fontIds.hbold} 0 R >> /XObject << ${xo} >> /ExtGState << ${gs} >> >> /Contents ${cid} 0 R >>`);
     this.pages.push(pid);
   }
   finish(title) {
@@ -2062,6 +2130,7 @@ function defaultDoc() {
     birthdays: [], indexBirthdays: true,
     indexTitle: _t('Die Fotos des Jahres'), indexMode: 'photos', indexThumbs: true, indexNums: true, indexText: '',
     dpi: 300, quality: 90,
+    fonts: { head: null, text: null },   // null = Jost; sonst { id, family, files: { regular, bold } } (b8_fonts.js)
   };
 }
 // Das zuletzt gewählte Bundesland gilt auch für neue Projekte
@@ -2727,8 +2796,8 @@ const CAL_DESIGNS = {
 };
 // Gestaltung des Kalendariums (gilt für alle Monate), mit Rückfall für ältere Projekte
 const calOpts = (c) => ({ ...CAL_DESIGNS.classic, width: 'auto', ...Object.fromEntries(['title', 'wd', 'weeks', 'num', 'width'].filter(k => c[k] != null).map(k => [k, c[k]])) });
-let DIGIT_ADV = null;
-const digitAdvance = (font) => (DIGIT_ADV ||= Object.fromEntries(['regular', 'bold'].map(f => [f, Math.max(...[...'0123456789'].map(d => textWidth(d, f, 1)))])))[font];
+let DIGIT_ADV = {};                                    // je Schrift; applyFonts() leert den Speicher
+const digitAdvance = (font) => (DIGIT_ADV[font] ??= Math.max(...[...'0123456789'].map(d => textWidth(d, font, 1))));
 const numWidth = (n, font, size) => String(n).length * digitAdvance(font) * size;
 // Zahl mit Ziffern gleicher Breite: jede Ziffer mittig in ihrem Feld
 function tnum(x, y, n, font, size, fill, anchor = 'middle') {
@@ -2746,33 +2815,33 @@ function calTitle(m, year, ts, color, o, stack = false) {
   const mn = MONTH_NAMES[calLang()][m], items = [];
   if (o.title === 'caps') {
     const s = Math.max(ts * .58, CAL_MIN_TEXT), ls = s * .16, a = mn.toUpperCase(), b = String(year), base = s * .72;
-    items.push(TL(0, base, a, 'bold', s, color, ls));
-    if (stack) { items.push(TL(0, base + s * 1.35, b, 'regular', s, color, ls)); return { items, w: Math.max(trackedWidth(a, 'bold', s, ls), trackedWidth(b, 'regular', s, ls)), base: base + s * 1.35 }; }
-    const x = trackedWidth(a, 'bold', s, ls) + s * .9;
-    items.push(TL(x, base, b, 'regular', s, color, ls));
-    return { items, w: x + trackedWidth(b, 'regular', s, ls), base };
+    items.push(TL(0, base, a, 'hbold', s, color, ls));
+    if (stack) { items.push(TL(0, base + s * 1.35, b, 'hregular', s, color, ls)); return { items, w: Math.max(trackedWidth(a, 'hbold', s, ls), trackedWidth(b, 'hregular', s, ls)), base: base + s * 1.35 }; }
+    const x = trackedWidth(a, 'hbold', s, ls) + s * .9;
+    items.push(TL(x, base, b, 'hregular', s, color, ls));
+    return { items, w: x + trackedWidth(b, 'hregular', s, ls), base };
   }
   if (o.title === 'light') {
     const base = ts * .74, ys = Math.max(ts * .5, CAL_MIN_TEXT);
-    items.push(T(0, base, mn, 'regular', ts, color));
-    if (stack) { items.push(T(0, base + ys * 1.5, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'regular', ts), base: base + ys * 1.5 }; }
-    const x = textWidth(mn, 'regular', ts) + ts * .3;
-    items.push(T(x, base, String(year), 'regular', ys, color));
-    return { items, w: x + textWidth(String(year), 'regular', ys), base };
+    items.push(T(0, base, mn, 'hregular', ts, color));
+    if (stack) { items.push(T(0, base + ys * 1.5, String(year), 'hregular', ys, color)); return { items, w: textWidth(mn, 'hregular', ts), base: base + ys * 1.5 }; }
+    const x = textWidth(mn, 'hregular', ts) + ts * .3;
+    items.push(T(x, base, String(year), 'hregular', ys, color));
+    return { items, w: x + textWidth(String(year), 'hregular', ys), base };
   }
   if (o.title === 'number') {
     const big = ts * 1.7, s = Math.max(ts * .5, CAL_MIN_TEXT), num = String(m + 1).padStart(2, '0'), base = big * .72;
-    items.push(...tnum(0, base, num, 'bold', big, color, 'start'));
-    const x = numWidth(num, 'bold', big) + big * .18;
-    items.push(T(x, base - s * 1.25, mn, 'bold', s, color), T(x, base, String(year), 'regular', s, color));
-    return { items, w: x + Math.max(textWidth(mn, 'bold', s), textWidth(String(year), 'regular', s)), base };
+    items.push(...tnum(0, base, num, 'hbold', big, color, 'start'));
+    const x = numWidth(num, 'hbold', big) + big * .18;
+    items.push(T(x, base - s * 1.25, mn, 'hbold', s, color), T(x, base, String(year), 'hregular', s, color));
+    return { items, w: x + Math.max(textWidth(mn, 'hbold', s), textWidth(String(year), 'hregular', s)), base };
   }
   const base = ts * .74;                                               // klassisch: Monat fett, Jahr normal
-  items.push(T(0, base, mn, 'bold', ts, color));
-  if (stack) { const ys = ts * .6; items.push(T(0, base + ys * 1.25, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'bold', ts), base: base + ys * 1.25 }; }
-  const x = textWidth(mn, 'bold', ts) + ts * .25;
-  items.push(T(x, base, String(year), 'regular', ts, color));
-  return { items, w: x + textWidth(String(year), 'regular', ts), base };
+  items.push(T(0, base, mn, 'hbold', ts, color));
+  if (stack) { const ys = ts * .6; items.push(T(0, base + ys * 1.25, String(year), 'hregular', ys, color)); return { items, w: textWidth(mn, 'hbold', ts), base: base + ys * 1.25 }; }
+  const x = textWidth(mn, 'hbold', ts) + ts * .25;
+  items.push(T(x, base, String(year), 'hregular', ts, color));
+  return { items, w: x + textWidth(String(year), 'hregular', ts), base };
 }
 const dayStyle = (c, o, sp) => ({ fill: sp && c.hi === 'red' ? 'red' : c.color, font: sp && c.hi !== 'none' ? 'bold' : o.num });
 const rule = (x, y, w, h, fill) => ({ t: 'rect', x, y, w, h, fill });
@@ -2942,8 +3011,8 @@ function titleBlock(p) {
   const t = p.title, f = t.size * Math.min(S.doc.w, S.doc.h) / 300, items = [];
   const ts = 24 * f, ss = 11 * f;
   let y = ts * .74, w = 0;
-  if (t.text) { items.push(T(0, y, t.text, 'bold', ts, t.color)); w = textWidth(t.text, 'bold', ts); }
-  if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'regular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'regular', ss)); }
+  if (t.text) { items.push(T(0, y, t.text, 'hbold', ts, t.color)); w = textWidth(t.text, 'hbold', ts); }
+  if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'hregular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'hregular', ss)); }
   if (!items.length) return null;
   return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel, t.opacity ?? .85) };
 }
@@ -3055,7 +3124,7 @@ function textLayout() {
   for (const raw of String(doc.indexText || '').split(/\n\s*\n/)) {
     const t = raw.trim(); if (!t) continue;
     for (const line of t.split('\n')) {
-      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'bold', hs, colW) });
+      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'hbold', hs, colW) });
       else if (line.trim()) blocks.push({ head: false, lines: wrap(line.trim(), 'regular', bs, colW) });
     }
     blocks.push({ gap: true });
@@ -3072,7 +3141,7 @@ function textLayout() {
     for (const l of b.lines) {
       if (y + lh > H - mg) nextCol();
       y += lh;
-      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'bold' : 'regular', b.head ? hs : bs, null));
+      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'hbold' : 'regular', b.head ? hs : bs, null));
     }
   }
   pages.push(cur);
@@ -3098,11 +3167,11 @@ function indexItems(p) {
   const col = veil && veil.opacity >= .5 ? (veil.tone === 'dark' ? 'white' : 'black') : doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
-    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'bold', 9 * f, col));
-    items.push(T(mg, mg + 9 * f * .74 + 6 * f, _tc('Familienkalender {year}', { year: doc.year }), 'regular', 3.2 * f, col));
+    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'hbold', 9 * f, col));
+    items.push(T(mg, mg + 9 * f * .74 + 6 * f, _tc('Familienkalender {year}', { year: doc.year }), 'hregular', 3.2 * f, col));
     // Hinweis auf leerer Seite richtet sich an die Bearbeiter, daher in der Sprache der Oberfläche
     if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? _t('Noch kein Text. Rechts unter „Register“ schreiben.') : _t('Noch keine Fotos auf den Seiten.'), 'regular', 3.5 * f, col)); return items; }
-  } else items.push(T(mg, mg + 6 * f * .74, _tc('{title} (Fortsetzung)', { title: doc.indexTitle || _tc('Bildregister') }), 'bold', 6 * f, col));
+  } else items.push(T(mg, mg + 6 * f * .74, _tc('{title} (Fortsetzung)', { title: doc.indexTitle || _tc('Bildregister') }), 'hbold', 6 * f, col));
   // Quellenhinweis zu den Schulferien auf der letzten Registerseite
   if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, schoolSourceNote(), 'regular', 2 * f, col));
   if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
@@ -3191,7 +3260,7 @@ function svgPage(p, o = {}) {
       case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}${it.veil ? ' pointer-events="none"' : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
-      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
+      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" ${fontAttrs(it.font)} fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place, sm = small || it.mini, pu = proofOn() && proofUrl(it.photo, sm);
         const want = plainUrl(it.photo, sm), base = baseUrl(it.photo, sm);
@@ -3294,7 +3363,7 @@ function svgPage(p, o = {}) {
   let content = body.slice(nPartner).join('');
   if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/><g clip-path="url(#${cid})">${content}</g>`; }
   content = body.slice(0, nPartner).join('') + content;
-  return `<svg ${o.attrs || ''} viewBox="${vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" role="img" aria-label="${esc(pageLabel(p.key))}"><defs>${defs.join('')}</defs>${content}<g data-over="1">${over}</g></svg>`;
+  return `<svg ${o.attrs || ''} viewBox="${vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalText,sans-serif;font-kerning:none" role="img" aria-label="${esc(pageLabel(p.key))}"><defs>${defs.join('')}</defs>${content}<g data-over="1">${over}</g></svg>`;
 }
 
 // Ringbindung und Aufhänger-Ausschnitt
@@ -3372,6 +3441,7 @@ function setView(v, fromHistory = false) {
 }
 function renderAll() {
   ensurePages();
+  ensureFonts();                                   // lädt geänderte Schriften und zeichnet dann noch einmal
   document.body.dataset.view = ui.view;
   $$('.steps button').forEach(b => b.setAttribute('aria-selected', b.dataset.view === ui.view));
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + ui.view));
@@ -3430,6 +3500,9 @@ function renderProject() {
         ${range('mg', 'doc.margin', d.margin, 0, 20, 1, ' mm', _t('Außenrand (0 = randabfallend)'))}
         ${range('ob', 'doc.ovBorder', d.ovBorder, 0, 6, .5, ' mm', _t('Rahmen um Einleger-Bilder'))}
         <div class="field"><span class="lbl">${_t('Papier / Hintergrund')}</span>${swatches(BG_COLORS, d.bg, 'bg')}${d.bg === 'rich' ? `<p class="hint">${richBlackHint()}</p>` : ''}</div>
+      </section>
+      <section class="card"><header><h2>${_t('Schrift')}</h2><p>${_t('Gilt für den ganzen Kalender: Google Fonts oder eigene Schriften.')}</p></header>
+        ${fontRow('head')}${fontRow('text')}${fontPairs()}
       </section>
       <section class="card"><header><h2>${_t('Kalendarium')}</h2><p>${_t('Voreinstellung für alle Monate. Jede Seite kann abweichen.')}</p></header>
         <div class="field"><span class="lbl">${_t('Form')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')]], d.cal.style, 'defstyle')}</div>
@@ -3749,9 +3822,9 @@ function miniCal(style, design, m) {
   const lay = calFn(style)(S.doc.year, m, 1, c);
   const vw = Math.min(lay.w, style === 'h' || style === 'w' ? 74 : 62), vh = Math.min(lay.h, style === 'v' ? 46 : 46);
   const el = lay.items.map(it => it.t === 'text'
-    ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
+    ? `<text x="${it.x}" y="${it.y}" font-size="${it.size}" ${fontAttrs(it.font)} fill="${cRGBraw(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`
     : it.t === 'rect' ? `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGBraw(it.fill)}"/>` : it.t === 'circle' ? `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGBraw(it.fill)}"/>` : '').join('');
-  return `<svg viewBox="-2 -2 ${vw + 4} ${vh + 4}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" aria-hidden="true">${el}</svg>`;
+  return `<svg viewBox="-2 -2 ${vw + 4} ${vh + 4}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalText,sans-serif;font-kerning:none" aria-hidden="true">${el}</svg>`;
 }
 const CAL_DESIGN_NAMES = () => ({ classic: _t('Klassisch'), modern: _t('Modern'), minimal: _t('Ruhig'), bold: _t('Kräftig') });
 // Gestaltung des Kalendariums: vier Varianten als Vorschau, Feinheiten aufklappbar. Gilt für alle Monate.
@@ -3786,6 +3859,7 @@ function panelCal(p) {
   return where + auto + bdBox + `<div class="field"><span class="lbl">${_t('Kalendarium auf dieser Seite')}</span>${seg([['h', _t('Leiste')], ['v', _t('Spalte')], ['g', _t('Raster')], ['w', _t('Doppelraster')], ['off', _t('Aus')]], c.style, 'calstyle')}</div>
     ${c.style === 'off' ? '' : `
     ${calDesignBox(p, c)}
+    ${fontRow('text')}
     ${range('cs', 'page.cal.size', c.size, .6, 1.8, .05, '×', _t('Größe'))}
     <div class="field"><span class="lbl">${_t('Schriftfarbe')}</span>${swatches(TEXT_COLORS, c.color, 'calcolor')}</div>
     <div class="field"><span class="lbl">${_t('Fläche dahinter')}</span>${seg([['none', _t('Keine')], ['light', _t('Hell')], ['dark', _t('Dunkel')], ['paper', _t('Papier')]], c.panel, 'calpanel')}</div>
@@ -3801,6 +3875,7 @@ function panelTitle(p) {
   const t = p.title;
   return `<div class="field"><label for="tt">${_t('Titel')}</label><input type="text" id="tt" data-bind="page.title.text" value="${esc(t.text)}"></div>
     <div class="field"><label for="ts">${_t('Untertitel')}</label><input type="text" id="ts" data-bind="page.title.sub" value="${esc(t.sub)}"></div>
+    ${fontRow('head')}
     ${range('tz', 'page.title.size', t.size, .5, 2, .05, '×', _t('Größe'))}
     <div class="field"><span class="lbl">${_t('Schriftfarbe')}</span>${swatches(TEXT_COLORS, t.color, 'titlecolor')}</div>
     <div class="field"><span class="lbl">${_t('Fläche dahinter')}</span>${seg([['none', _t('Keine')], ['light', _t('Hell')], ['dark', _t('Dunkel')], ['paper', _t('Papier')]], t.panel, 'titlepanel')}</div>
@@ -3912,7 +3987,7 @@ function renderPrint() {
           ${[[300, _t('Für den Druck (300 dpi)')], [200, _t('Kleinere Datei (200 dpi)')], [100, _t('Schnelle Vorschau (100 dpi)')]].map(([v, l]) => `<option value="${v}" ${d.dpi == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <details class="specs-box"><summary>${_t('Technische Angaben für die Druckerei')}</summary>
         <dl class="specs"><dt>${_t('Endformat')}</dt><dd>${fmt1(d.w)} × ${fmt1(d.h)} mm</dd><dt>${_t('Mit Beschnitt')}</dt><dd>${_t('{w} × {h} mm ({b} mm Rand, der beim Schneiden wegfällt)', { w: fmt1(d.w + 2 * d.bleed), h: fmt1(d.h + 2 * d.bleed), b: fmt1(d.bleed) })}</dd>
-          <dt>${_t('Farben')}</dt><dd>${_t('CMYK, einfache Umrechnung ohne ICC-Profil')}</dd><dt>${_t('Schrift')}</dt><dd>${_t('Jost, eingebettet, Text als Vektor')}</dd>
+          <dt>${_t('Farben')}</dt><dd>${_t('CMYK, einfache Umrechnung ohne ICC-Profil')}</dd><dt>${_t('Schrift')}</dt><dd>${_t('{fonts}, eingebettet, Text als Vektor', { fonts: esc(fontNames()) })}</dd>
           <dt>${_t('Transparenz')}</dt><dd>${_t('keine (Flächen werden eingerechnet)')}</dd><dt>${_t('Fehlt noch')}</dt><dd>${_t('ICC-Ausgabeprofil, PDF/X, Druckerei-Profil')}</dd></dl>
         <div class="field"><label for="jq">${_t('JPEG-Qualität')}</label><select id="jq" data-bind="doc.quality">
           ${[[95, _t('Sehr hoch')], [90, _t('Hoch')], [80, _t('Mittel')]].map(([v, l]) => `<option value="${v}" ${d.quality == v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -5048,6 +5123,7 @@ let lastPdf = null;
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
   if (print && tuneOn()) await loadTune(printerOf());
+  await ensureFonts();                            // eingebettet wird, was gerade gewählt ist
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
   const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;
@@ -5077,7 +5153,7 @@ async function exportPDF(mode = 'draft') {
         } else if (it.t === 'text') {
           const w = it.ls ? trackedWidth(it.text, it.font, it.size, it.ls) : textWidth(it.text, it.font, it.size);
           const x = it.anchor === 'middle' ? it.x - w / 2 : it.anchor === 'end' ? it.x - w : it.x;
-          const bt = `BT /${it.font === 'bold' ? 'F2' : 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`;
+          const bt = `BT /${PDF_FONT[it.font] || 'F1'} ${pdfNum(it.size * MM)} Tf ${kop(it.fill)} k ${X(x)} ${Y(it.y)} Td (${pdfStr(it.text)}) Tj ET`;
           ops.push(it.ls ? `q ${pdfNum(it.ls * MM)} Tc ${bt} Q` : bt);   // Laufweite gehört zum Grafikzustand: mit q/Q begrenzen
         } else if (it.t === 'img') {
           bar.update(done / nImg, _t('Seite {n} von {total} · {page} · Bild wird umgerechnet', { n: pi + 1, total: keys.length, page: pageLabel(k) }));
@@ -5165,12 +5241,7 @@ function fallbackSave() {
 }
 
 /* ---------- Start ---------- */
-function injectFonts() {
-  const st = document.createElement('style');
-  st.textContent = `@font-face{font-family:CalJost;font-weight:400;src:url(data:font/ttf;base64,${FONTS.regular.b64}) format("truetype")}
-@font-face{font-family:CalJost;font-weight:600;src:url(data:font/ttf;base64,${FONTS.bold.b64}) format("truetype")}`;
-  document.head.appendChild(st);
-}
+const PDF_FONT = { regular: 'F1', bold: 'F2', hregular: 'F3', hbold: 'F4' };
 async function loadSaved() {
   const json = await DB.get('kv', 'state');
   if (!json) return false;
@@ -5191,6 +5262,7 @@ async function loadSaved() {
   hist.past = past;
   const ids = await DB.keys('blobs') || [];
   for (const id of ids) {
+    if (String(id).startsWith('font:')) continue;                 // eigene Schriften (b8_fonts.js), keine Fotos
     const rec = await DB.get('blobs', id);
     if (!S.photos[id] && !keep.has(id) && !Object.values(S.photos).some(p => p.copyOf === id)) { DB.del('blobs', id); continue; }
     if (rec) { setUrls(id, rec.prev, rec.thumb); if (rec.file) RT.file[id] = rec.file; }
@@ -5202,7 +5274,7 @@ async function loadSaved() {
   return true;
 }
 async function init() {
-  injectFonts();
+  applyFonts();                                   // Jost, bis die Schriften des Projekts geladen sind
   applyStaticTexts();
   $('#undo').innerHTML = ICON.undo; $('#redo').innerHTML = ICON.redo;
   try { downloadsCap = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null); } catch (e) { downloadsCap = Promise.resolve(null); }
@@ -5235,7 +5307,8 @@ async function init() {
   if (!SVC.on) { hist.last = snap(); scheduleSave(); }
   updateUndo();
   if (had) { try { const pg = localStorage.getItem('kw-page'); if (pg && pageKeys().includes(pg)) { ui.page = pg; if (ui.view === 'design') setTimeout(() => toast(_t('Willkommen zurück. Weiter bei {page}.', { page: pageLabel(pg) })), 600); } } catch (e) { /* egal */ } }
-  if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalJost'), document.fonts.load('600 16px CalJost')]); } catch (e) { /* egal */ } }
+  await ensureFonts();
+  if (document.fonts && document.fonts.load) { try { await Promise.all([document.fonts.load('16px CalText'), document.fonts.load('600 16px CalHead')]); } catch (e) { /* egal */ } }
   const hv = Object.keys(VIEW_HASH).find(k => '#' + VIEW_HASH[k] === location.hash); if (hv) ui.view = hv;   // Direktlink auf einen Schritt
   try { history.replaceState({ view: ui.view }, '', '#' + VIEW_HASH[ui.view]); } catch (e) { /* egal */ }
   renderAll();
@@ -5531,7 +5604,7 @@ async function openProject(pid) {
   const notes = await acquireLock();
   const man = await api(PP('/manifest'));
   applyManifest(man); SVC.stamp = man.stamp || null;
-  loadPrinters().then(() => { if (ui.view === 'design') renderStage(); });
+  loadPrinters().then(() => { if (ui.view === 'design' && document.body.dataset.view) renderStage(); });   // erst nach dem ersten Zeichnen
   FACES.map = {}; FACES.on = null; prefetchFaces();
   try { localStorage.setItem('lj-project', pid); } catch (e) { /* egal */ }
   const u = new URL(location.href); u.searchParams.set('projekt', pid);
@@ -7299,6 +7372,345 @@ document.addEventListener('pointercancel', () => { LOUPE.touch = false; }, true)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ui.loupe) { e.stopImmediatePropagation(); loupeToggle(false); }
 }, true);
+/* ---------- Schriften: Überschriften und Kalendarium/Texte ----------
+   Zwei Plätze (S.doc.fonts.head und .text), jeweils null = Jost oder { id, family, files: { regular, bold } }.
+   Der Kalender setzt Text selbst: Breiten kommen aus der Schrift (FONTS[…].widths), eingebettet wird sie als
+   TrueType mit WinAnsi-Kodierung. Schlüssel der Textstücke: 'regular'/'bold' für Kalendarium und Texte,
+   'hregular'/'hbold' für Überschriften (Monatsname, Titel). Im Editor heißen die Familien CalText und CalHead.
+
+   Woher die Dateien kommen: mit dem Dienst aus dem Projektordner (.lichtjahr/fonts, auch Google Fonts landen
+   dort), ohne Dienst aus dem Browser-Speicher (nur eigene TrueType-Dateien). */
+const JOST = { regular: FONTS.regular, bold: FONTS.bold };
+FONTS.hregular = FONTS.regular; FONTS.hbold = FONTS.bold;
+const FONTSTATE = { sig: 'null', loading: null, bytes: {}, faces: [], warned: {}, loaded: { text: null, head: null } };
+const FONT_SLOTS = { head: ['hregular', 'hbold'], text: ['regular', 'bold'] };
+const fontSig = () => JSON.stringify(S.doc.fonts || null);
+const fontFamilyOf = (slot) => { const f = (S.doc.fonts || {})[slot]; return f ? f.family : 'Jost'; };
+const isHeadFont = (key) => key === 'hregular' || key === 'hbold';
+const isBoldFont = (key) => key === 'bold' || key === 'hbold';
+// SVG-Attribute eines Textstücks: Familie und Strichstärke
+const fontAttrs = (key) => `font-family="${isHeadFont(key) ? 'CalHead' : 'CalText'},sans-serif" font-weight="${isBoldFont(key) ? 600 : 400}"`;
+
+/* ----- TrueType lesen: Breiten für WinAnsi, Kennzahlen fürs PDF, fehlende Zeichen, Einbett-Recht ----- */
+const WINANSI_UNI = (() => {
+  const back = Object.fromEntries(Object.entries(CP1252).map(([u, c]) => [c, +u]));
+  return Array.from({ length: 224 }, (_, i) => { const c = i + 32; return c >= 0x80 && c <= 0x9F ? back[c] || 0 : c; });
+})();
+const FONT_NEEDED = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ÄÖÜäöüß.,:;-–()/';
+function parseTTF(bytes) {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const tag = (o) => String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]);
+  const u16 = (o) => dv.getUint16(o), s16 = (o) => dv.getInt16(o), u32 = (o) => dv.getUint32(o);
+  if (u8.length < 12) throw new Error('format');
+  const ver = u32(0);
+  if (tag(0) === 'OTTO') throw new Error('cff');
+  if (tag(0) === 'wOFF' || tag(0) === 'wOF2') throw new Error('woff');
+  if (ver !== 0x00010000 && tag(0) !== 'true') throw new Error('format');
+  const T = {};
+  for (let i = 0, n = u16(4); i < n; i++) { const o = 12 + i * 16; T[tag(o)] = u32(o + 8); }
+  if (T.glyf == null || T.head == null || T.hhea == null || T.hmtx == null || T.cmap == null) throw new Error('format');
+  const upm = u16(T.head + 18), k = 1000 / upm, sc = (v) => Math.round(v * k);
+  const nHM = u16(T.hhea + 34), adv = (g) => u16(T.hmtx + 4 * Math.min(g, nHM - 1));
+  // Zeichenzuordnung: Unicode-Tabelle (Format 12 oder 4)
+  let sub = null, best = -1;
+  for (let i = 0, n = u16(T.cmap + 2); i < n; i++) {
+    const p = u16(T.cmap + 4 + i * 8), e = u16(T.cmap + 6 + i * 8), o = T.cmap + u32(T.cmap + 8 + i * 8), f = u16(o);
+    const score = p === 3 && e === 10 && f === 12 ? 4 : p === 0 && f === 12 ? 3 : p === 3 && e === 1 && f === 4 ? 2 : p === 0 && f === 4 ? 1 : -1;
+    if (score > best) { best = score; sub = o; }
+  }
+  if (sub == null || best < 0) throw new Error('format');
+  const glyph = u16(sub) === 12 ? (u) => {
+    for (let i = 0, n = u32(sub + 12); i < n; i++) { const o = sub + 16 + i * 12, a = u32(o), b = u32(o + 4); if (u >= a && u <= b) return u32(o + 8) + (u - a); }
+    return 0;
+  } : (u) => {
+    const seg = u16(sub + 6) / 2, ends = sub + 14, starts = ends + seg * 2 + 2, deltas = starts + seg * 2, ranges = deltas + seg * 2;
+    for (let i = 0; i < seg; i++) {
+      if (u > u16(ends + 2 * i)) continue;
+      const start = u16(starts + 2 * i); if (u < start) return 0;
+      const delta = u16(deltas + 2 * i), ro = u16(ranges + 2 * i);
+      if (!ro) return (u + delta) & 0xFFFF;
+      const g = u16(ranges + 2 * i + ro + 2 * (u - start));
+      return g ? (g + delta) & 0xFFFF : 0;
+    }
+    return 0;
+  };
+  const widths = WINANSI_UNI.map(u => sc(adv(u ? glyph(u) : 0)));
+  // Namen (PostScript-Name fürs PDF, Familie für die Anzeige)
+  const names = {};
+  if (T.name != null) {
+    const strs = T.name + u16(T.name + 4);
+    for (let i = 0, n = u16(T.name + 2); i < n; i++) {
+      const o = T.name + 6 + i * 12, p = u16(o), id = u16(o + 6), len = u16(o + 8), off = strs + u16(o + 10);
+      if (names[id] && p !== 3) continue;
+      let s = '';
+      if (p === 3 || p === 0) for (let j = 0; j + 1 < len; j += 2) s += String.fromCharCode(u16(off + j));
+      else for (let j = 0; j < len; j++) s += String.fromCharCode(u8[off + j]);
+      names[id] = s;
+    }
+  }
+  let fsType = 0, cap = null, ascent = s16(T.hhea + 4), descent = s16(T.hhea + 6);
+  if (T['OS/2'] != null) {
+    const o = T['OS/2'], v = u16(o);
+    fsType = u16(o + 8);
+    if (v >= 2) cap = s16(o + 88);
+  }
+  const ps = (names[6] || names[4] || names[1] || 'Schrift').replace(/[^A-Za-z0-9-]/g, '') || 'Schrift';
+  return { ps, family: (names[16] || names[1] || '').trim(), widths, fsType,
+    bbox: [s16(T.head + 36), s16(T.head + 38), s16(T.head + 40), s16(T.head + 42)].map(sc),
+    ascent: sc(ascent), descent: sc(descent), cap: sc(cap ?? ascent * .7),
+    missing: [...FONT_NEEDED].filter(ch => !glyph(ch.codePointAt(0))), bytes: u8 };
+}
+function b64of(u8) {
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function fontMetrics(bytes) {
+  const m = parseTTF(bytes);
+  if ((m.fsType & 0x000F) === 0x0002) throw new Error('license');
+  return { ...m, b64: b64of(m.bytes) };
+}
+function fontErrorText(e) {
+  return e.message === 'cff' ? _t('Diese Datei hat PostScript-Umrisse (OpenType/CFF). Ohne den lokalen Dienst gehen nur TrueType-Dateien (.ttf); mit dem Dienst wird sie umgewandelt.')
+    : e.message === 'woff' ? _t('Webschriften (WOFF) gehen ohne den lokalen Dienst nicht. Bitte die TTF-Datei nehmen.')
+    : e.message === 'license' ? _t('Die Lizenz dieser Schrift erlaubt nicht, sie in ein PDF einzubetten.')
+    : e.message && !/^(format)$/.test(e.message) ? e.message : _t('Keine lesbare Schriftdatei (TrueType, OpenType oder WOFF erwartet).');
+}
+
+/* ----- Laden und anwenden ----- */
+async function fontBytes(name) {
+  if (FONTSTATE.bytes[name]) return FONTSTATE.bytes[name];
+  let buf;
+  if (SVC.pid) {
+    const r = await fetch(`api/${PP(`/fonts/${encodeURIComponent(name)}`)}`, { headers: SVC.token ? { Authorization: 'Bearer ' + SVC.token } : {} });
+    if (!r.ok) throw new Error(_t('Die Schriftdatei fehlt im Projektordner.'));
+    buf = await r.arrayBuffer();
+  } else {
+    const blob = await DB.get('blobs', 'font:' + name);
+    if (!blob) throw new Error(_t('Die Schriftdatei fehlt in diesem Browser.'));
+    buf = await blob.arrayBuffer();
+  }
+  return (FONTSTATE.bytes[name] = new Uint8Array(buf));
+}
+async function loadSlot(ref) {
+  if (!ref) return null;
+  const reg = fontMetrics(await fontBytes(ref.files.regular));
+  const bold = ref.files.bold ? fontMetrics(await fontBytes(ref.files.bold)) : reg;
+  return { family: ref.family, regular: reg, bold };
+}
+// Schriften des Projekts laden, wenn sie sich geändert haben (Öffnen, Rückgängig, Stand der anderen Person …)
+function ensureFonts() {
+  const sig = fontSig();
+  if (sig === FONTSTATE.sig || FONTSTATE.loading) return FONTSTATE.loading || Promise.resolve();
+  FONTSTATE.loading = (async () => {
+    const fonts = S.doc.fonts || {}, got = {};
+    for (const slot of ['text', 'head']) {
+      try { got[slot] = await loadSlot(fonts[slot]); }
+      catch (e) {
+        got[slot] = null;
+        const key = slot + ':' + (fonts[slot] && fonts[slot].family);
+        if (!FONTSTATE.warned[key]) { FONTSTATE.warned[key] = true; toast(_t('Schrift „{family}“ konnte nicht geladen werden, ersatzweise Jost: {error}', { family: fonts[slot].family, error: fontErrorText(e) }), 8000); }
+      }
+    }
+    FONTSTATE.loaded = got; FONTSTATE.sig = sig;
+    applyFonts();
+  })().finally(() => { FONTSTATE.loading = null; if (fontSig() !== FONTSTATE.sig) ensureFonts(); else if (document.body.dataset.view) renderAll(); });
+  return FONTSTATE.loading;
+}
+// Geladene (oder zur Vorschau gewählte) Schriften in FONTS eintragen und für den Editor registrieren
+function applyFonts(preview = null) {
+  for (const slot of ['text', 'head']) {
+    const f = (preview && preview.slot === slot ? preview.font : FONTSTATE.loaded[slot]) || JOST;
+    const [r, b] = FONT_SLOTS[slot];
+    FONTS[r] = f.regular; FONTS[b] = f.bold;
+  }
+  DIGIT_ADV = {};
+  for (const face of FONTSTATE.faces) document.fonts.delete(face);
+  FONTSTATE.faces = [];
+  for (const [fam, r, b] of [['CalText', 'regular', 'bold'], ['CalHead', 'hregular', 'hbold']]) {
+    for (const [key, w] of [[r, '400'], [b, '600']]) {
+      const bin = FONTS[key].bytes || (FONTS[key].bytes = b64bytes(FONTS[key].b64));
+      try { const face = new FontFace(fam, bin, { weight: w }); document.fonts.add(face); FONTSTATE.faces.push(face); face.load().catch(() => {}); } catch (e) { /* ältere Browser */ }
+    }
+  }
+}
+// Für Prüfung und Export: welche Schriften eingebettet werden
+function fontNames() {
+  const t = fontFamilyOf('text'), h = fontFamilyOf('head');
+  return t === h ? t : `${h} / ${t}`;
+}
+
+/* ----- Auswahl ----- */
+const FONTPICK = { slot: 'head', tab: 'project', q: '', cat: '', list: null, pick: null, busy: false, project: null };
+async function projectFontList() {
+  if (SVC.pid) { try { return (await api(PP('/fonts'))).fonts; } catch (e) { return []; } }
+  try { return JSON.parse(await DB.get('kv', 'fonts') || '[]'); } catch (e) { return []; }
+}
+async function openFontPicker(slot) {
+  Object.assign(FONTPICK, { slot, tab: 'project', q: '', cat: '', pick: null, busy: false, project: await projectFontList() });
+  const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  el.innerHTML = `<div class="card font-card"></div>`;
+  document.body.appendChild(el); FONTPICK.el = el;
+  el.addEventListener('click', fontPickClick);
+  el.addEventListener('input', (e) => { if (e.target.id === 'fontq') { FONTPICK.q = e.target.value; drawFontList(); } });
+  el.addEventListener('change', (e) => { if (e.target.id === 'fontfile') fontUpload(e.target); });
+  document.addEventListener('keydown', fontPickKey, true);
+  drawFontPicker();
+}
+function fontPickKey(e) { if (e.key === 'Escape' && FONTPICK.el) { e.stopPropagation(); closeFontPicker(false); } }
+function closeFontPicker(apply) {
+  if (!FONTPICK.el) return;
+  document.removeEventListener('keydown', fontPickKey, true);
+  FONTPICK.el.remove(); FONTPICK.el = null;
+  if (!apply) { applyFonts(); renderAll(); }
+}
+const FONT_CATS = () => [['', _t('Alle')], ['Serif', _t('Serifen')], ['Sans Serif', _t('Serifenlos')], ['Display', _t('Auffällig')], ['Handwriting', _t('Handschrift')], ['Monospace', _t('Schreibmaschine')]];
+function drawFontPicker() {
+  const P = FONTPICK, card = P.el.querySelector('.font-card');
+  const tabs = [['project', _t('Im Projekt')], ['google', 'Google Fonts'], ['upload', _t('Eigene Datei')]];
+  card.innerHTML = `<header><h2>${P.slot === 'head' ? _t('Schrift für Überschriften') : _t('Schrift für Kalendarium und Texte')}</h2>
+      <p>${P.slot === 'head' ? _t('Titel, Monatsnamen und Überschriften im Register.') : _t('Tageszahlen, Wochentage, Feiertage, Bildtexte.')}</p></header>
+    <div class="seg font-tabs" role="tablist">${tabs.map(([v, l]) => `<button role="tab" aria-pressed="${P.tab === v}" data-fp="tab" data-v="${v}">${l}</button>`).join('')}</div>
+    <div class="font-body"><div class="font-left">${fontTab()}</div>
+      <div class="font-right"><div class="font-prev" aria-hidden="true">${svgPage(curPage(), { mode: 'thumb' })}</div>
+        <p class="font-sample" style="font-family:${P.slot === 'head' ? 'CalHead' : 'CalText'},sans-serif"><b>${esc(MONTH_NAMES[calLang()][pageMonth(ui.page) ?? 0])} ${S.doc.year}</b><br>1 2 3 4 5 6 7 · ÄÖÜ äöü ß</p>
+        <p class="hint" id="fontinfo">${fontPickInfo()}</p></div></div>
+    <div class="row"><button class="btn primary" data-fp="apply" ${P.pick && !P.busy ? '' : 'disabled'}>${_t('Übernehmen')}</button><button class="btn" data-fp="cancel">${_t('Abbrechen')}</button></div>`;
+  if (P.tab === 'google') drawFontList();
+}
+function fontPickInfo() {
+  const P = FONTPICK, p = P.pick;
+  if (P.busy) return _t('Schrift wird geladen …');
+  if (P.error) return `<span class="bad-text">${esc(P.error)}</span>`;
+  if (!p) return _t('Eine Schrift wählen: Die Vorschau zeigt sie gleich auf dieser Seite.');
+  const miss = p.font && [...new Set([...(p.font.regular.missing || []), ...(p.font.bold.missing || [])])];
+  return esc(p.family) + (p.font && p.font.bold === p.font.regular ? ' · ' + _t('ohne fetten Schnitt') : '')
+    + (miss && miss.length ? ` · <span class="bad-text">${esc(_t('Es fehlen Zeichen: {chars}', { chars: miss.join(' ') }))}</span>` : '');
+}
+function fontTab() {
+  const P = FONTPICK, cur = (S.doc.fonts || {})[P.slot];
+  if (P.tab === 'project') {
+    const items = [{ id: '', family: 'Jost', note: _t('mitgeliefert') }, ...(P.project || []).map(f => ({ ...f, note: f.source === 'google' ? 'Google Fonts' : _t('eigene Datei') }))];
+    return `<div class="font-list">${items.map(f => `<button class="font-item" data-fp="proj" data-v="${esc(f.id)}" aria-pressed="${P.pick ? P.pick.id === f.id : (cur ? cur.id : '') === f.id}"><b>${esc(f.family)}</b><span class="muted">${esc(f.note)}</span></button>`).join('')}</div>
+      <p class="hint">${_t('Schriften im Projekt liegen im Projektordner und sind bei allen da, die mitarbeiten.')}</p>`;
+  }
+  if (P.tab === 'google') {
+    if (!SVC.pid) return `<p class="hint">${_t('Google Fonts gibt es mit dem lokalen Dienst: Er lädt die Schrift und bereitet sie für den Druck auf. Ohne Dienst kannst du eigene TrueType-Dateien hochladen.')}</p>`;
+    return `<input type="search" id="fontq" placeholder="${esc(_t('Schrift suchen'))}" value="${esc(P.q)}" aria-label="${esc(_t('Schrift suchen'))}">
+      <div class="seg font-cats">${FONT_CATS().map(([v, l]) => `<button data-fp="cat" data-v="${v}" aria-pressed="${P.cat === v}">${l}</button>`).join('')}</div>
+      <div class="font-list" id="fontlist"><p class="hint">${_t('Verzeichnis wird geladen …')}</p></div>
+      <p class="hint">${_t('Freie Schriften von Google Fonts (meist SIL Open Font License). Der Dienst lädt nur die gewählte Schrift; ins Projekt kommt sie erst beim Übernehmen.')}</p>`;
+  }
+  return `<div class="field"><label for="fontfile">${_t('Schriftdatei')}</label><input type="file" id="fontfile" accept=".ttf,.otf,.woff,font/ttf,font/otf" multiple>
+      <p class="hint">${SVC.pid ? _t('TTF, OTF oder WOFF. Eine Datei für den normalen Schnitt, optional eine zweite für den fetten; variable Schriften liefern beide. Nur Schriften, deren Lizenz das Einbetten erlaubt.') : _t('TrueType-Datei (.ttf). Eine Datei für den normalen Schnitt, optional eine zweite für den fetten. Nur Schriften, deren Lizenz das Einbetten erlaubt.')}</p></div>`;
+}
+async function drawFontList() {
+  const P = FONTPICK, box = P.el && P.el.querySelector('#fontlist'); if (!box) return;
+  if (!P.list) {
+    try { P.list = (await api('fonts/google')).families; }
+    catch (e) { box.innerHTML = `<p class="bad-text">${esc(e.message)}</p>`; return; }
+  }
+  const q = P.q.trim().toLowerCase(), hits = P.list.filter(f => (!P.cat || f.category === P.cat) && (!q || f.family.toLowerCase().includes(q)));
+  box.innerHTML = hits.slice(0, 80).map(f => `<button class="font-item" data-fp="google" data-v="${esc(f.family)}" aria-pressed="${!!(P.pick && P.pick.google === f.family)}"><b>${esc(f.family)}</b><span class="muted">${esc((FONT_CATS().find(c => c[0] === f.category) || [0, f.category])[1])}</span></button>`).join('')
+    + (hits.length > 80 ? `<p class="hint">${_t('{n} weitere – Suche eingrenzen.', { n: hits.length - 80 })}</p>` : !hits.length ? `<p class="hint">${_t('Keine Schrift gefunden.')}</p>` : '');
+}
+function showFontPreview() {
+  const P = FONTPICK; if (!P.el) return;
+  applyFonts(P.pick && P.pick.font ? { slot: P.slot, font: P.pick.font } : null);
+  const pv = P.el.querySelector('.font-prev'); if (pv) pv.innerHTML = svgPage(curPage(), { mode: 'thumb' });
+  P.el.querySelector('#fontinfo').innerHTML = fontPickInfo();
+  P.el.querySelector('[data-fp="apply"]').disabled = !P.pick || P.busy;
+  P.el.querySelectorAll('[data-fp="proj"],[data-fp="google"]').forEach(b => b.setAttribute('aria-pressed', !!(P.pick && (b.dataset.fp === 'google' ? P.pick.google === b.dataset.v : P.pick.id === b.dataset.v))));
+}
+async function fontPickClick(e) {
+  const P = FONTPICK, b = e.target.closest('[data-fp]'); if (!b) return;
+  const a = b.dataset.fp;
+  if (a === 'cancel') return closeFontPicker(false);
+  if (a === 'tab') { P.tab = b.dataset.v; drawFontPicker(); return; }
+  if (a === 'cat') { P.cat = b.dataset.v; P.el.querySelectorAll('[data-fp="cat"]').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === P.cat)); drawFontList(); return; }
+  if (a === 'apply') return applyFontPick();
+  const token = (P.token = (P.token || 0) + 1);
+  P.error = null;
+  if (a === 'proj') {
+    const ref = (P.project || []).find(f => f.id === b.dataset.v);
+    P.pick = { id: b.dataset.v, family: ref ? ref.family : 'Jost', ref: ref || null, font: null };
+    if (ref) { P.busy = true; showFontPreview(); try { P.pick.font = await loadSlot(ref); } catch (err) { P.error = fontErrorText(err); } }
+    else P.pick.font = JOST;
+  } else if (a === 'google') {
+    P.pick = { google: b.dataset.v, family: b.dataset.v, font: null }; P.busy = true; showFontPreview();
+    try {
+      const info = await api(`fonts/google/${encodeURIComponent(b.dataset.v)}`), get = async (u) => new Uint8Array(await (await fetch(u + (SVC.token ? '?token=' + encodeURIComponent(SVC.token) : ''))).arrayBuffer());
+      const reg = fontMetrics(await get(info.urls.regular));
+      P.pick.font = { family: info.family, regular: reg, bold: info.urls.bold ? fontMetrics(await get(info.urls.bold)) : reg };
+    } catch (err) { P.error = fontErrorText(err); P.pick.font = null; }
+  }
+  if (token !== P.token) return;                 // inzwischen eine andere Schrift gewählt
+  P.busy = false; showFontPreview();
+}
+// Eigene Datei: mit dem Dienst gleich aufbereiten und ins Projekt; ohne Dienst im Browser prüfen und merken
+async function fontUpload(input) {
+  const P = FONTPICK, files = [...input.files]; if (!files.length) return;
+  P.error = null; P.busy = true; P.pick = { family: files[0].name, font: null }; showFontPreview();
+  try {
+    if (SVC.pid) {
+      const fd = new FormData(); fd.append('regular', files[0], files[0].name); if (files[1]) fd.append('bold', files[1], files[1].name);
+      const ref = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd }));
+      FONTPICK.project = await projectFontList();
+      P.pick = { id: ref.id, family: ref.family, ref, font: await loadSlot(ref) };
+    } else {
+      const bufs = await Promise.all(files.slice(0, 2).map(f => f.arrayBuffer()));
+      const reg = fontMetrics(bufs[0]), bold = bufs[1] ? fontMetrics(bufs[1]) : reg;
+      const id = 'local-' + (reg.family || files[0].name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+      P.pick = { id, family: reg.family || files[0].name.replace(/\.[^.]+$/, ''), font: { family: reg.family, regular: reg, bold }, local: bufs };
+    }
+  } catch (err) { P.error = fontErrorText(err); P.pick = null; }
+  P.busy = false; showFontPreview();
+}
+async function applyFontPick() {
+  const P = FONTPICK, p = P.pick; if (!p || P.busy) return;
+  let ref = p.ref || null;
+  try {
+    if (p.google) {
+      P.busy = true; showFontPreview();
+      const fd = new FormData(); fd.append('google', p.google);
+      ref = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd }));
+    } else if (p.local) {
+      const files = { regular: `${p.id}-regular.ttf` };
+      if (p.local[1]) files.bold = `${p.id}-bold.ttf`;
+      await DB.put('blobs', 'font:' + files.regular, new Blob([p.local[0]]));
+      if (p.local[1]) await DB.put('blobs', 'font:' + files.bold, new Blob([p.local[1]]));
+      ref = { id: p.id, family: p.family, source: 'local', files };
+      const list = (await projectFontList()).filter(f => f.id !== p.id).concat([ref]);
+      await DB.put('kv', 'fonts', JSON.stringify(list));
+    }
+  } catch (err) { P.busy = false; P.error = fontErrorText(err); showFontPreview(); return; }
+  S.doc.fonts = { ...(S.doc.fonts || {}), [P.slot]: ref ? { id: ref.id, family: ref.family, files: ref.files } : null };
+  if (ref) for (const [cut, name] of Object.entries(ref.files)) if (p.font) FONTSTATE.bytes[name] = p.font[cut === 'bold' ? 'bold' : 'regular'].bytes;
+  closeFontPicker(true);
+  commit(); await ensureFonts(); renderAll();
+  toast(_t('Schrift für {slot}: {family}', { slot: P.slot === 'head' ? _t('Überschriften') : _t('Kalendarium und Texte'), family: ref ? ref.family : 'Jost' }));
+}
+// Zeile im Bedienfeld: aktuelle Schrift, in ihr selbst gesetzt, mit „Ändern“
+const fontRow = (slot) => `<div class="field font-row"><span class="lbl">${slot === 'head' ? _t('Überschriften') : _t('Kalendarium und Texte')}</span>
+  <button class="btn font-btn" data-act="fontpick" data-v="${slot}"><span style="font-family:${slot === 'head' ? 'CalHead' : 'CalText'},sans-serif;font-weight:${slot === 'head' ? 600 : 400}">${esc(fontFamilyOf(slot))}</span><span class="muted">${_t('Ändern …')}</span></button></div>`;
+ACTIONS.fontpick = (el) => openFontPicker(el.dataset.v);
+
+// Vorschläge: Überschrift und Text, die gut zusammenpassen (alle von Google Fonts, frei lizenziert)
+const FONT_PAIRS = [['Playfair Display', 'Lato'], ['Montserrat', 'Inter'], ['Lora', 'Source Sans 3'], ['Caveat', 'Nunito'], ['DM Serif Display', 'DM Sans']];
+const fontPairs = () => !SVC.pid ? '' : `<div class="field"><span class="lbl">${_t('Passende Paare')}</span><div class="font-pairs">
+  ${FONT_PAIRS.map(([h, t]) => `<button class="btn small" data-act="fontpair" data-v="${esc(h)}|${esc(t)}" aria-pressed="${fontFamilyOf('head') === h && fontFamilyOf('text') === t}">${esc(h)} · ${esc(t)}</button>`).join('')}
+  <button class="btn small" data-act="fontpair" data-v="" aria-pressed="${!(S.doc.fonts || {}).head && !(S.doc.fonts || {}).text}">Jost</button></div>
+  <p class="hint">${_t('Überschrift · Text. Ein Klick lädt beide Schriften und setzt sie im ganzen Kalender.')}</p></div>`;
+ACTIONS.fontpair = async (el) => {
+  const [h, t] = el.dataset.v ? el.dataset.v.split('|') : [null, null], bar = h ? busy(_t('Schriften werden geladen'), `${h} · ${t}`) : null;
+  try {
+    const add = async (family) => { const fd = new FormData(); fd.append('google', family); const r = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd })); return { id: r.id, family: r.family, files: r.files }; };
+    S.doc.fonts = h ? { head: await add(h), text: await add(t) } : { head: null, text: null };
+  } catch (e) { if (bar) bar.close(); toast(e.message, 7000); return; }
+  if (bar) bar.close();
+  commit(); await ensureFonts(); renderAll();
+  toast(h ? _t('Schriften: {head} für Überschriften, {text} für Kalendarium und Texte.', { head: h, text: t }) : _t('Wieder Jost für alles.'));
+};
 /* ---------- An der Wand: den fertigen Kalender aufgehängt durchblättern ---------- */
 // Eine Ansicht ist, was beim Aufhängen zu sehen ist: unten die Hauptseite, bei „aufgeklappt“ oben die Rückseite des vorigen Blatts.
 function wallViews() {

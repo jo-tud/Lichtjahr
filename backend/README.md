@@ -142,6 +142,20 @@ measurement data.
 
 This is checked by Lichtjahr's own preflight, not by a certified tool such as Acrobat Preflight.
 
+## Fonts
+
+The app sets text itself (widths from the font) and embeds each font as TrueType with WinAnsi encoding, in the
+Draft PDF and the Print PDF alike. `lichtjahr/fonts.py` therefore brings every font into that shape before it
+goes into the project (fontTools): variable fonts are pinned to the weight (400 for regular, 600 or the nearest
+available for bold), CFF outlines are converted to TrueType, the font is reduced to the characters the calendar
+prints (Latin-1 plus the Windows-1252 extras), and fonts whose OS/2 `fsType` says *Restricted License* are refused.
+
+- **Google Fonts:** `GET /api/fonts/google` returns the directory (from `fonts.google.com/metadata/fonts`, kept for
+  a week in the cache folder, the last copy is used when offline). Only when someone picks a family does the
+  service ask Google for it (TrueType via the CSS API), prepare it and keep it in the cache folder for previews.
+- **In the project:** chosen fonts are stored in `.lichtjahr/fonts/` with an index `fonts.json`, so everyone working on
+  the calendar has them, also offline. The design state only refers to them (`doc.fonts.head`, `doc.fonts.text`).
+
 ## Nextcloud and other WebDAV servers
 
 `lichtjahr/storage/webdav.py` implements the same storage interface as the local folder. The two atomic
@@ -224,6 +238,10 @@ The running service shows the complete description at `http://localhost:8470/api
 | POST | `/api/projects/{id}/people` | Faces with 128 features each for the given photos; cached locally only, never written to the project folder; the app groups them into people |
 | POST | `/api/projects/{id}/faces` | Faces in the given photos (`{ids: [...]}`): boxes as fractions of the photo, cached per checksum; `available: false` without OpenCV |
 | GET / PUT / DELETE | `/api/projects/{id}/draft` | Rescue a draft on this computer (204 if there is none) |
+| GET | `/api/fonts/google` | Directory of Google Fonts with Latin characters (`family`, `category`, `weights`), most popular first |
+| GET | `/api/fonts/google/{family}` (`/{cut}.ttf`) | Download and prepare a Google font for the preview (cached): files, missing characters, URLs |
+| GET / POST | `/api/projects/{id}/fonts` | Fonts in the project / add one: form field `google` (family) or files `regular` (+ optional `bold`) |
+| GET | `/api/projects/{id}/fonts/{file}` | A font file from `.lichtjahr/fonts/` |
 
 Writing calls need the `X-Lichtjahr-Session` header with the session from acquiring the lock.
 

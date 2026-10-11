@@ -132,6 +132,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
 - **Kalendarium:** Leiste, Spalte, Raster oder Doppelraster (zwei Wochen nebeneinander, breit und flach, Monatsname mittig darüber), frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Vier Gestaltungen (Klassisch, Modern, Ruhig, Kräftig) als Vorschau des echten Monats, dazu Feinheiten: Monatsname, Wochentage, Wochentrennung, Stärke der Tageszahlen und bei der Leiste die ganze Seitenbreite. Was auch immer gewählt wird, das Layout folgt festen Regeln: gleich breite Ziffern, nie gedrängte Zellen, deutliche Wochentrennung, keine Schrift unter 6 pt, und es passt immer auf die Seite. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
+- **Schriften:** Standard ist Jost. Überschriften (Titel, Monatsnamen, Überschriften im Register) und das Kalendarium mit allen übrigen Texten bekommen auf Wunsch je eine eigene Schrift: jede freie Schrift von [Google Fonts](https://fonts.google.com) (mit dem lokalen Dienst), eigene TTF/OTF-Dateien oder eines der vorgeschlagenen Paare wie Playfair Display mit Lato. Der Dialog zeigt die Wahl gleich auf der aktuellen Seite. Der Dienst bereitet jede Schrift für den Druck auf (feste Schnitte, TrueType-Umrisse, nur die Zeichen, die der Kalender braucht), lehnt Schriften ab, deren Lizenz das Einbetten verbietet, und legt sie im Projektordner ab – so haben alle, die mitarbeiten, dieselben Schriften.
 - **Sprachen:** Die App gibt es auf Englisch und Deutsch; sie folgt der Sprache des Browsers und lässt sich jederzeit umschalten. Der gedruckte Kalender hat eine eigene Spracheinstellung für Monatsnamen, Wochentage, Feiertage und Register. Feiertage und Schulferien gibt es bisher nur für Deutschland (je Bundesland).
 - **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten. Auf Wunsch mit Fotos hinter dem Text: eines der Seitenlayouts als Hintergrund des Registers wählen, die Fotos je Seite einsetzen und einen hellen oder dunklen Schleier darüberlegen, damit der Text lesbar bleibt.
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).
@@ -342,6 +343,7 @@ arbeitet sie wie bisher nur im Browser.
 | `src/b5_series.js` | Serienbilder: ähnliche Fotos (dHash, Farbe, Seitenverhältnis), bestes nach Schärfe, Belichtung, Gesichtern |
 | `src/b4_adjust.js` | Bilder verbessern: Rezepte als Farbmatrix und Tonkurve, SVG-Filter, Pixel |
 | `src/b7_loupe.js` | Drucklupe: eine Stelle eines Fotos so, wie sie gedruckt wird, vom Dienst gerechnet |
+| `src/b8_fonts.js` | Schriften: Kennzahlen aus TrueType lesen, Schriften des Projekts laden, Auswahl-Dialog |
 | `src/jpeg.js`, `src/pdf.js` | CMYK-JPEG-Encoder und minimaler PDF-Writer |
 | `src/schoolholidays.js` | Schulferien 2025–2028 je Bundesland |
 | `fonts/fonts.js` | Jost (Regular, SemiBold), auf Windows-1252 reduziert; erzeugt mit `tools/mkfont.py` |
@@ -374,6 +376,7 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Struktur, Rauschminderung, die dem Aufhellen folgt, Druckschärfung ohne Säume, Drucklupe
 - [x] Version 1.0: Download mit Startskripten für macOS, Windows und Linux ([Änderungen](CHANGELOG.md), auf Englisch)
 - [x] [Website](https://jo-tud.github.io/Lichtjahr/de/) auf Deutsch und Englisch, ohne Inhalte von Dritten
+- [x] Schriften: Google Fonts und eigene Schriften für Überschriften und Texte, in jedes PDF eingebettet
 
 Ideen und Wünsche gern als [Issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -385,10 +388,10 @@ gebaut, getestet und geprüft wird, steht in [CONTRIBUTING.md](CONTRIBUTING.md) 
 ## Lizenz und Quellen
 
 - **Code:** [MIT-Lizenz](LICENSE)
-- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt))
+- **Schrift:** [Jost](https://github.com/indestructible-type/Jost) von indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Schriften von Google Fonts behalten ihre eigenen Lizenzen (meist SIL OFL); der Dienst lädt sie erst, wenn man eine auswählt, sie gehören nicht zu diesem Repository.
 - **Schulferien:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Der Auszug in `prototyp/src/schoolholidays.js` steht ebenfalls unter der ODbL. Alle Angaben ohne Gewähr.
 - **Wiedererkennung:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; nicht im Repository, wird beim ersten Gebrauch geladen und gegen seine SHA-256-Prüfsumme geprüft.
 - **Gesichtserkennung:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) von Shiqi Yu, MIT-Lizenz ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); findet Gesichter, erkennt aber keine Personen. Die Testfotos in `backend/tests/data/` sind gemeinfreie NASA-Porträts.
 - **ICC-Druckprofile:** `ISOcoated_v2_300_bas.icc` und `PSO_Uncoated_ISO12647_bas.icc` von basICColor GmbH, zlib/libpng-Lizenz ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
-- **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf (jeweils eigene freie Lizenzen)
+- **Bibliotheken des Dienstes:** FastAPI, Pillow mit LittleCMS, pikepdf/qpdf, fontTools (jeweils eigene freie Lizenzen)
 - **Beispielbilder:** werden beim Start im Browser gezeichnet; es sind keine echten Fotos enthalten.

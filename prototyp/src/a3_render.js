@@ -119,8 +119,8 @@ const CAL_DESIGNS = {
 };
 // Gestaltung des Kalendariums (gilt für alle Monate), mit Rückfall für ältere Projekte
 const calOpts = (c) => ({ ...CAL_DESIGNS.classic, width: 'auto', ...Object.fromEntries(['title', 'wd', 'weeks', 'num', 'width'].filter(k => c[k] != null).map(k => [k, c[k]])) });
-let DIGIT_ADV = null;
-const digitAdvance = (font) => (DIGIT_ADV ||= Object.fromEntries(['regular', 'bold'].map(f => [f, Math.max(...[...'0123456789'].map(d => textWidth(d, f, 1)))])))[font];
+let DIGIT_ADV = {};                                    // je Schrift; applyFonts() leert den Speicher
+const digitAdvance = (font) => (DIGIT_ADV[font] ??= Math.max(...[...'0123456789'].map(d => textWidth(d, font, 1))));
 const numWidth = (n, font, size) => String(n).length * digitAdvance(font) * size;
 // Zahl mit Ziffern gleicher Breite: jede Ziffer mittig in ihrem Feld
 function tnum(x, y, n, font, size, fill, anchor = 'middle') {
@@ -138,33 +138,33 @@ function calTitle(m, year, ts, color, o, stack = false) {
   const mn = MONTH_NAMES[calLang()][m], items = [];
   if (o.title === 'caps') {
     const s = Math.max(ts * .58, CAL_MIN_TEXT), ls = s * .16, a = mn.toUpperCase(), b = String(year), base = s * .72;
-    items.push(TL(0, base, a, 'bold', s, color, ls));
-    if (stack) { items.push(TL(0, base + s * 1.35, b, 'regular', s, color, ls)); return { items, w: Math.max(trackedWidth(a, 'bold', s, ls), trackedWidth(b, 'regular', s, ls)), base: base + s * 1.35 }; }
-    const x = trackedWidth(a, 'bold', s, ls) + s * .9;
-    items.push(TL(x, base, b, 'regular', s, color, ls));
-    return { items, w: x + trackedWidth(b, 'regular', s, ls), base };
+    items.push(TL(0, base, a, 'hbold', s, color, ls));
+    if (stack) { items.push(TL(0, base + s * 1.35, b, 'hregular', s, color, ls)); return { items, w: Math.max(trackedWidth(a, 'hbold', s, ls), trackedWidth(b, 'hregular', s, ls)), base: base + s * 1.35 }; }
+    const x = trackedWidth(a, 'hbold', s, ls) + s * .9;
+    items.push(TL(x, base, b, 'hregular', s, color, ls));
+    return { items, w: x + trackedWidth(b, 'hregular', s, ls), base };
   }
   if (o.title === 'light') {
     const base = ts * .74, ys = Math.max(ts * .5, CAL_MIN_TEXT);
-    items.push(T(0, base, mn, 'regular', ts, color));
-    if (stack) { items.push(T(0, base + ys * 1.5, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'regular', ts), base: base + ys * 1.5 }; }
-    const x = textWidth(mn, 'regular', ts) + ts * .3;
-    items.push(T(x, base, String(year), 'regular', ys, color));
-    return { items, w: x + textWidth(String(year), 'regular', ys), base };
+    items.push(T(0, base, mn, 'hregular', ts, color));
+    if (stack) { items.push(T(0, base + ys * 1.5, String(year), 'hregular', ys, color)); return { items, w: textWidth(mn, 'hregular', ts), base: base + ys * 1.5 }; }
+    const x = textWidth(mn, 'hregular', ts) + ts * .3;
+    items.push(T(x, base, String(year), 'hregular', ys, color));
+    return { items, w: x + textWidth(String(year), 'hregular', ys), base };
   }
   if (o.title === 'number') {
     const big = ts * 1.7, s = Math.max(ts * .5, CAL_MIN_TEXT), num = String(m + 1).padStart(2, '0'), base = big * .72;
-    items.push(...tnum(0, base, num, 'bold', big, color, 'start'));
-    const x = numWidth(num, 'bold', big) + big * .18;
-    items.push(T(x, base - s * 1.25, mn, 'bold', s, color), T(x, base, String(year), 'regular', s, color));
-    return { items, w: x + Math.max(textWidth(mn, 'bold', s), textWidth(String(year), 'regular', s)), base };
+    items.push(...tnum(0, base, num, 'hbold', big, color, 'start'));
+    const x = numWidth(num, 'hbold', big) + big * .18;
+    items.push(T(x, base - s * 1.25, mn, 'hbold', s, color), T(x, base, String(year), 'hregular', s, color));
+    return { items, w: x + Math.max(textWidth(mn, 'hbold', s), textWidth(String(year), 'hregular', s)), base };
   }
   const base = ts * .74;                                               // klassisch: Monat fett, Jahr normal
-  items.push(T(0, base, mn, 'bold', ts, color));
-  if (stack) { const ys = ts * .6; items.push(T(0, base + ys * 1.25, String(year), 'regular', ys, color)); return { items, w: textWidth(mn, 'bold', ts), base: base + ys * 1.25 }; }
-  const x = textWidth(mn, 'bold', ts) + ts * .25;
-  items.push(T(x, base, String(year), 'regular', ts, color));
-  return { items, w: x + textWidth(String(year), 'regular', ts), base };
+  items.push(T(0, base, mn, 'hbold', ts, color));
+  if (stack) { const ys = ts * .6; items.push(T(0, base + ys * 1.25, String(year), 'hregular', ys, color)); return { items, w: textWidth(mn, 'hbold', ts), base: base + ys * 1.25 }; }
+  const x = textWidth(mn, 'hbold', ts) + ts * .25;
+  items.push(T(x, base, String(year), 'hregular', ts, color));
+  return { items, w: x + textWidth(String(year), 'hregular', ts), base };
 }
 const dayStyle = (c, o, sp) => ({ fill: sp && c.hi === 'red' ? 'red' : c.color, font: sp && c.hi !== 'none' ? 'bold' : o.num });
 const rule = (x, y, w, h, fill) => ({ t: 'rect', x, y, w, h, fill });
@@ -334,8 +334,8 @@ function titleBlock(p) {
   const t = p.title, f = t.size * Math.min(S.doc.w, S.doc.h) / 300, items = [];
   const ts = 24 * f, ss = 11 * f;
   let y = ts * .74, w = 0;
-  if (t.text) { items.push(T(0, y, t.text, 'bold', ts, t.color)); w = textWidth(t.text, 'bold', ts); }
-  if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'regular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'regular', ss)); }
+  if (t.text) { items.push(T(0, y, t.text, 'hbold', ts, t.color)); w = textWidth(t.text, 'hbold', ts); }
+  if (t.sub) { y += (t.text ? 3 * f : 0) + ss * .74 + (t.text ? 1.5 * f : 0); items.push(T(0, y, t.sub, 'hregular', ss, t.color)); w = Math.max(w, textWidth(t.sub, 'hregular', ss)); }
   if (!items.length) return null;
   return { t: 'block', kind: 'title', ...blockFrame({ w, h: y + 2.2 * f, items }, t, f, t.panel, t.opacity ?? .85) };
 }
@@ -447,7 +447,7 @@ function textLayout() {
   for (const raw of String(doc.indexText || '').split(/\n\s*\n/)) {
     const t = raw.trim(); if (!t) continue;
     for (const line of t.split('\n')) {
-      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'bold', hs, colW) });
+      if (/^##\s+/.test(line)) blocks.push({ head: true, lines: wrap(line.replace(/^##\s+/, ''), 'hbold', hs, colW) });
       else if (line.trim()) blocks.push({ head: false, lines: wrap(line.trim(), 'regular', bs, colW) });
     }
     blocks.push({ gap: true });
@@ -464,7 +464,7 @@ function textLayout() {
     for (const l of b.lines) {
       if (y + lh > H - mg) nextCol();
       y += lh;
-      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'bold' : 'regular', b.head ? hs : bs, null));
+      cur.push(T(mg + col * (colW + gx), y - lh * .28, l, b.head ? 'hbold' : 'regular', b.head ? hs : bs, null));
     }
   }
   pages.push(cur);
@@ -490,11 +490,11 @@ function indexItems(p) {
   const col = veil && veil.opacity >= .5 ? (veil.tone === 'dark' ? 'white' : 'black') : doc.bg === 'white' || doc.bg === 'sand' ? 'black' : 'white';
   const n = indexNo(p.key), list = L[n - 1] || [];
   if (n === 1) {
-    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'bold', 9 * f, col));
-    items.push(T(mg, mg + 9 * f * .74 + 6 * f, _tc('Familienkalender {year}', { year: doc.year }), 'regular', 3.2 * f, col));
+    items.push(T(mg, mg + 9 * f * .74, doc.indexTitle || _tc('Bildregister'), 'hbold', 9 * f, col));
+    items.push(T(mg, mg + 9 * f * .74 + 6 * f, _tc('Familienkalender {year}', { year: doc.year }), 'hregular', 3.2 * f, col));
     // Hinweis auf leerer Seite richtet sich an die Bearbeiter, daher in der Sprache der Oberfläche
     if (!list.length) { items.push(T(mg, mg + 30 * f, g.text ? _t('Noch kein Text. Rechts unter „Register“ schreiben.') : _t('Noch keine Fotos auf den Seiten.'), 'regular', 3.5 * f, col)); return items; }
-  } else items.push(T(mg, mg + 6 * f * .74, _tc('{title} (Fortsetzung)', { title: doc.indexTitle || _tc('Bildregister') }), 'bold', 6 * f, col));
+  } else items.push(T(mg, mg + 6 * f * .74, _tc('{title} (Fortsetzung)', { title: doc.indexTitle || _tc('Bildregister') }), 'hbold', 6 * f, col));
   // Quellenhinweis zu den Schulferien auf der letzten Registerseite
   if (n === L.length && S.doc.cal.school && hasSchoolData()) items.push(T(mg, doc.h - mg * .55, schoolSourceNote(), 'regular', 2 * f, col));
   if (g.text) { for (const it of list) items.push({ ...it, fill: col }); return items; }
@@ -583,7 +583,7 @@ function svgPage(p, o = {}) {
       case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${cRGB(it.fill)}"${it.opacity != null && it.opacity < 1 ? ` fill-opacity="${it.opacity}"` : ''}${it.role === 'ovb' && live ? ` data-slot="${it.slot}"` : ''}${it.veil ? ' pointer-events="none"' : ''}/>`;
       case 'circle': return `<circle cx="${it.x}" cy="${it.y}" r="${it.r}" fill="${cRGB(it.fill)}" fill-opacity="${it.opacity ?? 1}"/>`;
       case 'frame': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="none" stroke="#9aa3ad" stroke-width="0.25"/>`;
-      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" font-weight="${it.font === 'bold' ? 600 : 400}" fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
+      case 'text': return `<text x="${it.x}" y="${it.y}" font-size="${it.size}" ${fontAttrs(it.font)} fill="${cRGB(it.fill)}" text-anchor="${it.anchor}"${it.ls ? ` letter-spacing="${it.ls}"` : ''}>${esc(it.text)}</text>`;
       case 'img': {
         const cid = clipRect(it.clip), pl = it.place, sm = small || it.mini, pu = proofOn() && proofUrl(it.photo, sm);
         const want = plainUrl(it.photo, sm), base = baseUrl(it.photo, sm);
@@ -686,7 +686,7 @@ function svgPage(p, o = {}) {
   let content = body.slice(nPartner).join('');
   if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/><g clip-path="url(#${cid})">${content}</g>`; }
   content = body.slice(0, nPartner).join('') + content;
-  return `<svg ${o.attrs || ''} viewBox="${vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" role="img" aria-label="${esc(pageLabel(p.key))}"><defs>${defs.join('')}</defs>${content}<g data-over="1">${over}</g></svg>`;
+  return `<svg ${o.attrs || ''} viewBox="${vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalText,sans-serif;font-kerning:none" role="img" aria-label="${esc(pageLabel(p.key))}"><defs>${defs.join('')}</defs>${content}<g data-over="1">${over}</g></svg>`;
 }
 
 // Ringbindung und Aufhänger-Ausschnitt
