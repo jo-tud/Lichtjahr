@@ -4,6 +4,13 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+### Fixes
+- Working together on two computers: whether someone else's lock was abandoned used to be decided by comparing
+  the waiting computer's clock with the times the other computer had written. If one clock was a few minutes
+  off, the lock kept jumping between the two (and both saw "another window is editing"). Now only the clock of
+  the storage counts (Nextcloud's own time, or the file's modification time): a lock is free once nobody has
+  renewed it for two minutes. "Last active" in the read-only bar uses the same measure.
+
 ## [1.2.1] – 2026-10-11
 
 Working on one calendar together.

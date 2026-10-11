@@ -112,7 +112,7 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
 
     @app.exception_handler(Locked)
     async def _locked(_, exc: Locked):
-        return JSONResponse({"detail": str(exc), "lock": exc.info.public()}, status_code=423)
+        return JSONResponse({"detail": str(exc), "lock": exc.info.public(exc.age)}, status_code=423)
 
     @app.exception_handler(LockLost)
     async def _lost(_, exc: LockLost):
@@ -234,8 +234,9 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Sperre ---------------------------------------------------------------------------
     @app.get("/api/projects/{project_id}/lock")
     def lock_status(project_id: str):
-        info, _ = get_project(project_id).lock.read()
-        return {"lock": info.public() if info else None}
+        lock = get_project(project_id).lock
+        info, _ = lock.read()
+        return {"lock": info.public(lock.age()) if info else None}
 
     @app.post("/api/projects/{project_id}/lock")
     def acquire_lock(project_id: str, req: LockRequest, session: str | None = Depends(session_header)):

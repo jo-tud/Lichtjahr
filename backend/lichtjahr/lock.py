@@ -31,9 +31,10 @@ class LockError(Exception):
 
 
 class Locked(LockError):
-    def __init__(self, info: "LockInfo") -> None:
+    def __init__(self, info: "LockInfo", age: float | None = None) -> None:
         super().__init__(_t("Gesperrt durch {holder} auf {device}", holder=info.holder, device=info.device))
         self.info = info
+        self.age = age
 
 
 class LockLost(LockError):
@@ -53,10 +54,12 @@ class LockInfo:
     def expired(self) -> bool:
         return time.time() > self.expires
 
-    def public(self) -> dict:
+    def public(self, age: float | None = None) -> dict:
         d = asdict(self)
         d.pop("session")
         d["expired"] = self.expired
+        if age is not None:                    # Sekunden seit dem letzten Lebenszeichen, mit der Uhr des Speichers
+            d["age"] = round(age, 1)
         return d
 
 
@@ -68,6 +71,23 @@ class ProjectLock:
     def __init__(self, storage: Storage, lease: float = DEFAULT_LEASE) -> None:
         self.storage = storage
         self.lease = lease
+
+    def age(self) -> float | None:
+        """Sekunden seit dem letzten Schreiben der Sperrdatei, mit der Uhr des Speichers; None, wenn unbekannt."""
+        try:
+            return self.storage.age(LOCK_PATH)
+        except Exception:                      # z. B. ein Server ohne Last-Modified: dann zählen die Zeitstempel
+            return None
+
+    def stale(self, info: LockInfo, age: float | None) -> bool:
+        """Ist eine fremde Sperre verwaist? Entschieden mit der Uhr des Speichers (seit wann schreibt niemand
+        mehr Lebenszeichen) gegen die Laufzeit, die der Besitzer eingetragen hat (Ablauf minus Lebenszeichen,
+        beides von seiner Uhr, also als Dauer verlässlich) – nicht mit der Ablaufzeit nach fremder Uhr: Geht
+        ein Rechner ein paar Minuten vor, würde er sonst laufend fremde Sperren übernehmen."""
+        if age is None:
+            return info.expired
+        lease = info.expires - info.heartbeat
+        return age > (lease if 0 < lease < 86400 else self.lease)
 
     def read(self) -> tuple[LockInfo | None, str | None]:
         try:
@@ -96,13 +116,14 @@ class ProjectLock:
             return self.acquire(session, holder)
         if info.session == session:
             return self.heartbeat(session)
-        if not info.expired:
-            raise Locked(info)
+        age = self.age()
+        if not self.stale(info, age):
+            raise Locked(info, age)
         try:                                   # abgelaufene Sperre kontrolliert übernehmen
             self.storage.replace(LOCK_PATH, self._payload(session, holder), if_match=etag)
         except Conflict:
             current, _ = self.read()
-            raise Locked(current or info)
+            raise Locked(current or info, self.age())
         return self.read()[0]  # type: ignore[return-value]
 
     def heartbeat(self, session: str) -> LockInfo:

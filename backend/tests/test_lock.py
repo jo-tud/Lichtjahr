@@ -122,3 +122,27 @@ def test_own_expired_lock_is_renewed_not_lost(tmp_path):
     lock.acquire("b", "Bernd")               # hat ein anderer übernommen, gilt die Sperre weiter als verloren
     with pytest.raises(LockLost):
         lock.check("a")
+
+
+def _skewed(lock, session, offset):
+    """Sperre so schreiben, als ginge die Uhr des Besitzers um ``offset`` Sekunden falsch."""
+    import json as _json
+    now = time.time() + offset
+    lock.storage.write(".lichtjahr/lock.json", _json.dumps(
+        {"session": session, "holder": "Anna", "device": "anna-pc", "created": now, "heartbeat": now, "expires": now + lock.lease}).encode())
+
+
+def test_wrong_clocks_do_not_steal_or_keep_locks(tmp_path):
+    """Ob eine fremde Sperre verwaist ist, entscheidet die Uhr des Speichers, nicht die Rechneruhren."""
+    import os
+    store = LocalStorage(str(tmp_path))
+    store.makedirs(".lichtjahr")
+    lock = ProjectLock(store, lease=60)
+    _skewed(lock, "a", -600)                 # Annas Uhr geht 10 Minuten nach: Zeitstempel wirken abgelaufen …
+    with pytest.raises(Locked) as e:         # … aber sie hat gerade geschrieben: keine Übernahme
+        lock.acquire("b", "Bernd")
+    assert e.value.age is not None and e.value.age < 5
+    _skewed(lock, "a", +3600)                # Uhr geht eine Stunde vor: Zeitstempel wirken frisch …
+    old = time.time() - 120
+    os.utime(tmp_path / ".lichtjahr" / "lock.json", (old, old))   # … aber seit 2 Minuten kein Lebenszeichen
+    assert lock.acquire("b", "Bernd").session == "b"

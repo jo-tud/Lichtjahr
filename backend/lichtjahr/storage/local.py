@@ -13,6 +13,7 @@ import contextlib
 import fcntl
 import hashlib
 import os
+import time
 import shutil
 import tempfile
 from typing import Iterator
@@ -76,6 +77,13 @@ class LocalStorage:
         except FileNotFoundError as e:
             raise NotFound(path) from e
         return Entry(path=path, size=st.st_size, mtime_ns=st.st_mtime_ns, is_dir=os.path.isdir(self._abs(path)))
+
+    def age(self, path: str) -> float:
+        """Sekunden seit dem letzten Schreiben (Uhr dieses Rechners bzw. des Dateiservers)."""
+        try:
+            return max(0.0, time.time() - os.stat(self._abs(path)).st_mtime)
+        except FileNotFoundError as e:
+            raise NotFound(path) from e
 
     def walk(self, prefix: str) -> Iterator[Entry]:
         base = self._abs(prefix)
