@@ -81,7 +81,7 @@ photo under the frame, zoom, "Fill" or "Show whole".
 ### The calendar grid finds its own spot
 
 "Find a spot automatically" analyzes the photo: where is there little detail, where is the brightness even?
-That is where the calendar grid goes, in a fitting shape (strip, column, grid), with a legible text color
+That is where the calendar grid goes, in a fitting shape (strip, column, grid, double grid), with a legible text color
 and a backdrop if needed – for one page or all months at once. With the local service it also knows where the
 **faces** are: the calendar grid never covers a head, automatic crops keep everyone in the picture, and the
 check list points out faces cut off at the edge.
@@ -131,7 +131,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Formats:** 29.7 × 29.7 cm, A3 landscape and portrait, A4 landscape, 30 × 30 cm, 21 × 21 cm or a custom size. You can change the format later; the pages adapt.
 - **Sheets:** 12 months, a cover, a photo index at the end and as many extra sheets as you like.
 - **Single- or double-sided:** Back sides *unfolded* (the back of the previous sheet on top, the month below, one shared calendar grid), as a second picture per month or as free photo pages.
-- **Calendar grid:** Strip, column or grid, freely movable, with a backdrop of adjustable opacity. Four designs (Classic, Modern, Calm, Bold), shown as previews of the actual month, plus details: month name, weekday labels, week separation, day number weight and, for the strip, full page width. Whatever you pick, the layout follows fixed rules: equal-width figures, never-crowded cells, clear week breaks, no text below 6 pt, and it always fits on the page. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
+- **Calendar grid:** Strip, column, grid or double grid (two weeks side by side, wide and flat, with the month name centered above), freely movable, with a backdrop of adjustable opacity. Four designs (Classic, Modern, Calm, Bold), shown as previews of the actual month, plus details: month name, weekday labels, week separation, day number weight and, for the strip, full page width. Whatever you pick, the layout follows fixed rules: equal-width figures, never-crowded cells, clear week breaks, no text below 6 pt, and it always fits on the page. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
 - **Languages:** The app is available in English and German. It follows your browser's language and can be switched at any time. The printed calendar has its own language setting for month names, weekdays, holidays and the photo index – so you can work in one language and print in the other. So far, only German public holidays and school holidays (for each of Germany's states) are supported.
 - **Photo index:** Pictures per page (with captions, numbers, thumbnails), text per page or free text; flows over as many pages as needed. Optionally with photos behind the text: pick one of the page layouts as the index background, choose the photos per page and lay a light or dark veil over them so the text stays readable.
 - **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).

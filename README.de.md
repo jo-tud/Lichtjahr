@@ -81,7 +81,7 @@ Bildausschnitt: Foto unter dem Rahmen schieben, zoomen, „Füllen“ oder „Ga
 ### Das Kalendarium sucht sich seinen Platz
 
 „Platz automatisch finden“ analysiert das Foto: Wo ist wenig Detail, wo ist die Helligkeit
-gleichmäßig? Dort landet das Kalendarium, in passender Form (Leiste, Spalte, Raster), mit lesbarer
+gleichmäßig? Dort landet das Kalendarium, in passender Form (Leiste, Spalte, Raster, Doppelraster), mit lesbarer
 Schriftfarbe und bei Bedarf einer Fläche dahinter – für eine Seite oder alle Monate auf einmal. Mit dem lokalen
 Dienst weiß es auch, wo **Gesichter** sind: Das Kalendarium verdeckt keinen Kopf, automatische Ausschnitte
 behalten alle im Bild, und die Prüfliste meldet Gesichter, die am Rand angeschnitten sind.
@@ -131,7 +131,7 @@ Durchblättern geht auch unterwegs – mit Wischen, Antippen und Zwei-Finger-Zoo
 - **Formate:** 29,7 × 29,7 cm, DIN A3 quer und hoch, A4 quer, 30 × 30 cm, 21 × 21 cm oder eigene Maße. Formatwechsel auch später; die Seiten passen sich an.
 - **Blätter:** 12 Monate, Titelblatt, Register am Ende und beliebig viele zusätzliche Blätter.
 - **Ein- oder beidseitig:** Rückseiten *aufgeklappt* (oben die Rückseite des vorigen Blatts, unten der Monat, ein gemeinsames Kalendarium), als zweites Motiv je Monat oder als freie Fotoseiten.
-- **Kalendarium:** Leiste, Spalte oder Raster, frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Vier Gestaltungen (Klassisch, Modern, Ruhig, Kräftig) als Vorschau des echten Monats, dazu Feinheiten: Monatsname, Wochentage, Wochentrennung, Stärke der Tageszahlen und bei der Leiste die ganze Seitenbreite. Was auch immer gewählt wird, das Layout folgt festen Regeln: gleich breite Ziffern, nie gedrängte Zellen, deutliche Wochentrennung, keine Schrift unter 6 pt, und es passt immer auf die Seite. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
+- **Kalendarium:** Leiste, Spalte, Raster oder Doppelraster (zwei Wochen nebeneinander, breit und flach, Monatsname mittig darüber), frei verschiebbar, Fläche dahinter mit einstellbarer Deckkraft. Vier Gestaltungen (Klassisch, Modern, Ruhig, Kräftig) als Vorschau des echten Monats, dazu Feinheiten: Monatsname, Wochentage, Wochentrennung, Stärke der Tageszahlen und bei der Leiste die ganze Seitenbreite. Was auch immer gewählt wird, das Layout folgt festen Regeln: gleich breite Ziffern, nie gedrängte Zellen, deutliche Wochentrennung, keine Schrift unter 6 pt, und es passt immer auf die Seite. Feiertage nach Bundesland, Schulferien als feiner Strich, Kalenderwochen, Geburtstage (auch aus `.vcf`-Kontakten).
 - **Sprachen:** Die App gibt es auf Englisch und Deutsch; sie folgt der Sprache des Browsers und lässt sich jederzeit umschalten. Der gedruckte Kalender hat eine eigene Spracheinstellung für Monatsnamen, Wochentage, Feiertage und Register. Feiertage und Schulferien gibt es bisher nur für Deutschland (je Bundesland).
 - **Register:** Bilder je Seite (mit Bildtexten, Nummern, Miniaturen), Text je Seite oder freier Text; fließt über beliebig viele Seiten. Auf Wunsch mit Fotos hinter dem Text: eines der Seitenlayouts als Hintergrund des Registers wählen, die Fotos je Seite einsetzen und einen hellen oder dunklen Schleier darüberlegen, damit der Text lesbar bleibt.
 - **Druck-PDF:** PDF/X-1a oder PDF/X-4 mit dem Farbprofil der Druckerei, Prüfbericht und Ablage in `Export/` (mit dem lokalen Dienst, siehe [unten](#druck-pdf-und-farbmanagement)).

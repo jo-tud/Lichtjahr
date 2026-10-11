@@ -58,6 +58,7 @@ Object.assign(EN, {
   'Leiste': 'Strip',
   'Spalte': 'Column',
   'Raster': 'Grid',
+  'Doppelraster': 'Double grid',
   'Sprache im Kalender': 'Calendar language',
   'Monatsnamen, Wochentage, Feiertage und Register im gedruckten Kalender.': 'Month names, weekdays, public holidays and photo index in the printed calendar.',
   'Feiertage (Deutschland)': 'Public holidays (Germany)',
