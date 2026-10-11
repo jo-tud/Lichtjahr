@@ -67,7 +67,6 @@ EN = {
     "Die Sperre gehört nicht mehr dieser Sitzung.": "The lock no longer belongs to this session.",
     "Die Sperre wurde zwischenzeitlich verändert.": "The lock was changed in the meantime.",
     "Zum Ändern zuerst die Bearbeitungssperre erwerben.": "Acquire the editing lock before making changes.",
-    "Die Sperre ist abgelaufen. Bitte erneut erwerben.": "The lock has expired. Please acquire it again.",
     # Projekt
     "In diesem Ordner gibt es schon ein Lichtjahr-Projekt.": "This folder already contains a Lichtjahr project.",
     "Hier liegt kein Lichtjahr-Projekt (lichtjahr.json fehlt).": "There is no Lichtjahr project here (lichtjahr.json is missing).",

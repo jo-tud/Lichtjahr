@@ -81,3 +81,44 @@ def test_concurrent_takeover_of_expired_lock_has_one_winner(tmp_path):
     for p in procs:
         p.join(10)
     assert len([w for w in (results.get() for _ in procs) if w]) == 1
+
+
+def _beat(root, sid, start, results):
+    while time.time() < start:
+        pass
+    try:
+        ProjectLock(LocalStorage(root)).heartbeat(sid)
+        results.put("ok")
+    except LockLost as e:
+        results.put(str(e))
+
+
+@pytest.mark.parametrize("round_", range(3))
+def test_concurrent_heartbeats_of_one_session_never_lose_the_lock(tmp_path, round_):
+    """Ein Tab kommt zurück: Sichtbarkeit und Taktgeber schicken gleichzeitig ein Lebenszeichen. Das darf nicht
+    als „anderes Fenster“ gelten – die Sperre gehört weiter derselben Sitzung."""
+    root = str(tmp_path)
+    ProjectLock(LocalStorage(root)).acquire("a", "Anna")
+    results, start = mp.Queue(), time.time() + 0.5
+    procs = [mp.Process(target=_beat, args=(root, "a", start, results)) for _ in range(6)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join(10)
+    got = [results.get(timeout=5) for _ in procs]
+    assert got == ["ok"] * len(procs), got
+    assert ProjectLock(LocalStorage(root)).read()[0].session == "a"
+
+
+def test_own_expired_lock_is_renewed_not_lost(tmp_path):
+    """Nach Ruhezustand oder eingefrorenem Tab ist die eigene Sperre abgelaufen, aber niemand hat sie übernommen:
+    Speichern erneuert sie, statt die Bearbeitung zu beenden."""
+    lock = ProjectLock(LocalStorage(str(tmp_path)), lease=0.2)
+    lock.acquire("a", "Anna")
+    time.sleep(0.3)
+    info = lock.check("a")
+    assert info.session == "a" and not info.expired
+    time.sleep(0.3)
+    lock.acquire("b", "Bernd")               # hat ein anderer übernommen, gilt die Sperre weiter als verloren
+    with pytest.raises(LockLost):
+        lock.check("a")

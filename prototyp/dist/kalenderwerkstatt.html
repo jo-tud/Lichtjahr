@@ -5478,10 +5478,13 @@ async function leaveProject() {
 }
 
 /* ----- Sperre ----- */
+// Nie zwei Lebenszeichen gleichzeitig (Tab wird sichtbar, während der Taktgeber auch gerade feuert)
 async function heartbeat() {
-  if (!SVC.pid || SVC.readOnly || !SVC.session) return;
+  if (!SVC.pid || SVC.readOnly || !SVC.session || SVC.beating) return;
+  SVC.beating = true;
   try { SVC.lock = (await api(PP('/lock/heartbeat'), { method: 'POST' })).lock; if (SVC.offline) { SVC.offline = false; scheduleServiceSave(); } }
   catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState(e.status === 503 ? _t('Nextcloud sperrt gerade kurz, nächster Versuch gleich …') : _t('Dienst nicht erreichbar')); } }
+  finally { SVC.beating = false; }
 }
 async function retryLock() {
   if (!SVC.readOnly || !SVC.pid) return;
@@ -5500,7 +5503,19 @@ async function retryLock() {
   }
 }
 async function lockLost() {
-  if (SVC.readOnly) return;
+  if (SVC.readOnly || SVC.checkingLock) return;
+  // Erst nachfragen: Gehört die Sperre noch dieser Sitzung (etwa nach Ruhezustand oder wenn zwei Anfragen
+  // gleichzeitig kamen), geht es ohne Meldung weiter. Nur wenn wirklich jemand anderes sie hat, ist sie verloren.
+  if (Date.now() - (SVC.recovered || 0) > 15000) {
+    SVC.checkingLock = true;
+    try {
+      SVC.lock = (await api(PP('/lock/heartbeat'), { method: 'POST' })).lock;
+      SVC.recovered = Date.now(); SVC.pending = true; scheduleServiceSave();
+      return;
+    } catch (e) {
+      if (e.status !== 423) { SVC.offline = true; setSaveState(_t('Dienst nicht erreichbar')); return; }
+    } finally { SVC.checkingLock = false; }
+  }
   SVC.readOnly = true; clearTimeout(SVC.timer); SVC.pending = false;
   // Letzten Stand auf diesem Rechner sichern; beim nächsten Öffnen wird er angeboten
   try { await api(PP('/draft'), { method: 'PUT', body: { savedAt: new Date().toISOString(), editor: editorState(), assets: photoMeta(true) } }); } catch (e) { /* egal */ }

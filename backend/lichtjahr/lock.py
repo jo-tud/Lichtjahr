@@ -112,6 +112,11 @@ class ProjectLock:
         try:
             self.storage.replace(LOCK_PATH, self._payload(session, info.holder, info.created), if_match=etag)
         except Conflict as e:
+            # Gleichzeitig hat jemand die Datei geschrieben. War es dieselbe Sitzung (zwei Lebenszeichen auf einmal,
+            # etwa wenn ein Tab wieder sichtbar wird), ist die Sperre frisch und gehört weiter uns – kein Verlust.
+            current, _ = self.read()
+            if current is not None and current.session == session and not current.expired:
+                return current
             raise LockLost(_t("Die Sperre wurde zwischenzeitlich verändert.")) from e
         return self.read()[0]  # type: ignore[return-value]
 
@@ -130,5 +135,6 @@ class ProjectLock:
         if not session or info is None or info.session != session:
             raise LockLost(_t("Zum Ändern zuerst die Bearbeitungssperre erwerben."))
         if info.expired:
-            raise LockLost(_t("Die Sperre ist abgelaufen. Bitte erneut erwerben."))
+            # Abgelaufen, aber niemand hat übernommen (Ruhezustand, eingefrorener Tab): erneuern statt verlieren
+            return self.heartbeat(session)
         return info
