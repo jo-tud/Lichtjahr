@@ -187,7 +187,7 @@ free. Everyone should use the same Lichtjahr version.
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.1/lichtjahr-1.2.1-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.2/lichtjahr-1.2.2-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:
