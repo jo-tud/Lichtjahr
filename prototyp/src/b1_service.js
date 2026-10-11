@@ -52,6 +52,9 @@ function deviceName() {
   const br = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
   return _t('{browser} auf {device}', { browser: br, device: dev });
 }
+// Wie lange her; für Sperren das Alter, das der Dienst mit der Uhr des Speichers misst (Rechneruhren können abweichen)
+const lockAgo = (l) => l.age != null ? agoS(l.age) : ago(l.heartbeat);
+const agoS = (sec) => { const s = Math.max(0, Math.round(sec)); return s < 60 ? _t('vor {n} s', { n: s }) : s < 3600 ? _t('vor {n} min', { n: Math.round(s / 60) }) : _t('vor {n} h', { n: Math.round(s / 3600) }); };
 const ago = (t) => { const s = Math.max(0, Math.round(Date.now() / 1000 - t)); return s < 60 ? _t('vor {n} s', { n: s }) : s < 3600 ? _t('vor {n} min', { n: Math.round(s / 60) }) : _t('vor {n} h', { n: Math.round(s / 3600) }); };
 function setSaveState(text) { const s = $('#saveState'); if (s) s.textContent = text; }
 
@@ -391,7 +394,7 @@ function renderServiceBanner() {
   else {
     const l = SVC.lock;
     b.hidden = false;
-    b.innerHTML = `<p><b>${_t('Nur ansehen.')}</b> ${l ? esc(_t('{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).', { holder: l.holder, ago: ago(l.heartbeat) })) : _t('Das Projekt wird gerade woanders bearbeitet.')}
+    b.innerHTML = `<p><b>${_t('Nur ansehen.')}</b> ${l ? esc(_t('{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).', { holder: l.holder, ago: lockAgo(l) })) : _t('Das Projekt wird gerade woanders bearbeitet.')}
       ${_t('Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.')}</p>
       <button class="btn small" data-act="svcretry">${_t('Jetzt prüfen')}</button>`;
   }

@@ -161,6 +161,25 @@ class WebDavStorage:
         e = items[0][1]
         return Entry(path=path, size=e.size, mtime_ns=e.mtime_ns, is_dir=e.is_dir)
 
+    def age(self, path: str) -> float:
+        """Sekunden seit dem letzten Schreiben, beides mit der Uhr des Servers (Last-Modified gegen den
+        Date-Header der Antwort). So hängt das Ablaufen einer Sperre nicht davon ab, ob die Uhren der
+        beteiligten Rechner übereinstimmen."""
+        r = self._request("PROPFIND", path, headers={"Depth": "0", "Content-Type": "application/xml"}, content=PROPFIND_BODY)
+        if r.status_code == 404:
+            raise NotFound(path)
+        if r.status_code != 207:
+            raise StorageError(_t("WebDAV-Fehler {status} bei {path}", status=r.status_code, path=path))
+        lm = next((el.text for el in ET.fromstring(r.content).iter(f"{DAV}getlastmodified") if el.text), None)
+        if not lm:
+            raise StorageError(_t("WebDAV-Fehler {status} bei {path}", status=r.status_code, path=path))
+        modified = email.utils.parsedate_to_datetime(lm).timestamp()
+        try:
+            now = email.utils.parsedate_to_datetime(r.headers["date"]).timestamp()
+        except (KeyError, TypeError, ValueError):
+            now = time.time()
+        return max(0.0, now - modified)
+
     def walk(self, prefix: str) -> Iterator[Entry]:
         """Alle Einträge unterhalb von ``prefix``; Ebene für Ebene (Nextcloud erlaubt kein ``Depth: infinity``)."""
         todo = [prefix.strip("/")]

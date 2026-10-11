@@ -71,13 +71,13 @@ def test_lock_between_two_devices(dav, tmp_path):
     url = dav.url(f"{tmp_path.name}-lock")
     a, b = WebDavStorage(url, USER, PASSWORD), WebDavStorage(url, USER, PASSWORD)
     a.check()
-    la, lb = ProjectLock(a, lease=0.5), ProjectLock(b, lease=0.5)
+    la, lb = ProjectLock(a, lease=1.0), ProjectLock(b, lease=1.0)   # WebDAV kennt Änderungszeiten nur auf die Sekunde
     la.acquire("laptop", "Anna")
     with pytest.raises(Locked) as e:
         lb.acquire("handy", "Bernd")
     assert e.value.info.holder == "Anna"
     la.heartbeat("laptop")
-    time.sleep(0.7)
+    time.sleep(2.5)
     lb.acquire("handy", "Bernd")                                      # abgelaufen: kontrollierte Übernahme
     with pytest.raises(LockLost):
         la.heartbeat("laptop")
@@ -161,3 +161,17 @@ def test_server_lock_423_is_retried_then_explained(monkeypatch):
                           transport=httpx.MockTransport(lambda r: httpx.Response(423)))
     with pytest.raises(ServerLocked, match="423"):
         stuck.replace(".lichtjahr/lock.json", b"{}", if_match='"e0"')
+
+
+def test_lock_age_comes_from_the_server_clock(store):
+    """Über WebDAV misst die Sperre das Alter mit der Uhr des Servers (Last-Modified gegen Date)."""
+    import json as _json
+    store.makedirs(".lichtjahr")
+    t = time.time() - 900                    # Zeitstempel einer Uhr, die 15 Minuten nachgeht
+    store.write(".lichtjahr/lock.json", _json.dumps({"session": "a", "holder": "Anna", "device": "pc", "created": t,
+                                                     "heartbeat": t, "expires": t + 120}).encode())
+    assert store.age(".lichtjahr/lock.json") < 5
+    with pytest.raises(Locked):
+        ProjectLock(store).acquire("b", "Bernd")
+    with pytest.raises(NotFound):
+        store.age(".lichtjahr/gibtsnicht.json")
