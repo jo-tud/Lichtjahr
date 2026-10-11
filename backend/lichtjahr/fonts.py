@@ -133,7 +133,11 @@ def google_files(family: str, cache_dir: str, weights: list[int] | None = None, 
     for cut, w in (("regular", REGULAR), ("bold", bw)):
         if w is None or w not in urls:
             continue
-        data, meta = normalize(get(urls[w]), w)
+        try:
+            raw = get(urls[w])
+        except Exception as e:
+            raise FontError(_t("Google Fonts ist gerade nicht erreichbar: {error}", error=e)) from e
+        data, meta = normalize(raw, w)
         with open(os.path.join(folder, f"{cut}.ttf"), "wb") as fh:
             fh.write(data)
         info["files"][cut] = f"{cut}.ttf"
@@ -180,13 +184,13 @@ def _to_truetype(font) -> None:
 def normalize(data: bytes, weight: int = REGULAR) -> tuple[bytes, dict]:
     """Beliebige TTF/OTF/WOFF-Datei → statische TrueType-Schrift mit den Zeichen des Kalenders."""
     from fontTools import subset
-    from fontTools.ttLib import TTFont, TTLibError
+    from fontTools.ttLib import TTFont
 
     if len(data) > MAX_FONT_BYTES:
         raise FontError(_t("Die Schriftdatei ist zu groß."))
     try:
         font = TTFont(io.BytesIO(data), lazy=False)
-    except (TTLibError, Exception) as e:
+    except Exception as e:                      # TTLibError, aber auch kaputte Tabellen
         raise FontError(_t("Keine lesbare Schriftdatei (TrueType, OpenType oder WOFF erwartet).")) from e
     if "OS/2" in font and font["OS/2"].fsType & 0x000F == 0x0002:
         raise FontError(_t("Die Lizenz dieser Schrift erlaubt nicht, sie in ein PDF einzubetten."))

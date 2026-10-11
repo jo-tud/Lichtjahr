@@ -132,7 +132,7 @@ the go – with swiping, tapping and pinch-to-zoom.
 - **Sheets:** 12 months, a cover, a photo index at the end and as many extra sheets as you like.
 - **Single- or double-sided:** Back sides *unfolded* (the back of the previous sheet on top, the month below, one shared calendar grid), as a second picture per month or as free photo pages.
 - **Calendar grid:** Strip, column, grid or double grid (two weeks side by side, wide and flat, with the month name centered above), freely movable, with a backdrop of adjustable opacity. Four designs (Classic, Modern, Calm, Bold), shown as previews of the actual month, plus details: month name, weekday labels, week separation, day number weight and, for the strip, full page width. Whatever you pick, the layout follows fixed rules: equal-width figures, never-crowded cells, clear week breaks, no text below 6 pt, and it always fits on the page. Public holidays by German state, school holidays as a fine line, week numbers, birthdays (also from `.vcf` contacts).
-- **Fonts:** Jost by default. Headings (cover title, month names, index headings) and the calendar grid with all other texts can each get their own font: any of the free [Google Fonts](https://fonts.google.com) (with the local service), your own TTF/OTF files, or one of the suggested pairs such as Playfair Display with Lato. The dialog shows the choice on your current page right away. The service prepares each font for print (static weights, TrueType outlines, only the characters the calendar uses), refuses fonts whose license forbids embedding, and keeps them in the project folder, so everyone working on the calendar has the same fonts.
+- **Fonts:** Jost by default. Headings (cover title, month names, index headings) and the calendar grid with all other texts can each get their own font: any of the free [Google Fonts](https://fonts.google.com) (with the local service), your own font files (TTF, OTF or WOFF with the service; TTF without it), or one of the suggested pairs such as Playfair Display with Lato. The dialog shows the choice on your current page right away. The service prepares each font for print (static weights, TrueType outlines, only the characters the calendar uses), refuses fonts whose license forbids embedding, and keeps them in the project folder, so everyone working on the calendar has the same fonts.
 - **Languages:** The app is available in English and German. It follows your browser's language and can be switched at any time. The printed calendar has its own language setting for month names, weekdays, holidays and the photo index – so you can work in one language and print in the other. So far, only German public holidays and school holidays (for each of Germany's states) are supported.
 - **Photo index:** Pictures per page (with captions, numbers, thumbnails), text per page or free text; flows over as many pages as needed. Optionally with photos behind the text: pick one of the page layouts as the index background, choose the photos per page and lay a light or dark veil over them so the text stays readable.
 - **Print PDF:** PDF/X-1a or PDF/X-4 with the print shop's color profile, a check report and storage in `Export/` (with the local service, see [below](#print-pdf-and-color-management)).
@@ -176,6 +176,15 @@ SmartScreen may ask: “More info” → “Run anyway”.
 print profiles and access data stay; they live in the project folder and in your user folder, not next to the
 script.
 
+**Requirements:** a recent macOS, Windows 10 or 11, or Linux; a current browser (Chrome, Edge, Firefox or Safari);
+about 500 MB of free disk space for the program and its caches; internet for the first start. On Linux the start
+script needs `curl` or `wget`.
+
+**Uninstalling:** your projects are ordinary folders and stay where they are. To remove Lichtjahr itself, delete the
+unpacked folder and Lichtjahr's data and cache folders (see the [table](backend/README.md#project-folder)), then run
+`uv cache clean`. uv itself can be removed as described in its
+[documentation](https://docs.astral.sh/uv/getting-started/installation/#uninstallation).
+
 **Working on one calendar together:** share the project folder (in Nextcloud with edit permission, or via
 Syncthing or a network drive). The other person starts Lichtjahr and chooses *Open existing* with their own
 address of the shared folder (in Nextcloud: their own WebDAV address plus the name the shared folder has in their
@@ -187,7 +196,7 @@ files). Only one person edits at a time. The other can look through the calendar
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.1/lichtjahr-1.3.1-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.4.0/lichtjahr-1.4.0-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:
@@ -210,7 +219,8 @@ when you open the app.
 <img src="docs/images/projekt.webp" alt="Project selection at startup and project folder card" width="720">
 
 To use it from your phone on your home network, start it with `--host 0.0.0.0` (for example
-`./lichtjahr.sh --host 0.0.0.0`); the window then shows an address with an access key. More in [`backend/README.md`](backend/README.md).
+`./lichtjahr.sh --host 0.0.0.0`, on Windows `Lichtjahr.bat --host 0.0.0.0`; the firewall may ask whether to allow
+it); the window then shows an address with an access key. More in [`backend/README.md`](backend/README.md).
 
 ## Project folder
 
@@ -291,6 +301,21 @@ areas that the printing process clearly cannot reproduce, so you can still swap 
 a simple conversion without an ICC profile, with bleed, an embedded font and no transparency. It is good for
 viewing and test prints; the Print PDF is the one meant for the print shop.
 
+## What goes online
+
+Lichtjahr has no server of its own, no account and no tracking. Your photos never leave your computer (or your own
+Nextcloud). Other servers are contacted only in these cases:
+
+- **First start of the download:** the start script installs [uv](https://docs.astral.sh/uv/) from astral.sh (after
+  asking), then Python and the packages from the Python Package Index.
+- **Google Fonts:** when you open the Google Fonts list, the service fetches the font directory from fonts.google.com
+  (kept for a week); when you pick a font, it downloads that font. Nothing about your calendar is sent.
+- **Who appears how often:** the first use downloads the recognition model (SFace, 10 MB) from GitHub.
+- **Online version:** the page is loaded from GitHub Pages; after that, everything stays in your browser.
+
+Everything else is included: the app's fonts (Jost, IBM Plex), holidays and school holidays, the print profiles
+and the face detection model.
+
 ## Architecture
 
 ```mermaid
@@ -316,7 +341,7 @@ GitHub Pages), it works in the browser only, as before.
 | [`prototyp/`](prototyp) | The user interface: vanilla JavaScript with no framework and no build dependencies. Pages are described in millimeters and drawn from that as SVG (editor) and as PDF (export). Its own CMYK JPEG encoder and PDF writer. |
 | [`backend/`](backend) | The local service: Python, FastAPI, Pillow. Storage adapter with atomic operations, project lock with lease, manifest with revision and ETag, journal for file moves. |
 | [`docs/`](docs) | UX review and the images for this README. |
-| [`tools/`](tools) | `screenshots.cjs` and `screenshots-dienst.cjs` create the images in `docs/images/` (English) and `docs/images/de/` (German), `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations in the browser, `i18n-keys.cjs` checks them in CI. |
+| [`tools/`](tools) | `screenshots.cjs` and `screenshots-dienst.cjs` create the images in `docs/images/` (English) and `docs/images/de/` (German), `e2e-dienst.cjs` tests the app and the service together in the browser, `i18n-check.cjs` finds missing English translations in the browser, `i18n-keys.cjs` checks them in CI, `package.sh` builds the download ZIP and the wheel (`--check` starts it once). |
 
 <details>
 <summary>Prototype files</summary>
@@ -344,7 +369,8 @@ GitHub Pages), it works in the browser only, as before.
 | `src/b8_fonts.js` | Fonts: reading TrueType metrics, loading the project's fonts, the font picker |
 | `src/jpeg.js`, `src/pdf.js` | CMYK JPEG encoder and minimal PDF writer |
 | `src/schoolholidays.js` | School holidays 2025–2028 for each German state |
-| `fonts/fonts.js` | Jost (Regular, SemiBold), reduced to Windows-1252; created with `tools/mkfont.py` |
+| `fonts/fonts.js` | Jost (Regular, SemiBold), reduced to Windows-1252; created with `prototyp/tools/mkfont.py` |
+| `fonts/plex/` | IBM Plex Sans and Mono for the app's interface, embedded by `build.sh` |
 
 </details>
 
@@ -375,6 +401,9 @@ cd backend && pip install -e '.[dev]' && pytest
 - [x] Version 1.0: download with start scripts for macOS, Windows and Linux ([changelog](CHANGELOG.md))
 - [x] [Website](https://jo-tud.github.io/Lichtjahr/) in English and German, without third-party resources
 - [x] Fonts: Google Fonts and your own fonts for headings and texts, embedded in every PDF
+- [ ] Public holidays for more countries
+- [ ] Real exposure brackets (several shots of the same moment) merged instead of synthetic exposures
+- [ ] Optional AI noise reduction as a separate download
 
 Ideas and wishes are welcome as an [issue](https://github.com/jo-tud/Lichtjahr/issues).
 
@@ -386,10 +415,11 @@ tested and reviewed is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License and credits
 
 - **Code:** [MIT License](LICENSE)
-- **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Fonts you pick from Google Fonts keep their own licenses (mostly SIL OFL); they are downloaded by the service only when you choose one and are not part of this repository.
+- **Font:** [Jost](https://github.com/indestructible-type/Jost) by indestructible type\*, SIL Open Font License 1.1 ([`prototyp/fonts/OFL.txt`](prototyp/fonts/OFL.txt)). Fonts you pick from Google Fonts keep their own licenses (mostly SIL OFL); the service downloads them only when you use the font list and are not part of this repository.
+- **App font:** [IBM Plex](https://github.com/IBM/plex) Sans and Mono by IBM, SIL Open Font License 1.1 ([`prototyp/fonts/plex/OFL.txt`](prototyp/fonts/plex/OFL.txt)), embedded in the app
 - **School holidays:** Contains information from [OpenHolidays API](https://www.openholidaysapi.org), which is made available here under the [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). The extract in `prototyp/src/schoolholidays.js` is also licensed under the ODbL. No guarantee of accuracy.
 - **Face recognition:** [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) (OpenCV Zoo), Apache License 2.0; not included in the repository, downloaded on first use and checked against its SHA-256.
 - **Face detection:** [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) by Shiqi Yu, MIT license ([`backend/lichtjahr/models/`](backend/lichtjahr/models)); it finds faces, it does not recognize people. Test photos in `backend/tests/data/` are NASA portraits in the public domain.
 - **ICC print profiles:** `ISOcoated_v2_300_bas.icc` and `PSO_Uncoated_ISO12647_bas.icc` by basICColor GmbH, zlib/libpng license ([`backend/lichtjahr/icc/`](backend/lichtjahr/icc))
-- **Service libraries:** FastAPI, Pillow with LittleCMS, pikepdf/qpdf, fontTools (each under its own free license)
+- **Service libraries:** FastAPI, Uvicorn, Pydantic, Pillow with LittleCMS, pikepdf/qpdf, fontTools, httpx, NumPy, OpenCV (Apache 2.0), each under its own free license; for HEIC photos the start scripts add pillow-heif with libheif (LGPL)
 - **Sample pictures:** drawn in the browser at startup; no real photos are included.

@@ -33,7 +33,7 @@ gut bedienbare UX; Barrierefreiheit war ausdrücklich kein Ziel. Insgesamt 36 Be
 | Abschluss | nach dem Export eine kurze Feier und „An der Wand ansehen“ |
 
 ## Offen / später
-- Gesichtserkennung für Zuschnitt und Kalendarium (braucht das lokale Backend oder nachladbare Modelle).
+- ~~Gesichtserkennung für Zuschnitt und Kalendarium~~ – erledigt (mit dem lokalen Dienst, seit 1.0).
 - Nativer Teilen-Dialog für das PDF auf dem Handy.
 - Kalendarium nach Layoutwechsel automatisch neu platzieren (bewusst nicht automatisch, Standardort hat Vorrang).
 - Ordnerimport mit Umlauten nur im Testbrowser fehlgeschlagen; in echten Browsern prüfen.

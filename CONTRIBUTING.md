@@ -74,7 +74,7 @@ pytest
 ```
 
 - All file access goes through the storage adapter (`lichtjahr/storage/`), never directly via `open()`.
-  That way WebDAV/Nextcloud can be added later without restructuring.
+  That is what lets the same code work on a local folder and on WebDAV/Nextcloud.
 - Changes to the manifest go through `Project.save()`/`update()` with a revision; never around the lock.
 - New features come with tests. The lock tests start several processes – please don't weaken them.
 - Print PDF (`lichtjahr/printing.py`, tests in `tests/test_printing.py`): only check in ICC profiles that may
@@ -111,8 +111,9 @@ CI on GitHub runs the tests and the build automatically for every pull request.
 
 ## Releases
 
-1. Raise the version in `backend/lichtjahr/__init__.py` (the only place; the package reads it from there) and
-   add a section to `CHANGELOG.md`.
+1. Run `tools/version.sh X.Y.Z`. It sets the version in `backend/lichtjahr/__init__.py` (the package reads it
+   from there) and in the download links and example outputs of the READMEs and the website. Then turn the
+   `[Unreleased]` section of `CHANGELOG.md` into `## [X.Y.Z] – date`.
 2. `tools/package.sh --check` builds the package with the app inside and the download ZIP with the start
    scripts (`start/`), installs the package in a fresh environment and starts it. CI does the same for every
    pull request.
@@ -120,8 +121,8 @@ CI on GitHub runs the tests and the build automatically for every pull request.
    “Run workflow”, which sets the tag itself. It builds again and publishes ZIP and package with the changelog
    section as release notes.
 
-The start scripts are tested on Linux in CI; changes to `start/Lichtjahr.bat` or the macOS behavior should be
-tried on the real system.
+CI checks the syntax of `start/lichtjahr.sh` and starts the packaged service on Linux; changes to
+`start/Lichtjahr.bat` or the macOS behavior should be tried on the real system.
 
 ## License
 

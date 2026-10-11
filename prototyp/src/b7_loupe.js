@@ -137,5 +137,5 @@ document.addEventListener('click', (e) => {          // der Tipp für die Lupe w
 }, true);
 document.addEventListener('pointercancel', () => { LOUPE.touch = false; }, true);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && ui.loupe) { e.stopImmediatePropagation(); loupeToggle(false); }
+  if (e.key === 'Escape' && ui.loupe && !document.querySelector('[aria-modal="true"]')) { e.stopImmediatePropagation(); loupeToggle(false); }   // offener Dialog zuerst
 }, true);

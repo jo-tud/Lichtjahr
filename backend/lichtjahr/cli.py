@@ -261,37 +261,45 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def with_default_command(argv: list[str]) -> list[str]:
+    """Ohne Befehl gilt „serve“, auch mit Optionen davor oder danach (``lichtjahr --data-dir X --no-browser``)."""
+    i = 0
+    while i < len(argv) and argv[i] in ("--data-dir", "--cache-dir") or i < len(argv) and argv[i].startswith(("--data-dir=", "--cache-dir=")):
+        i += 1 if "=" in argv[i] else 2
+    if i < len(argv) and argv[i] in ("serve", "init", "-h", "--help", "--version"):
+        return argv
+    return [*argv[:i], "serve", *argv[i:]]
+
+
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="lichtjahr", description="Lokaler Dienst für den Familien-Fotokalender.")
-    parser.add_argument("--version", action="version", version=f"lichtjahr {__version__}")
-    parser.add_argument("--data-dir", help="Ort für Projektliste und Entwürfe (Standard je nach Betriebssystem, siehe README)")
-    parser.add_argument("--cache-dir", help="Ort für Vorschaubilder (Standard je nach Betriebssystem)")
-    sub = parser.add_subparsers(dest="cmd")
-
-    s = sub.add_parser("serve", help="Dienst starten (Standard: nur auf diesem Rechner erreichbar)")
-    s.add_argument("path", nargs="?", help="Projektordner, der beim Start gleich geöffnet wird")
-    s.add_argument("--host", default="127.0.0.1", help="Bind-Adresse; 0.0.0.0 für Zugriff aus dem Heimnetz")
-    s.add_argument("--port", type=int, default=8470)
-    s.add_argument("--token", help="Zugriffsschlüssel; wird bei Netzzugriff automatisch erzeugt")
-    s.add_argument("--static", help="Ordner mit der Oberfläche (Standard: im Paket bzw. prototyp/dist)")
-    s.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
-    s.set_defaults(func=cmd_serve)
-
-    i = sub.add_parser("init", help="Neues Projekt in einem Ordner anlegen")
-    i.add_argument("path")
-    i.add_argument("--year", type=int, default=date.today().year + 1, help="Kalenderjahr (Standard: nächstes Jahr)")
-    i.add_argument("--source-year", type=int, help="Jahr, aus dem die Fotos stammen (Standard: Kalenderjahr − 1)")
-    i.add_argument("--title", help="Titel (Standard: „Family Calendar“ bzw. „Familienkalender“)")
-    i.add_argument("--language", choices=["en", "de"], help="Sprache der Ordnernamen (Standard: Systemsprache)")
-    i.set_defaults(func=cmd_init)
-
     for stream in (sys.stdout, sys.stderr):           # Umlaute und Pfeile auch in alten Windows-Konsolen
         try:
             stream.reconfigure(errors="replace")
         except (AttributeError, ValueError):
             pass
-    set_lang(system_lang())
-    args = parser.parse_args(argv)
-    if not getattr(args, "func", None):
-        args = parser.parse_args(["serve", *(argv or sys.argv[1:])])
+    set_lang(system_lang())                            # vor dem Parser, damit auch die Hilfe übersetzt ist
+    parser = argparse.ArgumentParser(prog="lichtjahr", description=_t("Lokaler Dienst für den Familien-Fotokalender."))
+    parser.add_argument("--version", action="version", version=f"lichtjahr {__version__}")
+    parser.add_argument("--data-dir", help=_t("Ort für Projektliste und Entwürfe (Standard je nach Betriebssystem, siehe README)"))
+    parser.add_argument("--cache-dir", help=_t("Ort für Vorschaubilder (Standard je nach Betriebssystem)"))
+    sub = parser.add_subparsers(dest="cmd")
+
+    s = sub.add_parser("serve", help=_t("Dienst starten (Standard: nur auf diesem Rechner erreichbar)"))
+    s.add_argument("path", nargs="?", help=_t("Projektordner, der beim Start gleich geöffnet wird"))
+    s.add_argument("--host", default="127.0.0.1", help=_t("Bind-Adresse; 0.0.0.0 für Zugriff aus dem Heimnetz"))
+    s.add_argument("--port", type=int, default=8470)
+    s.add_argument("--token", help=_t("Zugriffsschlüssel; wird bei Netzzugriff automatisch erzeugt"))
+    s.add_argument("--static", help=_t("Ordner mit der Oberfläche (Standard: im Paket bzw. prototyp/dist)"))
+    s.add_argument("--no-browser", action="store_true", help=_t("Browser nicht automatisch öffnen"))
+    s.set_defaults(func=cmd_serve)
+
+    i = sub.add_parser("init", help=_t("Neues Projekt in einem Ordner anlegen"))
+    i.add_argument("path")
+    i.add_argument("--year", type=int, default=date.today().year + 1, help=_t("Kalenderjahr (Standard: nächstes Jahr)"))
+    i.add_argument("--source-year", type=int, help=_t("Jahr, aus dem die Fotos stammen (Standard: Kalenderjahr − 1)"))
+    i.add_argument("--title", help=_t("Titel (Standard: „Family Calendar“ bzw. „Familienkalender“)"))
+    i.add_argument("--language", choices=["en", "de"], help=_t("Sprache der Ordnernamen (Standard: Systemsprache)"))
+    i.set_defaults(func=cmd_init)
+
+    args = parser.parse_args(with_default_command(list(sys.argv[1:] if argv is None else argv)))
     sys.exit(args.func(args))

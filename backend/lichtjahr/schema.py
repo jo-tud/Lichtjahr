@@ -60,11 +60,11 @@ class Format(BaseModel):
 
 
 class Asset(BaseModel):
-    id: str = Field(default_factory=lambda: "a_" + uuid.uuid4().hex[:12])
+    id: str = Field(default_factory=lambda: "a_" + uuid.uuid4().hex[:12], pattern=r"^a_[0-9a-f]{12}$")
     path: str                                   # relativ zum Projektordner
-    month: int | None = None                    # 0–11, None = ohne Monat
-    suggestedMonth: int | None = None           # aus Aufnahmedatum oder Dateiname, nur ein Vorschlag
-    contentHash: str
+    month: int | None = Field(default=None, ge=0, le=11)            # None = ohne Monat
+    suggestedMonth: int | None = Field(default=None, ge=0, le=11)   # aus Aufnahmedatum oder Dateiname, nur ein Vorschlag
+    contentHash: str = Field(pattern=r"^[0-9a-f]{64}$")   # SHA-256; landet in Pfaden des Zwischenspeichers
     size: int
     mtimeNs: int
     widthPx: int = 0
@@ -81,7 +81,7 @@ class Asset(BaseModel):
 
 class Manifest(BaseModel):
     schemaVersion: int = SCHEMA_VERSION
-    id: str = Field(default_factory=lambda: "p_" + uuid.uuid4().hex[:12])
+    id: str = Field(default_factory=lambda: "p_" + uuid.uuid4().hex[:12], pattern=r"^p_[0-9a-f]{12}$")   # Name des Cache-Ordners
     title: str = "Familienkalender"
     language: str = "de"                                   # Sprache der Ordnernamen („de“ oder „en“)
     calendarYear: int

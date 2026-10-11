@@ -30,7 +30,7 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF-Fotos vom iPhone (pillow-heif
 ```sh
 # Dienst starten – nur auf diesem Rechner erreichbar
 lichtjahr serve
-# → Lichtjahr 1.3.1 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
+# → Lichtjahr 1.4.0 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
 ```
 
 Ein zweiter Start öffnet nur den Browser erneut, mit Zugriffsschlüssel und gegebenenfalls dem genannten
@@ -66,7 +66,7 @@ Hand): neue Dateien kommen dazu, verschobene werden wiedererkannt, fehlende geme
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 1.3.1 läuft: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.4.0 läuft: http://192.168.178.20:8470/?token=…
 ```
 
 Sobald der Dienst im Netz erreichbar ist, verlangt er einen Zugriffsschlüssel. Er wird automatisch erzeugt
@@ -100,12 +100,15 @@ Kalender-2027/
 ├── Export/                 fertige PDFs
 └── .lichtjahr/
     ├── lock.json           Bearbeitungssperre
-    └── journal.jsonl       Journal für Dateiverschiebungen
+    ├── journal.jsonl       Journal für Dateiverschiebungen
+    └── fonts/              für diesen Kalender gewählte Schriften (siehe Schriften)
 ```
 
-Vorschaubilder liegen nicht im Projektordner, sondern in einem Cache; die Liste der bekannten Projekte,
-gerettete Entwürfe und das Modell der Gesichtserkennung liegen in einem Datenordner auf diesem Rechner
-(`--data-dir` und `--cache-dir` ändern das):
+Vorschaubilder liegen nicht im Projektordner, sondern in einem Cache (zusammen mit berechneten Vorschauen,
+Google Fonts und Gesichtsmerkmalen); die Liste der bekannten Projekte (`projects.json`), App-Passwörter für WebDAV
+(`credentials.json`, nur für dich lesbar), eigene Druckprofile (`printers/`), gerettete Entwürfe, das Modell der
+Gesichtserkennung und die Adresse des laufenden Dienstes (`running.json`) liegen in einem Datenordner auf diesem
+Rechner (`--data-dir` und `--cache-dir` ändern das):
 
 | System  | Daten                                  | Cache                              |
 |---------|----------------------------------------|------------------------------------|
@@ -211,6 +214,7 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 |---|---|---|
 | GET | `/api/health` | Lebenszeichen |
 | GET / POST | `/api/projects` | bekannte Projekte / neues Projekt anlegen |
+| DELETE | `/api/projects/{id}` | Projekt auf diesem Rechner vergessen (samt WebDAV-Zugangsdaten); der Ordner bleibt unberührt |
 | POST | `/api/projects/open` | vorhandenen Projektordner öffnen |
 | GET | `/api/projects/{id}` | Übersicht (Fotos je Monat, Sperre, Speicherort) |
 | GET / POST / DELETE | `/api/projects/{id}/lock` | Sperre ansehen (mit offener Anfrage und `stamp` des Manifests) / erwerben / freigeben |
@@ -231,11 +235,12 @@ Die vollständige Beschreibung zeigt der laufende Dienst unter `http://localhost
 | POST | `/api/projects/{id}/quality` | Rauschen und Gegenlicht der angegebenen Fotos (`{ids: [...]}`) mit vorgeschlagener Stärke (`fusion`, `denoise`, 0 = nicht nötig), je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Monat wechseln / ausdrücklich kopieren |
 | POST | `/api/projects/{id}/export/print` | Druck-PDF (`standard=x1a` oder `x4`) mit Farbprofil und Prüfbericht |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur); `adj` ist das kompilierte Rezept des Fotos (`m0,…,m8;l0,…,l64`), `tune` nimmt den Druckausgleich dazu, `fx` die Einstellung für Gegenlicht und Rauschen |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=&fx=` | Softproof: das Foto, wie es mit dem Profil gedruckt aussieht (zwischengespeichertes JPEG, wahlweise mit Papierweiß und Farbumfang-Schraffur); `adj` ist das kompilierte Rezept des Fotos (`m0,…,m8;l0,…,l64`), `tune` nimmt den Druckausgleich dazu, `fx` die Einstellung für Gegenlicht und Rauschen |
 | GET | `/api/printers/{id}/tune` | Druckausgleich für das Profil: Tonkurve (65 Stützstellen), Stärke, Schärfung; abgeleitet aus dem Schwarzpunkt des Profils |
 | POST | `/api/printers/{id}/proof-colors` | Softproof für die CMYK-Farben der Oberfläche (`{colors: {id: [c,m,y,k]}, paper}`), liefert Bildschirm-Hexwerte und die Papierfarbe |
 | GET | `/api/projects/{id}/export/{datei}` | PDF aus `Export/` herunterladen |
-| GET / POST / DELETE | `/api/printers` | Druckprofile auflisten (je mit `richBlack`: dem dunkelsten neutralen CMYK-Schwarz innerhalb des Farbauftrags, seinem L* und dem von reinem K) / eigenes ICC-Profil hinzufügen / entfernen |
+| GET / POST | `/api/printers` | Druckprofile auflisten (je mit `richBlack`: dem dunkelsten neutralen CMYK-Schwarz innerhalb des Farbauftrags, seinem L* und dem von reinem K) / eigenes ICC-Profil hinzufügen |
+| DELETE | `/api/printers/{id}` | Eigenes Druckprofil entfernen |
 | GET / POST | `/api/people/model` | Status des Erkennungsmodells / einmalig laden (SFace, 10 MB, SHA-256 geprüft) in den Datenordner |
 | POST | `/api/projects/{id}/people` | Gesichter mit je 128 Merkmalen für die angegebenen Fotos; nur lokal zwischengespeichert, nie im Projektordner; die Oberfläche gruppiert sie zu Personen |
 | POST | `/api/projects/{id}/faces` | Gesichter in den angegebenen Fotos (`{ids: [...]}`): Rechtecke in Bruchteilen des Fotos, je Prüfsumme zwischengespeichert; ohne OpenCV `available: false` |

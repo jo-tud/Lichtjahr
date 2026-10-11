@@ -213,11 +213,11 @@ class Handover:
                 pass
 
     def ask(self, session: str, name: str) -> None:
-        self._write({"id": new_session(), "session": session, "name": name[:80], "status": "open"})
+        self._write({"id": new_session(), "session": session, "name": name[:80], "status": "open", "asked": time.time()})
 
     def answer(self, holder_session: str, status: str, minutes: int | None = None) -> None:
         info, _ = self.lock.read()
-        if info is None or info.session != holder_session:
+        if not holder_session or info is None or info.session != holder_session:
             raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
         req, _ = self.read()
         if not req:
@@ -228,7 +228,7 @@ class Handover:
     def give(self, holder_session: str) -> LockInfo:
         """Bearbeitung an die Anfragende übergeben: die Sperre gehört sofort ihrer Sitzung."""
         info, etag = self.lock.read()
-        if info is None or info.session != holder_session:
+        if not holder_session or info is None or info.session != holder_session:
             raise LockLost(_t("Die Sperre gehört nicht mehr dieser Sitzung."))
         req, _ = self.read()
         if not req:
@@ -246,7 +246,9 @@ class Handover:
         req, age = self.read()
         if not req or req.get("session") != session or req.get("status") not in ("open", "later"):
             raise LockError(_t("Zuerst die Bearbeitung anfragen."))
-        if age is not None and age < self._wait(req):
+        if age is None:                         # Speicher ohne Änderungszeit: dann eben mit der eigenen Uhr
+            age = time.time() - float(req.get("asked") or time.time())
+        if age < self._wait(req):
             raise LockError(_t("Bitte noch etwas auf eine Antwort warten."))
         info, etag = self.lock.read()
         payload = self.lock._payload(session, name or req.get("name") or "?")

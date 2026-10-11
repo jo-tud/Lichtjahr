@@ -15,6 +15,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 from dataclasses import dataclass, field
 
 
@@ -68,19 +69,20 @@ class Registry:
         items = [e for e in self.all() if e.get("id") != entry["id"]]
         items.insert(0, entry)
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(items, fh, ensure_ascii=False, indent=2)
-        os.replace(tmp, self.path)
+        self._write(items)
 
     def get(self, project_id: str) -> dict | None:
         return next((e for e in self.all() if e.get("id") == project_id), None)
 
     def forget(self, project_id: str) -> None:
-        items = [e for e in self.all() if e.get("id") != project_id]
+        self._write([e for e in self.all() if e.get("id") != project_id])
+
+    def _write(self, items: list) -> None:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        with open(self.path, "w", encoding="utf-8") as fh:
+        tmp = f"{self.path}.{os.getpid()}.{threading.get_ident()}.tmp"   # atomar, auch bei gleichzeitigen Anfragen
+        with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(items, fh, ensure_ascii=False, indent=2)
+        os.replace(tmp, self.path)
 
 
 class Credentials:
@@ -113,7 +115,7 @@ class Credentials:
 
     def _write(self, items: dict) -> None:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        tmp = self.path + ".tmp"
+        tmp = f"{self.path}.{os.getpid()}.{threading.get_ident()}.tmp"   # gleichzeitige Anfragen kommen sich nicht in die Quere
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # von Anfang an nur für den Besitzer lesbar
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(items, fh, indent=2)

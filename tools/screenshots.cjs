@@ -72,7 +72,7 @@ async function shoot(browser, lang) {
   // 6. An der Wand + Animation des Umblätterns (verlangsamt aufgenommen)
   await page.evaluate(() => { setView('design'); ui.page = 'm4'; openWall(); });
   await page.waitForTimeout(1800);
-  await page.screenshot({ path: png('wand') }); webp('wand', 1600);
+  await page.screenshot({ path: png('wand') });   // nur als Ausgangsbild; README und Website zeigen wand.gif
   const box = await page.locator('.wall-stage').boundingBox();
   const frames = [];
   await page.evaluate(() => flip(1));

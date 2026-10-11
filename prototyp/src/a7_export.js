@@ -103,11 +103,11 @@ function coversFrame(pl, r) {
 let lastPdf = null;
 
 // mode 'draft': CMYK mit einfacher Formel, ganz im Browser. 'print': Fotos als sRGB an den lokalen Dienst,
-// der sie mit dem Farbprofil der Druckerei umrechnet, ein PDF/X-1a schreibt und es prüft.
+// der sie mit dem Farbprofil der Druckerei umrechnet, ein PDF/X-1a oder PDF/X-4 schreibt und es prüft.
 async function exportPDF(mode = 'draft') {
   const d = S.doc, keys = pageKeys(), print = mode === 'print';
   if (print && tuneOn()) await loadTune(printerOf());
-  await ensureFonts();                            // eingebettet wird, was gerade gewählt ist
+  await fontsReady();                             // eingebettet wird, was gerade gewählt ist
   const nImg = keys.reduce((n, k) => n + pageItems(S.pages[k]).filter(i => i.t === 'img').length, 0) + (d.index ? 20 : 0);
   const bar = busy(print ? _t('Druck-PDF wird erstellt') : _t('PDF-Entwurf wird erstellt'), _t('Vorbereitung …'));
   let done = 0;
@@ -120,7 +120,7 @@ async function exportPDF(mode = 'draft') {
       const k = keys[pi], p = S.pages[k], ops = [], images = {};
       if (isBack(k) && d.backRotate) ops.push(`-1 0 0 -1 ${pdfNum(MW)} ${pdfNum(MH)} cm`);
       const flat = [];
-      for (const it of pageItems(p, { export: true })) { if (it.t === 'block') flat.push(...it.items); else flat.push(it); }
+      for (const it of pageItems(p)) { if (it.t === 'block') flat.push(...it.items); else flat.push(it); }
       const panels = flat.filter(it => it.role === 'panel' && it.opacity < 1);
       const rectOp = (r, color) => `q ${color} k ${X(r.x)} ${Y(r.y + r.h)} ${pdfNum(r.w * MM)} ${pdfNum(r.h * MM)} re f Q`;
       for (const it of flat) {
@@ -129,9 +129,8 @@ async function exportPDF(mode = 'draft') {
           if (!(it.role === 'bg' && it.fill === 'white')) ops.push(rectOp(it, kop(it.fill)));
           for (const pn of panels) { if (pn.veil && it.role === 'mini') continue; const r = intersect(pn, it); if (r) ops.push(rectOp(r, kmix(pn.fill, pn.opacity, it.fill))); }
         } else if (it.t === 'circle') {
-          const a = '';
           const cx = (it.x + off) * MM, cy = MH - (it.y + off) * MM, r = it.r * MM, c = r * .5523;
-          ops.push(`q ${a}${kop(it.fill)} k ${pdfNum(cx + r)} ${pdfNum(cy)} m ${pdfNum(cx + r)} ${pdfNum(cy + c)} ${pdfNum(cx + c)} ${pdfNum(cy + r)} ${pdfNum(cx)} ${pdfNum(cy + r)} c ${pdfNum(cx - c)} ${pdfNum(cy + r)} ${pdfNum(cx - r)} ${pdfNum(cy + c)} ${pdfNum(cx - r)} ${pdfNum(cy)} c ${pdfNum(cx - r)} ${pdfNum(cy - c)} ${pdfNum(cx - c)} ${pdfNum(cy - r)} ${pdfNum(cx)} ${pdfNum(cy - r)} c ${pdfNum(cx + c)} ${pdfNum(cy - r)} ${pdfNum(cx + r)} ${pdfNum(cy - c)} ${pdfNum(cx + r)} ${pdfNum(cy)} c f Q`);
+          ops.push(`q ${kop(it.fill)} k ${pdfNum(cx + r)} ${pdfNum(cy)} m ${pdfNum(cx + r)} ${pdfNum(cy + c)} ${pdfNum(cx + c)} ${pdfNum(cy + r)} ${pdfNum(cx)} ${pdfNum(cy + r)} c ${pdfNum(cx - c)} ${pdfNum(cy + r)} ${pdfNum(cx - r)} ${pdfNum(cy + c)} ${pdfNum(cx - r)} ${pdfNum(cy)} c ${pdfNum(cx - r)} ${pdfNum(cy - c)} ${pdfNum(cx - c)} ${pdfNum(cy - r)} ${pdfNum(cx)} ${pdfNum(cy - r)} c ${pdfNum(cx + c)} ${pdfNum(cy - r)} ${pdfNum(cx + r)} ${pdfNum(cy - c)} ${pdfNum(cx + r)} ${pdfNum(cy)} c f Q`);
         } else if (it.t === 'frame') {
           ops.push(`q 0 0 0 .4 K .3 w ${X(it.x)} ${Y(it.y + it.h)} ${pdfNum(it.w * MM)} ${pdfNum(it.h * MM)} re S Q`);
         } else if (it.t === 'text') {
@@ -163,7 +162,7 @@ async function exportPDF(mode = 'draft') {
         ops.push(`q 1 1 1 1 K .25 w ${L.join(' ')} S Q`);
       }
       const bl = cm * MM;
-      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images, alphas: [] });
+      await pdf.addPage({ media: [0, 0, MW, MH], bleed: [bl, bl, MW - bl, MH - bl], trim: [off * MM, off * MM, MW - off * MM, MH - off * MM], content: ops.join('\n'), images });
     }
     if (srcCache.bmp && srcCache.bmp.close) srcCache.bmp.close(); srcCache.id = null; srcCache.bmp = null;
     // Titel und Dateiname in der Sprache des Kalenders
@@ -231,7 +230,7 @@ async function loadSaved() {
   if (!json) return false;
   try {
     const o = JSON.parse(json);
-    S = { doc: { ...defaultDoc(), ...o.doc }, pages: o.pages || {}, photos: o.photos || {}, demo: !!o.demo };
+    S = { doc: withDefaults(o.doc), pages: o.pages || {}, photos: o.photos || {}, demo: !!o.demo };
     // Älterer Stand: „Rückseiten mit Fotos“ entspricht beidseitig mit freien Rückseiten
     if (o.doc && o.doc.backs && o.doc.duplex == null) { S.doc.duplex = true; S.doc.viewMode = 'free'; }
     delete S.doc.backs;
@@ -286,7 +285,7 @@ async function init() {
   const had = SVC.on ? true : await loadSaved();
   ensurePages();
   if (SVC.on) { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } if (!Object.keys(S.photos).length) ui.view = 'photos'; }
-  else if (!had) { await setupDemo(); if (!S.doc.calLang) S.doc.calLang = LANG; ui.view = 'design'; }
+  else if (!had) { await setupDemo(); ui.view = 'design'; }
   else { try { const v = localStorage.getItem('kw-view'); if (v) ui.view = v; } catch (e) { /* egal */ } }
   if (!SVC.on) { hist.last = snap(); scheduleSave(); }
   updateUndo();

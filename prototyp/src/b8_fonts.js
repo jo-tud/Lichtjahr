@@ -143,6 +143,10 @@ function ensureFonts() {
   })().finally(() => { FONTSTATE.loading = null; if (fontSig() !== FONTSTATE.sig) ensureFonts(); else if (document.body.dataset.view) renderAll(); });
   return FONTSTATE.loading;
 }
+// Für den Export: warten, bis genau die gewählten Schriften geladen sind (auch wenn sich die Wahl gerade geändert hat)
+async function fontsReady() {
+  for (let i = 0; i < 5 && (FONTSTATE.loading || FONTSTATE.sig !== fontSig()); i++) await ensureFonts();
+}
 // Geladene (oder zur Vorschau gewählte) Schriften in FONTS eintragen und für den Editor registrieren
 function applyFonts(preview = null) {
   for (const slot of ['text', 'head']) {
@@ -182,6 +186,7 @@ async function openFontPicker(slot) {
   el.addEventListener('change', (e) => { if (e.target.id === 'fontfile') fontUpload(e.target); });
   document.addEventListener('keydown', fontPickKey, true);
   drawFontPicker();
+  const first = el.querySelector('[data-fp="tab"][aria-pressed="true"]'); if (first) first.focus();   // Fokus in den Dialog
 }
 function fontPickKey(e) { if (e.key === 'Escape' && FONTPICK.el) { e.stopPropagation(); closeFontPicker(false); } }
 function closeFontPicker(apply) {

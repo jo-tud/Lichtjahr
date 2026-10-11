@@ -1,4 +1,4 @@
-"""Ein Kalenderprojekt in einem Speicherort (lokaler Ordner, später WebDAV).
+"""Ein Kalenderprojekt in einem Speicherort (lokaler Ordner oder WebDAV).
 
 Aufbau des Projektordners::
 
@@ -303,6 +303,8 @@ class Project:
         if a.month == month and posixpath.dirname(a.path) == month_dir(month, man.language):
             return a
         src = a.path
+        if not self.storage.exists(src):                # außerhalb der App gelöscht oder verschoben: nichts vormerken
+            raise NotFound(src)
         dst = unique_name(self.storage, month_dir(month, man.language), posixpath.basename(src))
         op = {"op": "move", "id": asset_id, "src": src, "dst": dst, "month": month}
         self._journal({**op, "state": "planned"})
@@ -366,7 +368,8 @@ class Project:
             elif src_ok and not dst_ok:
                 self._journal({**{k: e[k] for k in ("op", "id", "src", "dst", "month")}, "state": "done", "aborted": True})
                 notes.append(_t("Verschiebung nicht ausgeführt, Datei liegt weiter in {src}", src=e["src"]))
-            else:
+            else:                                       # beide oder keine da: einmal melden, dann abschließen
+                self._journal({**{k: e[k] for k in ("op", "id", "src", "dst", "month")}, "state": "done", "unclear": True})
                 notes.append(_t("Unklarer Stand, bitte prüfen: {src} / {dst}", src=e["src"], dst=e["dst"]))
         return notes
 

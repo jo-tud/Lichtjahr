@@ -30,7 +30,7 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF photos from the iPhone (pillo
 ```sh
 # Start the service – reachable from this computer only
 lichtjahr serve
-# → Lichtjahr 1.3.1 running: http://localhost:8470/   (opens the browser; --no-browser to skip)
+# → Lichtjahr 1.4.0 is running: http://localhost:8470/   (opens the browser; --no-browser to skip)
 ```
 
 Starting it a second time only opens the browser again, with the access key and the named project if
@@ -66,7 +66,7 @@ hand): new files are added, moved ones are recognized, missing ones are reported
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 1.3.1 running: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.4.0 is running: http://192.168.178.20:8470/?token=…
 ```
 
 As soon as the service is reachable on the network, it requires an access key. The key is generated
@@ -100,11 +100,15 @@ Calendar-2027/
 ├── Export/                 finished PDFs
 └── .lichtjahr/
     ├── lock.json           editing lock
-    └── journal.jsonl       journal for file moves
+    ├── journal.jsonl       journal for file moves
+    └── fonts/              fonts chosen for this calendar (see Fonts)
 ```
 
-Thumbnails are not stored in the project folder but in a cache; the list of known projects, rescued drafts and
-the face recognition model live in a data folder on this computer (`--data-dir` and `--cache-dir` change them):
+Thumbnails are not stored in the project folder but in a cache (together with computed previews, Google Fonts
+and face features); the list of known projects (`projects.json`), WebDAV app passwords (`credentials.json`, readable
+only by you), your own print profiles (`printers/`), rescued drafts, the face recognition model and the address of
+the running service (`running.json`) live in a data folder on this computer (`--data-dir` and `--cache-dir` change
+them):
 
 | System  | Data                                   | Cache                              |
 |---------|----------------------------------------|------------------------------------|
@@ -209,6 +213,7 @@ The running service shows the complete description at `http://localhost:8470/api
 |---|---|---|
 | GET | `/api/health` | Sign of life |
 | GET / POST | `/api/projects` | Known projects / create a new project |
+| DELETE | `/api/projects/{id}` | Forget a project on this computer (and its WebDAV access data); the folder stays untouched |
 | POST | `/api/projects/open` | Open an existing project folder |
 | GET | `/api/projects/{id}` | Overview (photos per month, lock, storage location) |
 | GET / POST / DELETE | `/api/projects/{id}/lock` | View (with open request and `stamp` of the manifest) / acquire / release the lock |
@@ -229,11 +234,12 @@ The running service shows the complete description at `http://localhost:8470/api
 | POST | `/api/projects/{id}/quality` | Noise and backlight of the given photos (`{ids: [...]}`) with a suggested strength (`fusion`, `denoise`, 0 = not needed), cached per checksum; `available: false` without OpenCV |
 | POST | `/api/projects/{id}/assets/{aid}/move` / `copy` | Change month / copy explicitly |
 | POST | `/api/projects/{id}/export/print` | Print PDF (`standard=x1a` or `x4`) with color profile and check report |
-| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching); `adj` is the photo's compiled recipe (`m0,…,m8;l0,…,l64`), `tune` adds the print adaptation, `fx` the backlight/noise setting |
+| GET | `/api/projects/{id}/assets/{aid}/proof?printer=&size=1600&paper=1&gamut=0&tune=1&adj=&fx=` | Soft proof: the photo as printed with the profile (cached JPEG, optionally paper white and gamut hatching); `adj` is the photo's compiled recipe (`m0,…,m8;l0,…,l64`), `tune` adds the print adaptation, `fx` the backlight/noise setting |
 | GET | `/api/printers/{id}/tune` | Print adaptation for the profile: tone curve (65 points), strength, sharpening; derived from the profile's black point |
 | POST | `/api/printers/{id}/proof-colors` | Soft proof for the app's CMYK colors (`{colors: {id: [c,m,y,k]}, paper}`), returns screen hex values and the paper color |
 | GET | `/api/projects/{id}/export/{name}` | Download a PDF from `Export/` |
-| GET / POST / DELETE | `/api/printers` | List print profiles (each with `richBlack`: the darkest neutral CMYK black within the ink limit, its L* and that of plain K) / add your own ICC profile / remove one |
+| GET / POST | `/api/printers` | List print profiles (each with `richBlack`: the darkest neutral CMYK black within the ink limit, its L* and that of plain K) / add your own ICC profile |
+| DELETE | `/api/printers/{id}` | Remove your own print profile |
 | GET / POST | `/api/people/model` | Status of the recognition model / download it once (SFace, 10 MB, SHA-256 checked) into the data folder |
 | POST | `/api/projects/{id}/people` | Faces with 128 features each for the given photos; cached locally only, never written to the project folder; the app groups them into people |
 | POST | `/api/projects/{id}/faces` | Faces in the given photos (`{ids: [...]}`): boxes as fractions of the photo, cached per checksum; `available: false` without OpenCV |

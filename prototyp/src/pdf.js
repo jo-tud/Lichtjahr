@@ -63,13 +63,12 @@ class PDFWriter {
     this.obj(id, `/Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /${cs} /BitsPerComponent 8 /Filter /DCTDecode${extra ? ' ' + extra : ''}`, bytes);
     return id;
   }
-  async addPage({ media, trim, bleed, content, images, alphas }) {
+  async addPage({ media, trim, bleed, content, images }) {
     const cid = this.alloc(), pid = this.alloc();
     await this.streamObj(cid, '', latin1(content));
     const xo = Object.entries(images).map(([n, id]) => `/${n} ${id} 0 R`).join(' ');
-    const gs = alphas.map(a => `/GA${Math.round(a * 100)} << /Type /ExtGState /ca ${a} /CA ${a} >>`).join(' ');
     const box = (b) => `[${b.map(v => v.toFixed(3)).join(' ')}]`;
-    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R /F3 ${this.fontIds.hregular} 0 R /F4 ${this.fontIds.hbold} 0 R >> /XObject << ${xo} >> /ExtGState << ${gs} >> >> /Contents ${cid} 0 R >>`);
+    this.obj(pid, `<< /Type /Page /Parent ${this.pagesId} 0 R /MediaBox ${box(media)} /BleedBox ${box(bleed)} /TrimBox ${box(trim)} /CropBox ${box(media)} /Resources << /Font << /F1 ${this.fontIds.regular} 0 R /F2 ${this.fontIds.bold} 0 R /F3 ${this.fontIds.hregular} 0 R /F4 ${this.fontIds.hbold} 0 R >> /XObject << ${xo} >> >> /Contents ${cid} 0 R >>`);
     this.pages.push(pid);
   }
   finish(title) {
