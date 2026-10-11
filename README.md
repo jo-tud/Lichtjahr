@@ -178,7 +178,7 @@ script.
 **Working on one calendar together:** share the project folder (in Nextcloud with edit permission, or via
 Syncthing or a network drive). The other person starts Lichtjahr and chooses *Open existing* with their own
 address of the shared folder (in Nextcloud: their own WebDAV address plus the name the shared folder has in their
-files). Only one person edits at a time. The other sees the calendar read-only and clicks *Request editing*: the person editing gets *Hand over*, *5 more minutes* or *Decline*. If nobody is at that computer, it hands over by itself once everything is saved; if the other window is unreachable, *Take over anyway* appears after a short wait, with a warning. Enter your name in the project card so the other person sees who is asking. Everyone should use the same Lichtjahr version.
+files). Only one person edits at a time. The other can look through the calendar, the wall view and the print preview, and sees every saved change live a few seconds later; changing anything is locked, so no work gets lost. To edit, they click *Request editing*: the person editing gets *Hand over*, *5 more minutes* or *Decline*. If nobody is at that computer, it hands over by itself once everything is saved; if the other window is unreachable, *Take over anyway* appears after a short wait, with a warning. Enter your name in the project card so the other person sees who is asking. Everyone should use the same Lichtjahr version.
 
 <details>
 <summary>With a terminal</summary>
@@ -186,7 +186,7 @@ files). Only one person edits at a time. The other sees the calendar read-only a
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.0/lichtjahr-1.3.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.1/lichtjahr-1.3.1-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:

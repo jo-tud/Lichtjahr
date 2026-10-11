@@ -59,3 +59,17 @@ def test_heartbeat_updates_name(tmp_path):
     anna, bernd, pid, a, _ = two_people(tmp_path)
     anna.post(f"/api/projects/{pid}/lock/heartbeat", headers=a, json={"holder": "Anna K."})
     assert bernd.get(f"/api/projects/{pid}/lock").json()["lock"]["holder"] == "Anna K."
+
+
+def test_viewer_sees_when_the_project_changed(tmp_path):
+    """Wer nur ansieht, erkennt am Stempel im Sperrstatus, dass gespeichert wurde, ohne das Manifest zu laden."""
+    anna, bernd, pid, a, _ = two_people(tmp_path)
+    s0 = bernd.get(f"/api/projects/{pid}/lock").json()["stamp"]
+    man = bernd.get(f"/api/projects/{pid}/manifest").json()
+    assert s0 and man["stamp"] == s0
+    assert bernd.get(f"/api/projects/{pid}/lock").json()["stamp"] == s0             # nichts gespeichert: gleich
+    anna.post(f"/api/projects/{pid}/save", headers=a, json={"editor": {"v": 1, "doc": {"gap": 4}}})
+    s1 = bernd.get(f"/api/projects/{pid}/lock").json()["stamp"]
+    assert s1 != s0
+    man = bernd.get(f"/api/projects/{pid}/manifest").json()
+    assert man["stamp"] == s1 and man["editor"]["doc"] == {"gap": 4}

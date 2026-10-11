@@ -243,9 +243,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Sperre ---------------------------------------------------------------------------
     @app.get("/api/projects/{project_id}/lock")
     def lock_status(project_id: str, session: str | None = Depends(session_header)):
-        lock = get_project(project_id).lock
-        info, _ = lock.read()
-        return {"lock": info.public(lock.age()) if info else None, "request": Handover(lock).public(session)}
+        p = get_project(project_id)
+        info, _ = p.lock.read()
+        return {"lock": info.public(p.lock.age()) if info else None, "request": Handover(p.lock).public(session),
+                "stamp": p.stamp()}
 
     @app.post("/api/projects/{project_id}/lock")
     def acquire_lock(project_id: str, req: LockRequest, session: str | None = Depends(session_header)):
@@ -298,8 +299,10 @@ def create_app(settings: Settings | None = None, static_dir: str | None = None) 
     # -- Manifest -------------------------------------------------------------------------
     @app.get("/api/projects/{project_id}/manifest")
     def get_manifest(project_id: str):
-        man, _ = get_project(project_id).load()
-        return man.model_dump()
+        p = get_project(project_id)
+        stamp = p.stamp()                      # vor dem Lesen: ändert sich die Datei dazwischen, lädt man eben noch einmal
+        man, _ = p.load()
+        return {**man.model_dump(), "stamp": stamp}
 
     @app.put("/api/projects/{project_id}/manifest")
     def put_manifest(project_id: str, body: dict[str, Any], session: str | None = Depends(session_header),

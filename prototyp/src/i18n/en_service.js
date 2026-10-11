@@ -56,7 +56,11 @@ Object.assign(EN, {
   'Nur ansehen: Änderungen werden nicht gespeichert, solange das Projekt woanders bearbeitet wird.': 'View only: changes aren’t saved while the project is being edited elsewhere.',
   '{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).': '{holder} is editing the project in another window (last active {ago}).',
   'Das Projekt wird gerade woanders bearbeitet.': 'The project is being edited elsewhere right now.',
-  'Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.': 'As soon as it’s free, you can continue here automatically; unused locks expire after 2 minutes.',
+  'Du siehst Änderungen live; sobald es frei ist, kannst du hier weiterarbeiten.': 'You see changes live; as soon as it’s free, you can continue here.',
+  'Zuletzt geändert: {what}, {ago}.': 'Last change: {what}, {ago}.',
+  'Jemand anderes': 'Someone else',
+  'Nur ansehen: Deine Anfrage läuft, {name} wird gefragt.': 'View only: your request is pending, {name} is being asked.',
+  'Nur ansehen: {name} bearbeitet gerade. Ändern geht, sobald du die Bearbeitung hast.': 'View only: {name} is editing right now. You can make changes once editing is yours.',
   'Jetzt prüfen': 'Check now',
   // Gesicherter Stand
   'Gesicherten Stand gefunden': 'Backed-up changes found',

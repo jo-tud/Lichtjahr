@@ -589,6 +589,7 @@ function svgPage(p, o = {}) {
     live = ed;
     vb[1] = Math.min(vb[1], pdy - 4); vb[3] = H + Math.abs(pdy) + 2 * pad + 4;
   }
+  const nPartner = body.length;               // die Partnerseite hat ihren eigenen Zuschnitt
   for (const it of items) body.push(emit(it, o.mode === 'thumb'));
 
   // Oben hängende Rückseiten haben die Lochung an ihrer Unterkante
@@ -649,9 +650,10 @@ function svgPage(p, o = {}) {
     }
   } else if (o.showBind) over += bindingSvg(false, flipBind);
 
-  let content = body.join('');
-  if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<g clip-path="url(#${cid})">${content}</g>`; }
-  if (ed && !o.showBleed) content = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>` + content;
+  // Ohne Beschnitt nur die bearbeitete Seite aufs Endformat zuschneiden – die Partnerseite liegt daneben und bleibt sichtbar
+  let content = body.slice(nPartner).join('');
+  if (ed && !o.showBleed) { const cid = clipRect({ x: 0, y: 0, w: W, h: H }); content = `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/><g clip-path="url(#${cid})">${content}</g>`; }
+  content = body.slice(0, nPartner).join('') + content;
   return `<svg ${o.attrs || ''} viewBox="${vb.join(' ')}" xmlns="http://www.w3.org/2000/svg" style="font-family:CalJost,sans-serif;font-kerning:none" role="img" aria-label="${esc(pageLabel(p.key))}"><defs>${defs.join('')}</defs>${content}<g data-over="1">${over}</g></svg>`;
 }
 

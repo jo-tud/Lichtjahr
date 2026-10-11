@@ -179,7 +179,7 @@ Benutzerordner, nicht neben dem Skript.
 **Gemeinsam an einem Kalender:** den Projektordner teilen (in Nextcloud mit dem Recht zum Bearbeiten, oder über
 Syncthing oder ein Netzlaufwerk). Die andere Person startet Lichtjahr und wählt *Vorhandenes öffnen* mit ihrer
 eigenen Adresse des geteilten Ordners (in Nextcloud: die eigene WebDAV-Adresse plus der Name, unter dem der
-geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person. Die andere sieht den Kalender zum Ansehen und klickt auf *Bearbeitung anfragen*: Wer bearbeitet, bekommt *Übergeben*, *Noch 5 Minuten* oder *Ablehnen*. Sitzt dort niemand am Rechner, wird von selbst übergeben, sobald alles gespeichert ist; ist das andere Fenster nicht erreichbar, erscheint nach kurzer Wartezeit *Trotzdem übernehmen* mit einer Warnung. Den eigenen Namen in der Projektkarte eintragen, dann sieht die andere Person, wer anfragt. Alle sollten dieselbe Lichtjahr-Version verwenden.
+geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person. Die andere kann Kalender, Wandansicht und Druckansicht durchsehen und sieht jede gespeicherte Änderung wenige Sekunden später live mit; Ändern ist gesperrt, damit keine Arbeit verloren geht. Zum Bearbeiten klickt sie auf *Bearbeitung anfragen*: Wer bearbeitet, bekommt *Übergeben*, *Noch 5 Minuten* oder *Ablehnen*. Sitzt dort niemand am Rechner, wird von selbst übergeben, sobald alles gespeichert ist; ist das andere Fenster nicht erreichbar, erscheint nach kurzer Wartezeit *Trotzdem übernehmen* mit einer Warnung. Den eigenen Namen in der Projektkarte eintragen, dann sieht die andere Person, wer anfragt. Alle sollten dieselbe Lichtjahr-Version verwenden.
 
 <details>
 <summary>Mit dem Terminal</summary>
@@ -187,7 +187,7 @@ geteilte Ordner bei ihr erscheint). Bearbeiten kann immer nur eine Person. Die a
 Wer uv schon hat, braucht nur einen Befehl (die Versionsnummer steht im Release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.0/lichtjahr-1.3.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.3.1/lichtjahr-1.3.1-py3-none-any.whl lichtjahr
 ```
 
 Aus dem Repository, mit Python 3.11 oder neuer:

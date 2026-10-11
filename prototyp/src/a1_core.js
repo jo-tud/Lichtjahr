@@ -287,6 +287,7 @@ const blobId = (ph) => ph.copyOf || ph.id;
 const hist = { past: [], future: [], last: null };
 const snap = () => JSON.stringify({ doc: S.doc, pages: S.pages, photos: S.photos, demo: S.demo });
 function commit() {
+  if (viewOnly()) { refuseEdit(); return; }   // nur ansehen: Änderung zurücknehmen statt speichern
   ensurePages();          // z. B. neue Registerseiten
   const now = snap();
   if (now === hist.last) return;
@@ -311,6 +312,7 @@ function changedWhere(aJson, bJson) {
   return { doc: true };
 }
 function travel(dir) {
+  if (viewOnly()) { viewOnlyHint(); return; }
   const from = dir < 0 ? hist.past : hist.future, to = dir < 0 ? hist.future : hist.past;
   if (!from.length) return;
   const before = hist.last; to.push(before); hist.last = from.pop();
@@ -328,8 +330,8 @@ function undo() { travel(-1); }
 function redo() { travel(1); }
 function updateUndo() {
   const u = $('#undo'), r = $('#redo');
-  if (u) u.disabled = !hist.past.length;
-  if (r) r.disabled = !hist.future.length;
+  if (u) u.disabled = !hist.past.length || viewOnly();
+  if (r) r.disabled = !hist.future.length || viewOnly();
 }
 
 /* ---------- Speichern im Browser (IndexedDB) ---------- */

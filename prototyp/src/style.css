@@ -68,6 +68,7 @@ h3 { font-size: .95rem; }
 
 .banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--accent-soft); border-bottom: 1px solid var(--line); font-size: 13px; }
 .banner p { margin: 0; flex: 1; min-width: 200px; }
+.banner[hidden] { display: none; }
 
 /* ---------- Allgemeine Bausteine ---------- */
 .btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: var(--r); display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -260,6 +261,9 @@ html.wall-open, html.wall-open body { overflow: hidden; }
 
 /* ---------- Ergänzungen aus der UX-Prüfung ---------- */
 .toast.on.has-act { pointer-events: auto; }
+/* left: 50 % ließe der Meldung nur die halbe Breite; so nimmt sie, was der Text braucht (höchstens Bildschirm minus Rand) */
+.toast { width: max-content; }
+@media (max-width: 600px) { .toast.has-act { flex-wrap: wrap; } .toast.has-act .toast-act { margin-left: auto; } }
 .toast-act { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 5px 10px; font-weight: 600; white-space: nowrap; }
 body[data-view="design"] .toast { bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
 .card.notice { border-color: var(--warn); }
@@ -479,3 +483,10 @@ a.btn.primary { color: var(--accent-ink); }
 .loupe-bar .seg button { padding: 3px 8px; font-size: 12px; }
 .loupe-x { border: 0; background: none; font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .loupe img { transition: none; } .loupe.busy .loupe-view::after { animation: none; } }
+
+/* Nur ansehen: Bedienelemente zum Ändern wirken gesperrt; geänderte Seiten der anderen Person leuchten kurz auf */
+body.view-only [data-bind], body.view-only [data-act-input] { cursor: not-allowed; }
+body.view-only #editor .selframe, body.view-only #editor [data-block], body.view-only #editor .cropping, body.view-only #editor .cropghost { cursor: default; }
+#strip .pg.live { animation: live-pulse 2.4s ease-out; }
+@keyframes live-pulse { 0%, 30% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { #strip .pg.live { animation: none; outline: 3px solid var(--accent); } }

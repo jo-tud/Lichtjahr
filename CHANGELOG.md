@@ -4,6 +4,23 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.3.1] – 2026-10-11
+
+Working together: whoever only views can no longer lose work, and sees the other person's changes live.
+
+### Working together
+- *View only* now really means view only: you can browse the calendar, flip through it on the wall, use the print
+  preview and the print loupe, and export a Draft PDF, but dragging, sliders, buttons and keys that would change the
+  calendar are locked. Instead a hint appears with *Request editing* right next to it. Before, changes could be made
+  but were never saved and were silently replaced when editing became yours.
+- Watch live: while viewing, the other person's saved changes appear within a few seconds. Changed pages light up
+  briefly in the page strip, and the bar shows what changed last.
+
+### Fixes
+- Opened view: switching off *Bleed* no longer hides the other half (top or bottom) of the opened calendar.
+- An empty, narrow bar no longer shows below the top bar when there is no notice.
+- Messages with a button use the full width on phones instead of a narrow column.
+
 ## [1.3.0] – 2026-10-11
 
 Handing over editing when working together.

@@ -127,13 +127,18 @@ const confirmDialog = (p, text) => p.evaluate((t) => { const b = [...document.qu
     await A.click('[data-act="svcrestore"]');
     await waitFor(async () => (await manifest()).assets.filter(a => victims.includes(a.id)).every(a => !a.excluded));
 
-    step('Zweites Fenster sieht nur zu und übernimmt, wenn das erste schließt');
+    step('Zweites Fenster sieht nur zu (ändern gesperrt, Änderungen live) und übernimmt, wenn das erste schließt');
     const B = await page(browser);
     await B.goto(BASE); await ready(B);
     assert.equal(await B.evaluate(() => SVC.readOnly), true);
     assert.ok(await B.isVisible('#svcBanner'));
+    const gap0 = await B.evaluate(() => S.doc.gap);
+    await B.evaluate(() => { SVC.lastInput = Date.now(); S.doc.gap = 9; commit(); });             // Änderung wird zurückgenommen
+    assert.equal(await B.evaluate(() => S.doc.gap), gap0);
+    assert.match(await B.textContent('#toast'), /Nur ansehen/);
     await A.evaluate(() => { S.doc.gap = 2; commit(); });
     await waitFor(async () => (await manifest()).editor.doc.gap === 2);
+    await B.waitForFunction(() => S.doc.gap === 2, null, { timeout: 20000 });                     // live mitansehen
     await A.evaluate(() => api(PP('/lock'), { method: 'DELETE' }));
     await A.context().close();
     await B.click('[data-act="svcretry"]');

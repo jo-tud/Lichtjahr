@@ -85,6 +85,14 @@ class LocalStorage:
         except FileNotFoundError as e:
             raise NotFound(path) from e
 
+    def version(self, path: str) -> str:
+        """Stand der Datei aus Änderungszeit (Nanosekunden) und Größe, ohne sie zu lesen."""
+        try:
+            st = os.stat(self._abs(path))
+        except FileNotFoundError as e:
+            raise NotFound(path) from e
+        return f"{st.st_mtime_ns}-{st.st_size}"
+
     def walk(self, prefix: str) -> Iterator[Entry]:
         base = self._abs(prefix)
         if not os.path.isdir(base):
