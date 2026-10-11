@@ -5,7 +5,7 @@
    'hregular'/'hbold' für Überschriften (Monatsname, Titel). Im Editor heißen die Familien CalText und CalHead.
 
    Woher die Dateien kommen: mit dem Dienst aus dem Projektordner (.lichtjahr/fonts, auch Google Fonts landen
-   dort), ohne Dienst aus dem Browser-Speicher (nur eigene TrueType-Dateien). */
+   dort), ohne Dienst aus dem Browser-Speicher (eigene TrueType-Dateien und Google Fonts von Fontsource). */
 const JOST = { regular: FONTS.regular, bold: FONTS.bold };
 FONTS.hregular = FONTS.regular; FONTS.hbold = FONTS.bold;
 const FONTSTATE = { sig: 'null', loading: null, bytes: {}, faces: [], warned: {}, loaded: { text: null, head: null } };
@@ -170,6 +170,72 @@ function fontNames() {
   return t === h ? t : `${h} / ${t}`;
 }
 
+/* ----- Google Fonts: mit dem Dienst über ihn (er bereitet die Schrift für den Druck auf), ohne Dienst direkt
+   von Fontsource. Google liefert Browsern nur WOFF2, das PDF braucht TrueType; Fontsource stellt dieselben
+   Schriften als feste TrueType-Schnitte bereit (Zeichensatz latin), frei abrufbar über jsDelivr. ----- */
+const FONTSOURCE = { list: 'https://api.fontsource.org/v1/fonts?subsets=latin', files: 'https://cdn.jsdelivr.net/fontsource/fonts/' };
+const FONTSOURCE_CAT = { serif: 'Serif', 'sans-serif': 'Sans Serif', display: 'Display', handwriting: 'Handwriting', monospace: 'Monospace' };
+// Fontsource kennt keine Beliebtheit: die bekanntesten zuerst, dann alphabetisch
+const FONT_POPULAR = ['Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Poppins', 'Inter', 'Roboto Condensed', 'Oswald', 'Raleway',
+  'Nunito', 'Playfair Display', 'Merriweather', 'Rubik', 'Work Sans', 'Lora', 'Noto Sans', 'Noto Serif', 'PT Sans', 'Source Sans 3',
+  'DM Sans', 'Fira Sans', 'Quicksand', 'Mulish', 'Barlow', 'Karla', 'Outfit', 'Manrope', 'Josefin Sans', 'Libre Baskerville',
+  'EB Garamond', 'Cormorant Garamond', 'Crimson Text', 'Bitter', 'DM Serif Display', 'Abril Fatface', 'Bebas Neue',
+  'Caveat', 'Dancing Script', 'Pacifico', 'Kalam', 'Space Grotesk', 'Space Mono'];
+const boldWeight = (ws) => [600, 700, 500, 800, 900].find(w => ws.includes(w)) || null;   // wie im Dienst (fonts.py)
+let GOOGLE_LIST = null;
+function googleCatalog() {
+  return GOOGLE_LIST || (GOOGLE_LIST = (async () => {
+    if (SVC.pid) return (await api('fonts/google')).families;
+    let list;
+    try { const r = await fetch(FONTSOURCE.list); if (!r.ok) throw new Error(r.status); list = await r.json(); }
+    catch (e) { throw new Error(_t('Das Verzeichnis der Google Fonts ist gerade nicht erreichbar. Bitte die Internetverbindung prüfen.')); }
+    const rank = (f) => { const i = FONT_POPULAR.indexOf(f.family); return i < 0 ? 1e4 : i; };
+    return list.filter(f => f.type === 'google' && FONTSOURCE_CAT[f.category] && (f.weights || []).includes(400) && (f.styles || []).includes('normal'))
+      .map(f => ({ family: f.family, category: FONTSOURCE_CAT[f.category], id: f.id, weights: f.weights }))
+      .sort((a, b) => rank(a) - rank(b) || a.family.localeCompare(b.family));
+  })().catch(e => { GOOGLE_LIST = null; throw e; }));
+}
+// Die Schnitte einer Google-Schrift als TrueType-Bytes: { family, regular, bold|null }
+async function googleFontBytes(family) {
+  const get = async (u) => {
+    let r; try { r = await fetch(u); } catch (e) { r = null; }
+    if (!r || !r.ok) throw new Error(_t('Die Schrift „{family}“ konnte nicht geladen werden. Bitte die Internetverbindung prüfen.', { family }));
+    return new Uint8Array(await r.arrayBuffer());
+  };
+  if (SVC.pid) {
+    const info = await api(`fonts/google/${encodeURIComponent(family)}`), q = SVC.token ? '?token=' + encodeURIComponent(SVC.token) : '';
+    return { family: info.family, regular: await get(info.urls.regular + q), bold: info.urls.bold ? await get(info.urls.bold + q) : null };
+  }
+  const f = (await googleCatalog()).find(x => x.family === family);
+  if (!f) throw new Error(_t('„{family}“ gibt es bei Google Fonts nicht (mehr).', { family }));
+  const url = (w) => `${FONTSOURCE.files}${f.id}@latest/latin-${w}-normal.ttf`, bw = boldWeight(f.weights);
+  return { family: f.family, regular: await get(url(400)), bold: bw ? await get(url(bw)) : null };
+}
+// Ohne Dienst: Schrift im Browser-Speicher ablegen und im Verzeichnis der Schriften dieses Browsers eintragen
+async function storeLocalFont(id, family, source, bufs) {
+  const files = { regular: `${id}-regular.ttf` };
+  if (bufs[1]) files.bold = `${id}-bold.ttf`;
+  await DB.put('blobs', 'font:' + files.regular, new Blob([bufs[0]]));
+  if (bufs[1]) await DB.put('blobs', 'font:' + files.bold, new Blob([bufs[1]]));
+  FONTSTATE.bytes[files.regular] = new Uint8Array(bufs[0]); if (bufs[1]) FONTSTATE.bytes[files.bold] = new Uint8Array(bufs[1]);
+  const ref = { id, family, source, files };
+  await DB.put('kv', 'fonts', JSON.stringify((await projectFontList()).filter(f => f.id !== id).concat([ref])));
+  return ref;
+}
+const fontSlug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+// Google-Schrift ins Projekt (mit Dienst) bzw. in den Browser-Speicher (ohne Dienst) übernehmen
+async function addGoogleFont(family, bytes = null) {
+  if (SVC.pid) {
+    const fd = new FormData(); fd.append('google', family);
+    const r = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd }));
+    return { id: r.id, family: r.family, files: r.files };
+  }
+  const b = bytes || await googleFontBytes(family);
+  fontMetrics(b.regular); if (b.bold) fontMetrics(b.bold);          // lesbar und einbettbar?
+  const r = await storeLocalFont('google-' + fontSlug(b.family), b.family, 'google', b.bold ? [b.regular, b.bold] : [b.regular]);
+  return { id: r.id, family: r.family, files: r.files };
+}
+
 /* ----- Auswahl ----- */
 const FONTPICK = { slot: 'head', tab: 'project', q: '', cat: '', list: null, pick: null, busy: false, project: null };
 async function projectFontList() {
@@ -226,11 +292,11 @@ function fontTab() {
       <p class="hint">${_t('Schriften im Projekt liegen im Projektordner und sind bei allen da, die mitarbeiten.')}</p>`;
   }
   if (P.tab === 'google') {
-    if (!SVC.pid) return `<p class="hint">${_t('Google Fonts gibt es mit dem lokalen Dienst: Er lädt die Schrift und bereitet sie für den Druck auf. Ohne Dienst kannst du eigene TrueType-Dateien hochladen.')}</p>`;
     return `<input type="search" id="fontq" placeholder="${esc(_t('Schrift suchen'))}" value="${esc(P.q)}" aria-label="${esc(_t('Schrift suchen'))}">
       <div class="seg font-cats">${FONT_CATS().map(([v, l]) => `<button data-fp="cat" data-v="${v}" aria-pressed="${P.cat === v}">${l}</button>`).join('')}</div>
       <div class="font-list" id="fontlist"><p class="hint">${_t('Verzeichnis wird geladen …')}</p></div>
-      <p class="hint">${_t('Freie Schriften von Google Fonts (meist SIL Open Font License). Der Dienst lädt nur die gewählte Schrift; ins Projekt kommt sie erst beim Übernehmen.')}</p>`;
+      <p class="hint">${SVC.pid ? _t('Freie Schriften von Google Fonts (meist SIL Open Font License). Der Dienst lädt nur die gewählte Schrift; ins Projekt kommt sie erst beim Übernehmen.')
+        : _t('Freie Schriften von Google Fonts (meist SIL Open Font License), geladen über Fontsource. Nur die gewählte Schrift wird geladen und bleibt in diesem Browser. Enthalten sind die westeuropäischen Zeichen; für Zeichen wie Š oder Ž den lokalen Dienst nutzen.')}</p>`;
   }
   return `<div class="field"><label for="fontfile">${_t('Schriftdatei')}</label><input type="file" id="fontfile" accept=".ttf,.otf,.woff,font/ttf,font/otf" multiple>
       <p class="hint">${SVC.pid ? _t('TTF, OTF oder WOFF. Eine Datei für den normalen Schnitt, optional eine zweite für den fetten; variable Schriften liefern beide. Nur Schriften, deren Lizenz das Einbetten erlaubt.') : _t('TrueType-Datei (.ttf). Eine Datei für den normalen Schnitt, optional eine zweite für den fetten. Nur Schriften, deren Lizenz das Einbetten erlaubt.')}</p></div>`;
@@ -238,7 +304,7 @@ function fontTab() {
 async function drawFontList() {
   const P = FONTPICK, box = P.el && P.el.querySelector('#fontlist'); if (!box) return;
   if (!P.list) {
-    try { P.list = (await api('fonts/google')).families; }
+    try { P.list = await googleCatalog(); }
     catch (e) { box.innerHTML = `<p class="bad-text">${esc(e.message)}</p>`; return; }
   }
   const q = P.q.trim().toLowerCase(), hits = P.list.filter(f => (!P.cat || f.category === P.cat) && (!q || f.family.toLowerCase().includes(q)));
@@ -270,9 +336,9 @@ async function fontPickClick(e) {
   } else if (a === 'google') {
     P.pick = { google: b.dataset.v, family: b.dataset.v, font: null }; P.busy = true; showFontPreview();
     try {
-      const info = await api(`fonts/google/${encodeURIComponent(b.dataset.v)}`), get = async (u) => new Uint8Array(await (await fetch(u + (SVC.token ? '?token=' + encodeURIComponent(SVC.token) : ''))).arrayBuffer());
-      const reg = fontMetrics(await get(info.urls.regular));
-      P.pick.font = { family: info.family, regular: reg, bold: info.urls.bold ? fontMetrics(await get(info.urls.bold)) : reg };
+      const got = await googleFontBytes(b.dataset.v), reg = fontMetrics(got.regular);
+      P.pick.font = { family: got.family, regular: reg, bold: got.bold ? fontMetrics(got.bold) : reg };
+      P.pick.bytes = got;
     } catch (err) { P.error = fontErrorText(err); P.pick.font = null; }
   }
   if (token !== P.token) return;                 // inzwischen eine andere Schrift gewählt
@@ -291,7 +357,7 @@ async function fontUpload(input) {
     } else {
       const bufs = await Promise.all(files.slice(0, 2).map(f => f.arrayBuffer()));
       const reg = fontMetrics(bufs[0]), bold = bufs[1] ? fontMetrics(bufs[1]) : reg;
-      const id = 'local-' + (reg.family || files[0].name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+      const id = 'local-' + fontSlug(reg.family || files[0].name);
       P.pick = { id, family: reg.family || files[0].name.replace(/\.[^.]+$/, ''), font: { family: reg.family, regular: reg, bold }, local: bufs };
     }
   } catch (err) { P.error = fontErrorText(err); P.pick = null; }
@@ -303,17 +369,8 @@ async function applyFontPick() {
   try {
     if (p.google) {
       P.busy = true; showFontPreview();
-      const fd = new FormData(); fd.append('google', p.google);
-      ref = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd }));
-    } else if (p.local) {
-      const files = { regular: `${p.id}-regular.ttf` };
-      if (p.local[1]) files.bold = `${p.id}-bold.ttf`;
-      await DB.put('blobs', 'font:' + files.regular, new Blob([p.local[0]]));
-      if (p.local[1]) await DB.put('blobs', 'font:' + files.bold, new Blob([p.local[1]]));
-      ref = { id: p.id, family: p.family, source: 'local', files };
-      const list = (await projectFontList()).filter(f => f.id !== p.id).concat([ref]);
-      await DB.put('kv', 'fonts', JSON.stringify(list));
-    }
+      ref = await addGoogleFont(p.google, p.bytes);
+    } else if (p.local) ref = await storeLocalFont(p.id, p.family, 'local', p.local);
   } catch (err) { P.busy = false; P.error = fontErrorText(err); showFontPreview(); return; }
   S.doc.fonts = { ...(S.doc.fonts || {}), [P.slot]: ref ? { id: ref.id, family: ref.family, files: ref.files } : null };
   if (ref) for (const [cut, name] of Object.entries(ref.files)) if (p.font) FONTSTATE.bytes[name] = p.font[cut === 'bold' ? 'bold' : 'regular'].bytes;
@@ -328,16 +385,15 @@ ACTIONS.fontpick = (el) => openFontPicker(el.dataset.v);
 
 // Vorschläge: Überschrift und Text, die gut zusammenpassen (alle von Google Fonts, frei lizenziert)
 const FONT_PAIRS = [['Playfair Display', 'Lato'], ['Montserrat', 'Inter'], ['Lora', 'Source Sans 3'], ['Caveat', 'Nunito'], ['DM Serif Display', 'DM Sans']];
-const fontPairs = () => !SVC.pid ? '' : `<div class="field"><span class="lbl">${_t('Passende Paare')}</span><div class="font-pairs">
+const fontPairs = () => `<div class="field"><span class="lbl">${_t('Passende Paare')}</span><div class="font-pairs">
   ${FONT_PAIRS.map(([h, t]) => `<button class="btn small" data-act="fontpair" data-v="${esc(h)}|${esc(t)}" aria-pressed="${fontFamilyOf('head') === h && fontFamilyOf('text') === t}">${esc(h)} · ${esc(t)}</button>`).join('')}
   <button class="btn small" data-act="fontpair" data-v="" aria-pressed="${!(S.doc.fonts || {}).head && !(S.doc.fonts || {}).text}">Jost</button></div>
   <p class="hint">${_t('Überschrift · Text. Ein Klick lädt beide Schriften und setzt sie im ganzen Kalender.')}</p></div>`;
 ACTIONS.fontpair = async (el) => {
   const [h, t] = el.dataset.v ? el.dataset.v.split('|') : [null, null], bar = h ? busy(_t('Schriften werden geladen'), `${h} · ${t}`) : null;
   try {
-    const add = async (family) => { const fd = new FormData(); fd.append('google', family); const r = await serial(() => api(PP('/fonts'), { method: 'POST', form: fd })); return { id: r.id, family: r.family, files: r.files }; };
-    S.doc.fonts = h ? { head: await add(h), text: await add(t) } : { head: null, text: null };
-  } catch (e) { if (bar) bar.close(); toast(e.message, 7000); return; }
+    S.doc.fonts = h ? { head: await addGoogleFont(h), text: await addGoogleFont(t) } : { head: null, text: null };
+  } catch (e) { if (bar) bar.close(); toast(fontErrorText(e), 7000); return; }
   if (bar) bar.close();
   commit(); await ensureFonts(); renderAll();
   toast(h ? _t('Schriften: {head} für Überschriften, {text} für Kalendarium und Texte.', { head: h, text: t }) : _t('Wieder Jost für alles.'));

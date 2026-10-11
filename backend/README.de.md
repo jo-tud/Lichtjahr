@@ -30,7 +30,7 @@ pip install -e ".[heic]"     # optional: HEIC/HEIF-Fotos vom iPhone (pillow-heif
 ```sh
 # Dienst starten – nur auf diesem Rechner erreichbar
 lichtjahr serve
-# → Lichtjahr 1.4.0 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
+# → Lichtjahr 1.4.1 läuft: http://localhost:8470/   (öffnet den Browser; --no-browser verhindert das)
 ```
 
 Ein zweiter Start öffnet nur den Browser erneut, mit Zugriffsschlüssel und gegebenenfalls dem genannten
@@ -66,7 +66,7 @@ Hand): neue Dateien kommen dazu, verschobene werden wiedererkannt, fehlende geme
 
 ```sh
 lichtjahr serve --host 0.0.0.0
-# → Lichtjahr 1.4.0 läuft: http://192.168.178.20:8470/?token=…
+# → Lichtjahr 1.4.1 läuft: http://192.168.178.20:8470/?token=…
 ```
 
 Sobald der Dienst im Netz erreichbar ist, verlangt er einen Zugriffsschlüssel. Er wird automatisch erzeugt

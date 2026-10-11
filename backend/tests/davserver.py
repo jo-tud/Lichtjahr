@@ -49,7 +49,9 @@ class DavServer:
             with gate:
                 return list(app(environ, start_response))
 
-        self.server = wsgi.Server(("127.0.0.1", self.port), serial, numthreads=8)
+        # Warteschlange größer als die gleichzeitigen Verbindungen im Test: Windows weist sonst die
+        # überzähligen ab (Voreinstellung 5), statt sie warten zu lassen
+        self.server = wsgi.Server(("127.0.0.1", self.port), serial, numthreads=8, request_queue_size=64)
         self.server.prepare()
         threading.Thread(target=self.server.serve, daemon=True).start()
 
