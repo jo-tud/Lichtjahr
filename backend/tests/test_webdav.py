@@ -122,7 +122,9 @@ def test_api_webdav_project_keeps_password_out_of_project(dav, tmp_path):
     assert os.path.isdir(os.path.join(folder, "Photos", "03 March"))
     # Passwort steht nur in credentials.json (0600), nicht in Projektliste, Manifest oder Antworten
     cred = os.path.join(settings.data_dir, "credentials.json")
-    assert stat.S_IMODE(os.stat(cred).st_mode) == 0o600 and PASSWORD in open(cred).read()
+    assert PASSWORD in open(cred).read()
+    if os.name == "posix":                                              # Dateirechte gibt es so nur unter Unix
+        assert stat.S_IMODE(os.stat(cred).st_mode) == 0o600
     assert PASSWORD not in open(os.path.join(settings.data_dir, "projects.json")).read()
     assert PASSWORD not in open(os.path.join(folder, "lichtjahr.json")).read()
     assert PASSWORD not in c.get("/api/projects").text + c.get(f"/api/projects/{pid}").text

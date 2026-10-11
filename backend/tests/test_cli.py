@@ -42,7 +42,9 @@ def test_opens_browser_unless_told_not_to(started):
     port = free_port()
     assert run([*base, "serve", "--port", str(port)]) == 0
     assert seen["port"] == port and seen["browser"] == f"http://localhost:{port}/"
-    assert seen["running"]["port"] == port and seen["mode"] == 0o600     # mit Schlüssel, nur für den Besitzer
+    assert seen["running"]["port"] == port
+    if os.name == "posix":                                                # Dateirechte gibt es so nur unter Unix
+        assert seen["mode"] == 0o600                                      # mit Schlüssel, nur für den Besitzer
     assert not (tmp / "d" / "running.json").exists()                     # nach dem Beenden aufgeräumt
     assert run([*base, "serve", "--port", str(port), "--no-browser"]) == 0
     assert seen["browser"] is None
@@ -176,16 +178,17 @@ def test_default_dirs_per_platform(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "AppData" / "Local"))
     for var in ("XDG_DATA_HOME", "XDG_CACHE_HOME"):
         monkeypatch.delenv(var, raising=False)
+    n = os.path.normpath                                                  # Trenner wie auf dem jeweiligen System
     data, cache = config.default_dirs("darwin")
-    assert data == str(tmp_path / "Library" / "Application Support" / "Lichtjahr")
-    assert cache == str(tmp_path / "Library" / "Caches" / "Lichtjahr")
+    assert n(data) == str(tmp_path / "Library" / "Application Support" / "Lichtjahr")
+    assert n(cache) == str(tmp_path / "Library" / "Caches" / "Lichtjahr")
     data, cache = config.default_dirs("win32")
     assert data == os.path.join(str(tmp_path / "AppData" / "Local"), "Lichtjahr")
     assert cache == os.path.join(data, "Cache")
-    assert config.default_dirs("linux")[0] == str(tmp_path / ".local" / "share" / "lichtjahr")
+    assert n(config.default_dirs("linux")[0]) == str(tmp_path / ".local" / "share" / "lichtjahr")
     # Wer den alten Ordner schon hat, behält ihn
     (tmp_path / ".local" / "share" / "lichtjahr").mkdir(parents=True)
-    assert config.default_dirs("darwin")[0] == str(tmp_path / ".local" / "share" / "lichtjahr")
+    assert n(config.default_dirs("darwin")[0]) == str(tmp_path / ".local" / "share" / "lichtjahr")
 
 
 def test_windows_locale_counts_as_german():
