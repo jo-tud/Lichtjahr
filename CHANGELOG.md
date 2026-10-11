@@ -4,12 +4,24 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.2.0] – 2026-10-11
+
+A deeper black for black backgrounds, a photo index with pictures behind the text, a calendar grid with two weeks
+side by side, and fixes for the print preview and the editing lock.
+
 ### Design
 - New calendar grid shape *Double grid*: two weeks side by side (14 columns, usually three rows), wide and flat,
   with the month name centered above. *Find a spot automatically* considers it too.
 - The photo index can have photos behind its text: any page layout as background, photos per index page, a light
   or dark veil with adjustable strength (the text turns dark or light to match). *Fill empty frames* may use
   photos from the calendar for a look back at the year.
+
+### Print
+- Rich black from the print profile: a black background uses the darkest neutral black the print shop's profile
+  allows within its ink limit (for ISO Coated v2: C65 M55 Y40 K100 instead of the fixed C50 M40 Y40 K100), also in
+  the print preview. Text stays plain black.
+- Photos shown in full or rotated are clipped to their own area in the PDF, so the background around them is the
+  same vector color as the rest of the page instead of a slightly different box.
 
 ### Fixes
 - With only one tab open, the app sometimes claimed another window was editing the project: when a tab came back
@@ -18,13 +30,6 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 - Print preview (also on the wall): the normal preview stays visible until the service has computed the print
   version of a photo. Before, a photo with detail edits vanished for a few seconds, and a black background made
   the page look empty.
-
-### Print
-- Rich black from the print profile: a black background uses the darkest neutral black the print shop's profile
-  allows within its ink limit (for ISO Coated v2: C65 M55 Y40 K100 instead of the fixed C50 M40 Y40 K100), also in
-  the print preview. Text stays plain black.
-- Photos shown in full or rotated are clipped to their own area in the PDF, so the background around them is the
-  same vector color as the rest of the page instead of a slightly different box.
 
 ## [1.1.0] – 2026-10-11
 

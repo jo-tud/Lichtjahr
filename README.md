@@ -177,7 +177,7 @@ SmartScreen may ask: “More info” → “Run anyway”.
 If you already have uv, one command is enough (the version number is in the release):
 
 ```sh
-uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.1.0/lichtjahr-1.1.0-py3-none-any.whl lichtjahr
+uvx --python 3.12 --with pillow-heif --from https://github.com/jo-tud/Lichtjahr/releases/download/v1.2.0/lichtjahr-1.2.0-py3-none-any.whl lichtjahr
 ```
 
 From the repository, with Python 3.11 or newer:
