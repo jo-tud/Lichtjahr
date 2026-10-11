@@ -4,6 +4,23 @@ All notable changes to Lichtjahr. Versions follow [Semantic Versioning](https://
 
 ## [Unreleased]
 
+## [1.3.0] – 2026-10-11
+
+Handing over editing when working together.
+
+### Working together
+- *Request editing*: whoever only views can ask the person editing, who gets *Hand over*, *5 more minutes* or
+  *Decline*. Handing over saves first and passes the lock straight on. If nobody is at that computer (no input
+  for a minute), it hands over by itself once everything is saved. If the other window does not answer at all,
+  *Take over anyway* appears after 45 seconds, with a warning; the other side keeps its unsaved state as a draft.
+- Your name instead of "Chrome on Linux": enter it once in the project card (or when asking); it shows in the
+  read-only bar, in requests and in the lock.
+- Heartbeats every 15 seconds, so requests arrive quickly.
+
+### Fixes
+- Double grid: *Separate weeks* had no effect. *None* now puts the 14 columns side by side, *Gap* leaves space
+  between the two weeks of a row, *Line* draws a line there.
+
 ## [1.2.2] – 2026-10-11
 
 Working together on two computers: the editing lock no longer depends on the computers' clocks.

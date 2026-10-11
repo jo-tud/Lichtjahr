@@ -13,8 +13,9 @@ const SVC = {
   on: false, token: null, pid: null, info: null, session: null, readOnly: false, lock: null,
   assets: {}, queue: Promise.resolve(), timer: null, pending: false, beat: null, retry: null,
   lastScan: 0, offline: false, warnedRO: false,
+  request: null, lastInput: Date.now(), asking: false,   // Übergabe: eigene oder fremde Anfrage, letzte Eingabe
 };
-const SVC_BEAT = 30000, SVC_RETRY = 20000;
+const SVC_BEAT = 15000, SVC_RETRY = 20000, SVC_ASK_IDLE = 60000;   // Lebenszeichen alle 15 s: Anfragen kommen zügig an
 
 async function api(path, { method = 'GET', body, form, keepalive = false } = {}) {
   const headers = { 'Accept-Language': LANG };   // Fehlermeldungen und Prüfbericht des Dienstes in der Sprache der Oberfläche
@@ -46,6 +47,9 @@ async function detectService() {
     return !!(j && j.ok && j.version);
   } catch (e) { return false; }
 }
+// Name, der anderen zeigt, wer bearbeitet (einmal eingegeben, bleibt in diesem Browser); sonst Browser und Gerät
+const myName = () => { try { return localStorage.getItem('lj-name') || ''; } catch (e) { return ''; } };
+const holderName = () => myName() || deviceName();
 function deviceName() {
   const ua = navigator.userAgent;
   const dev = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : _t('Gerät');
@@ -128,7 +132,7 @@ async function openProject(pid) {
 }
 async function acquireLock() {
   try {
-    const r = await api(PP('/lock'), { method: 'POST', body: { holder: deviceName() } });
+    const r = await api(PP('/lock'), { method: 'POST', body: { holder: holderName() } });
     SVC.session = r.session; SVC.readOnly = false; SVC.lock = r.lock;
     try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
     clearInterval(SVC.retry); SVC.retry = null;
@@ -170,25 +174,107 @@ async function leaveProject() {
 async function heartbeat() {
   if (!SVC.pid || SVC.readOnly || !SVC.session || SVC.beating) return;
   SVC.beating = true;
-  try { SVC.lock = (await api(PP('/lock/heartbeat'), { method: 'POST' })).lock; if (SVC.offline) { SVC.offline = false; scheduleServiceSave(); } }
+  try {
+    const r = await api(PP('/lock/heartbeat'), { method: 'POST', body: { holder: holderName() } });
+    SVC.lock = r.lock; if (SVC.offline) { SVC.offline = false; scheduleServiceSave(); }
+    if (r.request && !r.request.mine && r.request.status === 'open') handoverAsked(r.request);
+  }
   catch (e) { if (e.status === 423) lockLost(); else { SVC.offline = true; setSaveState(e.status === 503 ? _t('Nextcloud sperrt gerade kurz, nächster Versuch gleich …') : _t('Dienst nicht erreichbar')); } }
   finally { SVC.beating = false; }
 }
 async function retryLock() {
   if (!SVC.readOnly || !SVC.pid) return;
   try {
-    const r = await api(PP('/lock'), { method: 'POST', body: { holder: deviceName() } });
-    SVC.session = r.session; SVC.lock = r.lock;
-    try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
-    clearInterval(SVC.retry); SVC.retry = null;
-    applyManifest(await api(PP('/manifest')));      // erst den Stand des anderen Fensters laden, dann bearbeiten
-    SVC.readOnly = false; SVC.warnedRO = false;
-    renderServiceBanner(); renderAll(); setSaveState(_t('Im Projektordner gespeichert'));
-    toast(_t('Das Projekt ist jetzt frei. Du kannst weiterarbeiten.'), 6000);
-    serviceScan(false);
+    const r = await api(PP('/lock'), { method: 'POST', body: { holder: holderName() } });
+    await becomeEditor(r, SVC.request && SVC.request.mine ? _t('{name} hat dir die Bearbeitung übergeben. Du kannst jetzt arbeiten.', { name: (SVC.lock && SVC.lock.holder) || '' }) : _t('Das Projekt ist jetzt frei. Du kannst weiterarbeiten.'));
   } catch (e) {
     if (e.status === 423) { SVC.lock = e.data && e.data.lock; renderServiceBanner(); }
   }
+}
+// Sperre bekommen (frei geworden, übergeben oder übernommen): erst den Stand des anderen Fensters laden, dann bearbeiten
+async function becomeEditor(r, msg) {
+  SVC.session = r.session; SVC.lock = r.lock; SVC.request = null;
+  try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
+  clearInterval(SVC.retry); SVC.retry = null; clearInterval(SVC.reqPoll); SVC.reqPoll = null;
+  applyManifest(await api(PP('/manifest')));
+  SVC.readOnly = false; SVC.warnedRO = false;
+  renderServiceBanner(); renderAll(); setSaveState(_t('Im Projektordner gespeichert'));
+  toast(msg, 6000);
+  serviceScan(false);
+}
+
+/* ----- Übergabe ----- */
+// Wer bearbeitet: Anfrage beantworten. Ist niemand am Rechner (seit einer Minute keine Eingabe) und alles
+// gespeichert, wird von selbst übergeben – sonst bliebe die andere Person hängen.
+async function handoverAsked(req) {
+  if (SVC.asking || SVC.readOnly) return;
+  if (Date.now() - SVC.lastInput > SVC_ASK_IDLE && !SVC.pending) { giveAway(req, true); return; }
+  SVC.asking = true;
+  const opened = Date.now();
+  const v = await ask({ title: _t('{name} möchte bearbeiten', { name: req.name || _t('Jemand') }),
+    text: _t('Übergeben speichert deinen Stand; danach kannst du nur noch ansehen, bis du die Bearbeitung zurückbekommst.'),
+    buttons: [{ label: _t('Übergeben'), value: 'give', primary: true }, { label: _t('Noch 5 Minuten'), value: 'later' }, { label: _t('Ablehnen'), value: 'declined' }],
+    timeout: { ms: SVC_ASK_IDLE, value: 'give', when: () => SVC.lastInput < opened } });   // keine Antwort, niemand da: übergeben
+  SVC.asking = false;
+  if (v === 'give') giveAway(req, false);
+  else {
+    try { await api(PP('/lock/answer'), { method: 'POST', body: { status: v, minutes: v === 'later' ? 5 : null } }); } catch (e) { /* egal */ }
+    if (v === 'later') { clearTimeout(SVC.laterTimer); SVC.laterTimer = setTimeout(() => { if (!SVC.readOnly) handoverAsked(req); }, 5 * 60000); }
+  }
+}
+async function giveAway(req, auto) {
+  await flushSave();
+  try {
+    const r = await api(PP('/lock/handover'), { method: 'POST' });
+    SVC.readOnly = true; SVC.lock = r.lock; SVC.request = null; clearTimeout(SVC.timer); SVC.pending = false;
+    clearInterval(SVC.retry); SVC.retry = setInterval(retryLock, SVC_RETRY);
+    renderServiceBanner(); setSaveState(_t('Nur ansehen'));
+    toast(auto ? _t('Du warst nicht aktiv: die Bearbeitung ist an {name} übergeben.', { name: req.name }) : _t('Bearbeitung an {name} übergeben.', { name: req.name }), 8000);
+  } catch (e) { toast(_t('Übergeben ging nicht: {error}', { error: e.message }), 6000); }
+}
+// Wer nur ansieht: anfragen, auf Antwort warten, notfalls übernehmen
+async function requestEditing() {
+  if (!myName()) {
+    const name = await askName(); if (name == null) return;
+  }
+  try {
+    const r = await api(PP('/lock/request'), { method: 'POST', body: { holder: holderName() } });
+    SVC.session = r.session; SVC.request = r.request;
+    try { sessionStorage.setItem('lj-session-' + SVC.pid, r.session); } catch (e) { /* egal */ }
+    clearInterval(SVC.reqPoll); SVC.reqPoll = setInterval(pollRequest, 4000);
+    renderServiceBanner();
+  } catch (e) { toast(e.message, 6000); }
+}
+async function pollRequest() {
+  if (!SVC.readOnly || !SVC.pid) { clearInterval(SVC.reqPoll); SVC.reqPoll = null; return; }
+  try {
+    const r = await api(PP('/lock'));
+    SVC.lock = r.lock; SVC.request = r.request && r.request.mine ? r.request : null;
+    if (!r.lock || (SVC.request && SVC.request.status === 'granted')) { await retryLock(); return; }
+    if (!SVC.request) { clearInterval(SVC.reqPoll); SVC.reqPoll = null; }
+    renderServiceBanner();
+  } catch (e) { /* nächster Versuch */ }
+}
+async function forceEditing() {
+  const who = (SVC.lock && SVC.lock.holder) || _t('Die andere Person');
+  const ok = await ask({ title: _t('Ohne Zustimmung übernehmen?'),
+    text: _t('{name} hat nicht geantwortet. Wenn du übernimmst, gehen Änderungen dort, die noch nicht gespeichert sind, nicht ins Projekt; sie werden dort gesichert und beim nächsten Öffnen angeboten. Nur tun, wenn das andere Fenster wirklich nicht mehr erreichbar ist.', { name: who }),
+    buttons: [{ label: _t('Trotzdem übernehmen'), value: true, primary: true }, { label: _t('Abbrechen'), value: false }] });
+  if (!ok) return;
+  try { await becomeEditor(await api(PP('/lock/force'), { method: 'POST', body: { holder: holderName() } }), _t('Du bearbeitest das Projekt jetzt.')); }
+  catch (e) { toast(e.message, 6000); pollRequest(); }
+}
+function askName() {
+  return new Promise((resolve) => {
+    const el = document.createElement('div'); el.className = 'busy'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    el.innerHTML = `<form class="card"><h2>${_t('Wie heißt du?')}</h2><p class="hint">${_t('Damit die andere Person sieht, wer bearbeiten möchte. Bleibt in diesem Browser gespeichert.')}</p>
+      <div class="field"><label for="myname">${_t('Dein Name')}</label><input id="myname" name="name" required maxlength="40" autocomplete="given-name"></div>
+      <div class="row"><button class="btn primary" type="submit">${_t('Weiter')}</button><button class="btn" type="button" data-cancel>${_t('Abbrechen')}</button></div></form>`;
+    const done = (v) => { el.remove(); resolve(v); };
+    el.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); const v = el.querySelector('#myname').value.trim(); if (!v) return; try { localStorage.setItem('lj-name', v); } catch (err) { /* egal */ } done(v); });
+    el.querySelector('[data-cancel]').addEventListener('click', () => done(null));
+    document.body.appendChild(el); el.querySelector('#myname').focus();
+  });
 }
 async function lockLost() {
   if (SVC.readOnly || SVC.checkingLock) return;
@@ -394,8 +480,16 @@ function renderServiceBanner() {
   else {
     const l = SVC.lock;
     b.hidden = false;
+    const q = SVC.request && SVC.request.mine ? SVC.request : null, who = (l && l.holder) || _t('Die andere Person');
+    const state = !q ? _t('Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.')
+      : q.status === 'later' ? _t('{name} gibt in {n} Minuten ab.', { name: who, n: q.minutes || 5 })
+      : q.status === 'declined' ? _t('{name} möchte noch weiterarbeiten.', { name: who })
+      : _t('Angefragt – {name} wird gefragt …', { name: who });
+    const canForce = q && q.status !== 'declined' && q.forceIn === 0;
     b.innerHTML = `<p><b>${_t('Nur ansehen.')}</b> ${l ? esc(_t('{holder} bearbeitet das Projekt in einem anderen Fenster (zuletzt aktiv {ago}).', { holder: l.holder, ago: lockAgo(l) })) : _t('Das Projekt wird gerade woanders bearbeitet.')}
-      ${_t('Sobald es frei ist, geht es hier automatisch weiter; nicht mehr genutzte Sperren laufen nach 2 Minuten ab.')}</p>
+      ${esc(state)}</p>
+      ${!q || q.status === 'declined' ? `<button class="btn small primary" data-act="svcrequest">${q ? _t('Erneut anfragen') : _t('Bearbeitung anfragen')}</button>` : ''}
+      ${canForce ? `<button class="btn small danger" data-act="svcforce">${_t('Trotzdem übernehmen …')}</button>` : ''}
       <button class="btn small" data-act="svcretry">${_t('Jetzt prüfen')}</button>`;
   }
   if (typeof renderAll === 'function' && document.body.dataset.view) document.documentElement.style.setProperty('--top-h', ($('.bar').offsetHeight + ($('#banner').hidden ? 0 : $('#banner').offsetHeight) + (b.hidden ? 0 : b.offsetHeight)) + 'px');
@@ -417,6 +511,8 @@ function serviceCard() {
     <p class="hint">${_t('Fotos liegen in {first} bis {last}. Neue Dateien in diesen Ordnern übernimmt der Abgleich; die Gestaltung steht in {json}, PDFs landen in {export}.',
       { first: code(`${fo.photos}/${fo.months[0]}`), last: code(`${fo.photos}/${fo.months[11]}`), json: code('lichtjahr.json'), export: code(fo.export + '/') })}</p>
     <p class="hint">${state}${missing}</p>
+    <div class="field"><label for="svc-name">${_t('Dein Name')}</label><input id="svc-name" value="${esc(myName())}" maxlength="40" placeholder="${esc(deviceName())}" data-act-change="myname" autocomplete="given-name">
+      <span class="hint">${_t('Zeigt beim gemeinsamen Arbeiten, wer gerade bearbeitet oder anfragt.')}</span></div>
     <div class="row"><button class="btn" data-act="svcscan">${_t('Ordner abgleichen')}</button>${ex ? `<button class="btn" data-act="svcrestore">${ex === 1 ? _t('1 aussortiertes Foto zurückholen') : _t('{n} aussortierte Fotos zurückholen', { n: ex })}</button>` : ''}<button class="btn" data-act="svcswitch">${_t('Anderes Projekt …')}</button></div>
   </section>`;
 }
@@ -520,6 +616,7 @@ function davFields(form, val, year) {
 
 /* ----- Ereignisse ----- */
 function serviceEvents() {
+  for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, () => { SVC.lastInput = Date.now(); }, { capture: true, passive: true });
   document.addEventListener('visibilitychange', () => {
     if (!SVC.pid) return;
     if (document.visibilityState === 'hidden') flushSave();
@@ -532,9 +629,17 @@ function serviceEvents() {
     if (!SVC.pending) api(PP('/lock'), { method: 'DELETE', keepalive: true }).catch(() => {});
   });
 }
+Object.assign(CHANGE_ACTIONS, {
+  myname: (el) => {
+    try { if (el.value.trim()) localStorage.setItem('lj-name', el.value.trim()); else localStorage.removeItem('lj-name'); } catch (e) { /* egal */ }
+    heartbeat();                                     // der neue Name steht gleich in der Sperre
+  },
+});
 Object.assign(ACTIONS, {
   svcscan: () => serviceScan(true),
   svcretry: () => retryLock(),
+  svcrequest: () => requestEditing(),
+  svcforce: () => forceEditing(),
   svcrestore: () => restoreExcluded(),
   svcsuggest: () => {
     const list = Object.values(S.photos).filter(p => p.month < 0 && p.suggested != null);
